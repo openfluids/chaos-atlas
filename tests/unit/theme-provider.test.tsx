@@ -254,7 +254,9 @@ describe('ThemeProvider', () => {
 
   it('respects system theme preference', () => {
     // Mock system theme as dark
-    window.matchMedia.mockImplementation(query => ({
+    // jest.setup.js installs a mock over the real matchMedia, but the DOM lib
+    // still types it as the native function, so reach for the mock explicitly.
+    (window.matchMedia as unknown as jest.Mock).mockImplementation((query: string) => ({
       matches: query === '(prefers-color-scheme: dark)',
       media: query,
       onchange: null,
@@ -448,7 +450,9 @@ describe('ThemeProvider', () => {
 
   it('respects reduced motion preference', () => {
     // Mock reduced motion preference
-    window.matchMedia.mockImplementation(query => ({
+    // jest.setup.js installs a mock over the real matchMedia, but the DOM lib
+    // still types it as the native function, so reach for the mock explicitly.
+    (window.matchMedia as unknown as jest.Mock).mockImplementation((query: string) => ({
       matches: query === '(prefers-reduced-motion: reduce)',
       media: query,
       onchange: null,

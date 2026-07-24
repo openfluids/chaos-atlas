@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
+import { ThemeConfiguration } from '@/lib/themes/theme-types';
 import { ThemeProvider } from '@/components/themes/theme-provider';
 import { ThemeSwitcher } from '@/components/themes/theme-switcher';
 import { NeonButton } from '@/components/themes/neon-button';
@@ -51,7 +52,11 @@ const errorTestThemes = [
       // Missing other required colors
     },
   },
-];
+  // The second entry is deliberately malformed — these tests exist to prove the
+  // provider degrades gracefully on bad config. The cast is what lets an
+  // intentionally invalid fixture reach a typed prop; it does not change any
+  // runtime behaviour under test.
+] as unknown as ThemeConfiguration[];
 
 describe('Theme Error Handling Tests', () => {
   beforeEach(() => {
@@ -306,7 +311,7 @@ describe('Theme Error Handling Tests', () => {
   });
 
   it('handles memory leak protection', () => {
-    const components = [];
+    const components: Array<() => void> = [];
 
     expect(() => {
       for (let i = 0; i < 1000; i++) {
@@ -342,6 +347,11 @@ describe('Theme Error Handling Tests', () => {
     expect(() => {
       render(
         <ThemeProvider themes={errorTestThemes}>
+          {/* Invalid variant/size are the point of this test: the component must
+              fall back rather than crash. ts-expect-error asserts the props are
+              genuinely off-contract, so if the union ever widens to accept them
+              this line fails and the test is revisited. */}
+          {/* @ts-expect-error - deliberately invalid prop values */}
           <NeonButton variant="invalid-variant" as="invalid-element" size="invalid-size">
             Invalid Props Button
           </NeonButton>

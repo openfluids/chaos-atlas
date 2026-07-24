@@ -5,13 +5,23 @@ import { ThemeSwitcher } from '@/components/themes/theme-switcher';
 import { NeonButton } from '@/components/themes/neon-button';
 
 // Mock axe-core for accessibility testing
+interface AxeResults {
+  violations: unknown[];
+  passes: string[];
+  incomplete: unknown[];
+  inapplicable: unknown[];
+}
+
 const mockAxe = {
-  run: jest.fn(() => Promise.resolve({
-    violations: [],
-    passes: [],
-    incomplete: [],
-    inapplicable: [],
-  })),
+  run: jest.fn(
+    (_context?: Element | Document): Promise<AxeResults> =>
+      Promise.resolve({
+        violations: [],
+        passes: [],
+        incomplete: [],
+        inapplicable: [],
+      })
+  ),
 };
 
 // Mock matchMedia for accessibility testing

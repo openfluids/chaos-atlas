@@ -357,7 +357,7 @@ test.describe('Interactive Features - E2E Tests', () => {
     const svg = page.locator('svg').first();
     if (await svg.isVisible()) {
       for (let i = 0; i < 3; i++) {
-        await page.hover(svg);
+        await svg.hover();
         await page.mouse.wheel(0, -100);
         await page.waitForTimeout(200);
         await page.mouse.wheel(0, 100);

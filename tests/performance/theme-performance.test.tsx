@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react';
+import { ThemeConfiguration } from '@/lib/themes/theme-types';
 import { ThemeProvider } from '@/components/themes/theme-provider';
 import { ThemeSwitcher } from '@/components/themes/theme-switcher';
 import { NeonButton } from '@/components/themes/neon-button';
@@ -496,12 +497,14 @@ describe('Theme Performance Tests', () => {
   });
 
   it('efficiently handles theme validation', () => {
+    // Deliberately incomplete themes: this measures the cost of validating and
+    // rejecting bad config, so the fixture must stay off-contract.
     const invalidThemes = Array.from({ length: 100 }, (_, i) => ({
       themeId: `invalid-${i}`,
       name: `Invalid Theme ${i}`,
       // Missing required properties
       colors: {},
-    }));
+    })) as unknown as ThemeConfiguration[];
 
     const renderTime = measureRenderTime(() => {
       render(
