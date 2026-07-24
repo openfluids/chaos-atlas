@@ -1,6 +1,41 @@
+# Grouped so each ecosystem produces at most one PR per week rather than one per
+# dependency, and auto-merged by .github/workflows/dependabot-auto-merge.yml once
+# CI passes. open-pull-requests-limit caps how many can ever be open at once.
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      # Patch and minor bumps are safe to batch and auto-merge together.
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      # Majors are grouped separately so they are reviewed, never auto-merged.
+      npm-major:
+        patterns: ["*"]
+        update-types: ["major"]
+
+  - package-ecosystem: pip
+    directory: /python
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      pip-major:
+        patterns: ["*"]
+        update-types: ["major"]

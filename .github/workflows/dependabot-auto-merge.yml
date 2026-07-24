@@ -1,0 +1,47 @@
+# Keeps Dependabot hands-off: minor and patch bumps approve and merge themselves
+# once CI is green, so nothing accumulates in the PR list.
+#
+# Two things must be enabled once on the repository for this to work:
+#   1. Settings > General > "Allow auto-merge"
+#   2. A branch protection (or ruleset) on main requiring the CI checks.
+#      Without a required check, auto-merge merges immediately instead of
+#      waiting for CI — the protection rule is what makes this safe.
+#
+# Major bumps are deliberately left alone for a human to look at.
+name: Dependabot auto-merge
+
+on: pull_request_target
+
+permissions:
+  contents: read
+
+jobs:
+  auto-merge:
+    # pull_request_target runs with write access, so gate on the actor before
+    # anything else. Dependabot PRs only.
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b # v2.4.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge
+        if: steps.metadata.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
