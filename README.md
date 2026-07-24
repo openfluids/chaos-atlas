@@ -2,7 +2,7 @@
 
 Interactive web application for exploring chaotic dynamical systems. Visualize strange attractors, bifurcation diagrams, cobweb plots, Lyapunov exponents, and spatiotemporal patterns across 10 iterated maps and coupled map lattices.
 
-**Live demo:** [ricardofrantz.github.io/chaos-atlas](https://ricardofrantz.github.io/chaos-atlas/)
+**Live demo:** [openfluids.github.io/chaos-atlas](https://openfluids.github.io/chaos-atlas/)
 
 **Topics:** #chaos-theory #dynamical-systems #strange-attractors #bifurcation-diagrams #coupled-map-lattices #lyapunov-exponents #fractal-geometry #nextjs #d3js #react
 
@@ -46,6 +46,26 @@ Side-by-side comparison of any maps with synchronized parameters, time series an
 - **Space-time heatmaps** — CML spatiotemporal evolution
 - **Fractal rendering** — pixel-level canvas computation for Julia/Mandelbrot sets
 
+## Python package
+
+The map kernels are also published as a standalone Python package, so the same
+systems can be driven from a script or notebook without the browser.
+
+```bash
+pip install chaos-atlas
+```
+
+```python
+from chaos_atlas.maps import logistic, henon
+from chaos_atlas import cml
+
+r, x = logistic.bifurcation(r_min=2.5, r_max=4.0, r_steps=2000)
+points = henon.attractor(a=1.4, b=0.3, iterations=10_000)
+spacetime = cml.diffusive(r=3.9, epsilon=0.4, lattice_size=256, time_steps=512)
+```
+
+Source and full API in [`python/`](python/).
+
 ## Getting Started
 
 ### Prerequisites
@@ -56,7 +76,7 @@ Side-by-side comparison of any maps with synchronized parameters, time series an
 ### Install and Run
 
 ```bash
-git clone https://github.com/ricardofrantz/chaos-atlas.git
+git clone https://github.com/openfluids/chaos-atlas.git
 cd chaos-atlas
 npm install
 npm run dev
@@ -115,4 +135,9 @@ tests/                   # 184 tests (unit, integration, a11y, e2e)
 
 ## License
 
-MIT
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+Copyright 2026 Ricardo A S Frantz.
+
+Releases up to and including v0.1.0 were documented in this README as MIT-licensed;
+that grant is not withdrawn for code obtained under it. Apache-2.0 applies from v0.1.0 onward.

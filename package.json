@@ -2,6 +2,29 @@
   "name": "chaos-atlas",
   "version": "0.1.0",
   "private": true,
+  "description": "Interactive explorer for chaotic dynamical systems, strange attractors, bifurcations, Lyapunov exponents, fractals, and coupled-map lattice spatiotemporal patterns",
+  "homepage": "https://openfluids.github.io/chaos-atlas/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openfluids/chaos-atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/openfluids/chaos-atlas/issues"
+  },
+  "license": "Apache-2.0",
+  "author": "Ricardo A S Frantz <rasfrantz@gmail.com>",
+  "keywords": [
+    "chaos-theory",
+    "dynamical-systems",
+    "strange-attractors",
+    "bifurcation-diagrams",
+    "coupled-map-lattices",
+    "lyapunov-exponents",
+    "fractal-geometry",
+    "nextjs",
+    "d3js",
+    "react"
+  ],
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -6,6 +6,7 @@
 
 # Testing
 /coverage
+/.jest-cache
 
 # Next.js
 /.next/
@@ -44,7 +45,20 @@ next-env.d.ts
 agents.md
 CLAUDE.md
 TODO.md
+plan.md
 plan_*.md
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
 
 # Test reports
 playwright-report/
