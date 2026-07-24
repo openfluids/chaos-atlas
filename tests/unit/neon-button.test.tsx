@@ -124,7 +124,10 @@ describe('NeonButton', () => {
       </NeonButton>
     );
 
-    const button = screen.getByRole('button', { name: 'Loading, please wait' });
+    // The button keeps its own accessible name while loading; aria-busy carries
+    // the state. Overriding the name would make concurrent loading buttons
+    // indistinguishable to screen readers and break voice control.
+    const button = screen.getByRole('button', { name: 'Loading Button' });
     expect(button).toBeInTheDocument();
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
@@ -138,7 +141,7 @@ describe('NeonButton', () => {
       </NeonButton>
     );
 
-    const button = screen.getByRole('button', { name: 'Loading, please wait' });
+    const button = screen.getByRole('button', { name: 'Loading Button' });
     await user.click(button);
 
     expect(mockOnClick).not.toHaveBeenCalled();
@@ -376,7 +379,7 @@ describe('NeonButton', () => {
       </NeonButton>
     );
 
-    const button = screen.getByRole('button', { name: 'Loading, please wait' });
+    const button = screen.getByRole('button', { name: 'Loading ARIA Button' });
     expect(button).toHaveAttribute('aria-busy', 'true');
   });
 

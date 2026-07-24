@@ -437,7 +437,7 @@ describe('Theme Visual Regression Tests', () => {
       </ThemeProvider>
     );
 
-    const loadingButton = screen.getByRole('button', { name: 'Loading, please wait' });
+    const loadingButton = screen.getByRole('button', { name: 'Loading Button' });
     const disabledButton = screen.getByRole('button', { name: 'Disabled Button' });
 
     expect(loadingButton).toHaveAttribute('aria-busy', 'true');

@@ -125,11 +125,14 @@ const NeonButton = forwardRef<HTMLButtonElement, NeonButtonProps>(
     onClick?.(event);
   }, [disabled, loading, onClick]);
 
-    // Generate accessibility attributes
+    // Generate accessibility attributes.
+    // aria-busy alone conveys the loading state. Setting aria-label while loading
+    // would *replace* the button's accessible name, so several loading buttons
+    // would announce identically and voice control could no longer target them
+    // by their visible label.
     const accessibilityProps = {
       'aria-disabled': disabled,
       'aria-busy': loading,
-      'aria-label': loading ? 'Loading, please wait' : undefined,
     };
 
     return (

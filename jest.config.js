@@ -9,6 +9,10 @@ const createJestConfig = nextJest({
 const customJestConfig = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
   testEnvironment: 'jsdom',
+  // Keep the transform cache inside the repo. Jest's default lives under the
+  // system temp dir, which is unwritable in sandboxed and hardened CI runners
+  // and fails the whole suite with "UNKNOWN: unknown error, write".
+  cacheDirectory: '<rootDir>/.jest-cache',
   testPathIgnorePatterns: [
     '<rootDir>/.next/',
     '<rootDir>/node_modules/',

@@ -322,7 +322,7 @@ describe('Theme Switching Integration', () => {
       </ThemeProvider>
     );
 
-    const loadingButton = screen.getByRole('button', { name: 'Loading, please wait' });
+    const loadingButton = screen.getByRole('button', { name: 'Loading Button' });
     expect(loadingButton).toHaveAttribute('aria-busy', 'true');
 
     // Switch theme while button is loading
