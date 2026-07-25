@@ -198,44 +198,63 @@ export function calculateTinkerbellFixedPoints(
   const { a, b, c, d } = params;
   const fixedPoints: TinkerbellPoint[] = [];
 
-  // Solve the fixed point equations numerically
-  // x = x² - y² + a·x + b·y
-  // y = 2·x·y + c·x + d·y
+  // Fixed points solve G(x, y) = f(x, y) - (x, y) = 0:
+  //   x² - y² + (a-1)·x + b·y = 0
+  //   2·x·y + c·x + (d-1)·y = 0
+  //
+  // These are repelling for the parameters that produce the classic
+  // attractor, so simply iterating the map cannot reach them -- an orbit
+  // started nearby runs away. Newton's method on G converges regardless of
+  // stability, which is the whole reason to use it here.
+  //
+  //   J_G = J_f - I = [[2x + a - 1,  -2y + b   ],
+  //                    [2y + c,       2x + d - 1]]
 
-  // Simplified: check for origin (0,0) which is often a fixed point
-  const originTest = calculateTinkerbellIteration({ x: 0, y: 0 }, params);
-  if (Math.abs(originTest.x) < 1e-10 && Math.abs(originTest.y) < 1e-10) {
-    fixedPoints.push({ x: 0, y: 0 });
-  }
+  const newton = (guess: TinkerbellPoint): TinkerbellPoint | null => {
+    let { x, y } = guess;
 
-  // Use Newton's method to find other fixed points
-  const initialGuesses = [
-    { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
-    { x: 0.5, y: 0.5 }, { x: -0.5, y: -0.5 }, { x: 1, y: 1 }, { x: -1, y: -1 }
-  ];
+    for (let iter = 0; iter < 100; iter++) {
+      const gx = x * x - y * y + (a - 1) * x + b * y;
+      const gy = 2 * x * y + c * x + (d - 1) * y;
 
-  for (const guess of initialGuesses) {
-    let currentPoint = { ...guess };
-
-    for (let iter = 0; iter < 50; iter++) {
-      const next = calculateTinkerbellIteration(currentPoint, params);
-      const dx = next.x - currentPoint.x;
-      const dy = next.y - currentPoint.y;
-
-      if (Math.abs(dx) < 1e-10 && Math.abs(dy) < 1e-10) {
-        // Check if this is a new fixed point
-        const isUnique = !fixedPoints.some(fp =>
-          Math.abs(fp.x - currentPoint.x) < 1e-6 && Math.abs(fp.y - currentPoint.y) < 1e-6
-        );
-
-        if (isUnique) {
-          fixedPoints.push({ ...currentPoint });
-        }
-        break;
+      if (Math.abs(gx) < 1e-12 && Math.abs(gy) < 1e-12) {
+        return { x, y };
       }
 
-      currentPoint = next;
+      const j11 = 2 * x + a - 1;
+      const j12 = -2 * y + b;
+      const j21 = 2 * y + c;
+      const j22 = 2 * x + d - 1;
+
+      const det = j11 * j22 - j12 * j21;
+      if (Math.abs(det) < 1e-14) return null; // singular; this guess is a dead end
+
+      x -= (j22 * gx - j12 * gy) / det;
+      y -= (-j21 * gx + j11 * gy) / det;
+
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
     }
+
+    return null;
+  };
+
+  // The origin solves both equations identically for every parameter set,
+  // since every term carries a factor of x or y.
+  const guesses: TinkerbellPoint[] = [
+    { x: 0, y: 0 },
+    { x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 },
+    { x: 0.5, y: 0.5 }, { x: -0.5, y: -0.5 }, { x: 1, y: 1 }, { x: -1, y: -1 },
+    { x: -1.5, y: 0.5 }, { x: 1.5, y: -0.5 }, { x: -0.2, y: -0.8 }
+  ];
+
+  for (const guess of guesses) {
+    const root = newton(guess);
+    if (!root) continue;
+
+    const isUnique = !fixedPoints.some(
+      fp => Math.abs(fp.x - root.x) < 1e-6 && Math.abs(fp.y - root.y) < 1e-6
+    );
+    if (isUnique) fixedPoints.push(root);
   }
 
   return fixedPoints;

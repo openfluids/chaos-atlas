@@ -157,10 +157,6 @@ export function calculateBakersImageScrambling(
           y: currentPoint.y
         });
 
-        // Find corresponding pixel in the grid
-        const newX = Math.floor(transformedPoint.x * width) % width;
-        const newY = Math.floor(transformedPoint.y * height);
-
         row.push({
           x: transformedPoint.x,
           y: transformedPoint.y,

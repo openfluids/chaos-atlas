@@ -169,48 +169,6 @@ export function calculateMandelbrotSet(
 }
 
 /**
- * Calculate Julia set boundary points for a given parameter
- * @param c Complex parameter
- * @param numPoints Number of boundary points to estimate
- * @param maxIterations Maximum iterations
- * @returns Array of boundary points
- */
-export function calculateJuliaSetBoundary(
-  c: ComplexNumber,
-  numPoints: number = 1000,
-  maxIterations: number = 100
-): ComplexPoint[] {
-  const boundaryPoints: ComplexPoint[] = [];
-  const angleStep = (2 * Math.PI) / numPoints;
-
-  for (let i = 0; i < numPoints; i++) {
-    const angle = i * angleStep;
-    const radius = 2; // Start from escape radius
-    const z = new ComplexNumber(radius * Math.cos(angle), radius * Math.sin(angle));
-
-    // Iterate backwards to estimate boundary
-    let currentZ = z;
-    for (let j = 0; j < 50; j++) {
-      // Inverse iteration: z = sqrt(z - c)
-      const tempZ = currentZ.add(c.multiply(new ComplexNumber(-1, 0)));
-      const magnitude = Math.sqrt(tempZ.magnitude());
-      const currentAngle = Math.atan2(tempZ.imag, tempZ.real);
-
-      currentZ = new ComplexNumber(
-        Math.sqrt(magnitude) * Math.cos(currentAngle / 2),
-        Math.sqrt(magnitude) * Math.sin(currentAngle / 2)
-      );
-    }
-
-    if (currentZ.magnitude() < 2) {
-      boundaryPoints.push({ real: currentZ.real, imag: currentZ.imag });
-    }
-  }
-
-  return boundaryPoints;
-}
-
-/**
  * Generate interesting Julia set parameters
  * @returns Array of well-known Julia set parameters
  */

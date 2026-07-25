@@ -1,10 +1,7 @@
 import {
   calculateLogisticMapWrapper,
   calculateHenonMapWrapper,
-  calculateStandardMapWrapper,
   calculateTentMapWrapper,
-  calculateBakersMapWrapper,
-  calculateArnoldMapWrapper,
   calculateIkedaMapWrapper,
   calculateTinkerbellMapWrapper,
   calculateDuffingMapWrapper,
