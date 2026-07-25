@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import Link from 'next/link';
 
 import {
@@ -193,9 +193,14 @@ const ComparativeAnalysis: React.FC = () => {
   const [iterations, setIterations] = useState(1000);
   const [syncParams, setSyncParams] = useState(false);
   const [sharedParam, setSharedParam] = useState('r');
-  const [comparisonData, setComparisonData] = useState<Record<string, ComparativeMapSeries>>({});
+  // Bumped by the Recalculate button so an explicit request re-runs the
+  // computation even though the inputs are unchanged.
+  const [recalcNonce, setRecalcNonce] = useState(0);
 
-  const calculateComparisonData = () => {
+  // Derived from the controls below, so it is computed during render rather
+  // than written into state by an effect. Effect-plus-state costs an extra
+  // render and leaves one frame showing the previous selection's series.
+  const comparisonData = useMemo<Record<string, ComparativeMapSeries>>(() => {
     const data: Record<string, ComparativeMapSeries> = {};
 
     selectedMaps.forEach(mapId => {
@@ -224,12 +229,8 @@ const ComparativeAnalysis: React.FC = () => {
       }
     });
 
-    setComparisonData(data);
-  };
-
-  useEffect(() => {
-    calculateComparisonData();
-  }, [selectedMaps, iterations, syncParams, sharedParam]);
+    return data;
+  }, [selectedMaps, iterations, syncParams, sharedParam, recalcNonce]);
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
@@ -350,7 +351,7 @@ const ComparativeAnalysis: React.FC = () => {
             </p>
             <button
               id="recalculate-btn"
-              onClick={calculateComparisonData}
+              onClick={() => setRecalcNonce(n => n + 1)}
               className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg transition-colors"
             >
               Recalculate

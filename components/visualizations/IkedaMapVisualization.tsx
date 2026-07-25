@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
+import { useHydrated } from '@/hooks/useHydrated';
 import {
   calculateIkedaMap,
   calculateIkedaAttractor,
@@ -18,10 +19,13 @@ const IkedaMapVisualization: React.FC = () => {
   const [iterations, setIterations] = useState(2000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b' | 'c' | 'd'>('b');
-  const [lyapunovExponents, setLyapunovExponents] = useState<{ lambda1: number; lambda2: number } | null>(null);
   const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  // Lyapunov exponents come from a chaotic iteration whose result can differ
+  // in the last ULP between the build-time and browser JS engines, so they are
+  // rendered only after hydration. See hooks/useHydrated.
+  const hydrated = useHydrated();
   const animationRef = useRef<NodeJS.Timeout | null>(null);
 
   const width = 600;
@@ -29,6 +33,13 @@ const IkedaMapVisualization: React.FC = () => {
 
   const parameters = useMemo(() => getInterestingIkedaParameters(), []);
   const currentParams = parameters[selectedParams];
+
+  // Pure function of currentParams, so derived during render instead of being
+  // written into state by an effect.
+  const lyapunovExponents = useMemo(
+    () => calculateIkedaLyapunovExponents(currentParams.params, 2000),
+    [currentParams]
+  );
 
   // Animation control
   useEffect(() => {
@@ -49,108 +60,6 @@ const IkedaMapVisualization: React.FC = () => {
     };
   }, [isAnimating, visualizationType, iterations]);
 
-  // Calculate Lyapunov exponents
-  useEffect(() => {
-    const le = calculateIkedaLyapunovExponents(currentParams.params, 2000);
-    setLyapunovExponents(le);
-  }, [selectedParams]);
-
-  useEffect(() => {
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
-
-    // Render based on visualization type
-    if (visualizationType === 'attractor') {
-      renderAttractor(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'time') {
-      renderTimeEvolution(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'bifurcation') {
-      renderBifurcation(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'phase') {
-      renderPhasePortrait(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'spectrum') {
-      renderPowerSpectrum(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'return') {
-      renderReturnMap(g, innerWidth, innerHeight);
-    }
-
-    // Add axes for appropriate visualizations
-    if (visualizationType !== 'spectrum') {
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(
-          visualizationType === 'spectrum' ?
-          d3.scaleLinear().domain([0, 0.5]).range([0, innerWidth]) :
-          d3.scaleLinear().domain([-2, 2]).range([0, innerWidth])
-        ))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(
-          visualizationType === 'spectrum' ?
-          d3.scaleLinear().domain([0, 1]).range([innerHeight, 0]) :
-          d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0])
-        ))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      // Add axis labels
-      const xLabel = visualizationType === 'time' ? 'Time' :
-                     visualizationType === 'bifurcation' ? 'Parameter Value' :
-                     visualizationType === 'spectrum' ? 'Frequency' : 'x';
-      const yLabel = visualizationType === 'time' ? 'Value' :
-                     visualizationType === 'spectrum' ? 'Power' : 'y';
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(xLabel);
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(yLabel);
-    }
-
-    // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
-
-  }, [selectedParams, iterations, visualizationType, bifurcationParam, animationStep]);
 
   const renderAttractor = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                           innerWidth: number, innerHeight: number) => {
@@ -408,6 +317,103 @@ const IkedaMapVisualization: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    // Clear previous visualization
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const svg = d3.select(svgRef.current);
+
+    // Set margins
+    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    // Create a group element for the visualization
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Add background
+    g.append('rect')
+      .attr('width', innerWidth)
+      .attr('height', innerHeight)
+      .attr('fill', 'rgba(0, 0, 0, 0.1)')
+      .attr('rx', 5);
+
+    // Render based on visualization type
+    if (visualizationType === 'attractor') {
+      renderAttractor(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'time') {
+      renderTimeEvolution(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'bifurcation') {
+      renderBifurcation(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'phase') {
+      renderPhasePortrait(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'spectrum') {
+      renderPowerSpectrum(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'return') {
+      renderReturnMap(g, innerWidth, innerHeight);
+    }
+
+    // Add axes for appropriate visualizations
+    if (visualizationType !== 'spectrum') {
+      g.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(
+          visualizationType === 'spectrum' ?
+          d3.scaleLinear().domain([0, 0.5]).range([0, innerWidth]) :
+          d3.scaleLinear().domain([-2, 2]).range([0, innerWidth])
+        ))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('g')
+        .call(d3.axisLeft(
+          visualizationType === 'spectrum' ?
+          d3.scaleLinear().domain([0, 1]).range([innerHeight, 0]) :
+          d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0])
+        ))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      // Add axis labels
+      const xLabel = visualizationType === 'time' ? 'Time' :
+                     visualizationType === 'bifurcation' ? 'Parameter Value' :
+                     visualizationType === 'spectrum' ? 'Frequency' : 'x';
+      const yLabel = visualizationType === 'time' ? 'Value' :
+                     visualizationType === 'spectrum' ? 'Power' : 'y';
+
+      g.append('text')
+        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text(xLabel);
+
+      g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (innerHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text(yLabel);
+    }
+
+    // Add title
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', 0 - 10)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-primary)')
+      .style('font-size', '18px')
+      .style('font-weight', 'bold')
+      .text(getVisualizationTitle());
+
+  }, [selectedParams, iterations, visualizationType, bifurcationParam, animationStep]);
+
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Ikeda Map Visualization</h3>
@@ -494,7 +500,7 @@ const IkedaMapVisualization: React.FC = () => {
           )}
 
           {/* Lyapunov Exponents Display */}
-          {lyapunovExponents && (
+          {hydrated && lyapunovExponents && (
             <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
               <p className="text-sm font-medium text-cyan-400 mb-1">Lyapunov Exponents:</p>
               <p className="text-xs text-gray-300">

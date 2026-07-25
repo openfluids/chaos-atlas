@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
+import { useHydrated } from '@/hooks/useHydrated';
 import {
   calculateTentMap,
   calculateTentCobweb,
@@ -16,120 +17,21 @@ const TentMapVisualization: React.FC = () => {
   const [x0, setX0] = useState(0.4);
   const [iterations, setIterations] = useState(50);
   const [visualizationType, setVisualizationType] = useState('cobweb');
-  const [lyapunovExponent, setLyapunovExponent] = useState<number | null>(null);
+  // Derived from alpha and x0, so it is computed during render rather than
+  // pushed into state from an effect. Storing it would add a second render pass
+  // and leave one frame showing a stale exponent for the new parameters.
+  const lyapunovExponent = useMemo(
+    () => calculateTentLyapunovExponent(alpha, x0, 1000),
+    [alpha, x0]
+  );
   const svgRef = useRef<SVGSVGElement>(null);
+  // Lyapunov exponents come from a chaotic iteration whose result can differ
+  // in the last ULP between the build-time and browser JS engines, so they are
+  // rendered only after hydration. See hooks/useHydrated.
+  const hydrated = useHydrated();
 
   const width = 600;
   const height = 400;
-
-  useEffect(() => {
-    // Calculate Lyapunov exponent
-    const le = calculateTentLyapunovExponent(alpha, x0, 1000);
-    setLyapunovExponent(le);
-  }, [alpha, x0]);
-
-  useEffect(() => {
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
-
-    // Create scales
-    let xScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([0, innerWidth]);
-
-    let yScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([innerHeight, 0]);
-
-    // Render based on visualization type
-    if (visualizationType === 'cobweb') {
-      renderCobweb(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'time') {
-      const timeScale = d3.scaleLinear()
-        .domain([0, iterations])
-        .range([0, innerWidth]);
-      renderTimeSeries(g, innerWidth, innerHeight, timeScale, yScale);
-    } else if (visualizationType === 'bifurcation') {
-      const alphaScale = d3.scaleLinear()
-        .domain([0.5, 2.0])
-        .range([0, innerWidth]);
-      renderBifurcation(g, innerWidth, innerHeight, alphaScale, yScale);
-      xScale = alphaScale; // Update for axis
-    } else if (visualizationType === 'density') {
-      renderInvariantDensity(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'symbolic') {
-      renderSymbolicDynamics(g, innerWidth, innerHeight, xScale);
-    }
-
-    // Add axes
-    if (visualizationType !== 'symbolic') {
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-    }
-
-    // Add axis labels
-    const xLabel = visualizationType === 'time' ? 'Iteration' :
-                   visualizationType === 'bifurcation' ? 'Parameter α' : 'x';
-    const yLabel = visualizationType === 'density' ? 'Density' : 'y';
-
-    g.append('text')
-      .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-      .style('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '14px')
-      .text(xLabel);
-
-    if (visualizationType !== 'symbolic') {
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(yLabel);
-    }
-
-    // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
-
-  }, [alpha, x0, iterations, visualizationType]);
 
   const renderCobweb = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                        innerWidth: number, innerHeight: number,
@@ -304,6 +206,109 @@ const TentMapVisualization: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    // Clear previous visualization
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const svg = d3.select(svgRef.current);
+
+    // Set margins
+    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    // Create a group element for the visualization
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Add background
+    g.append('rect')
+      .attr('width', innerWidth)
+      .attr('height', innerHeight)
+      .attr('fill', 'rgba(0, 0, 0, 0.1)')
+      .attr('rx', 5);
+
+    // Create scales
+    let xScale = d3.scaleLinear()
+      .domain([0, 1])
+      .range([0, innerWidth]);
+
+    let yScale = d3.scaleLinear()
+      .domain([0, 1])
+      .range([innerHeight, 0]);
+
+    // Render based on visualization type
+    if (visualizationType === 'cobweb') {
+      renderCobweb(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'time') {
+      const timeScale = d3.scaleLinear()
+        .domain([0, iterations])
+        .range([0, innerWidth]);
+      renderTimeSeries(g, innerWidth, innerHeight, timeScale, yScale);
+    } else if (visualizationType === 'bifurcation') {
+      const alphaScale = d3.scaleLinear()
+        .domain([0.5, 2.0])
+        .range([0, innerWidth]);
+      renderBifurcation(g, innerWidth, innerHeight, alphaScale, yScale);
+      xScale = alphaScale; // Update for axis
+    } else if (visualizationType === 'density') {
+      renderInvariantDensity(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'symbolic') {
+      renderSymbolicDynamics(g, innerWidth, innerHeight, xScale);
+    }
+
+    // Add axes
+    if (visualizationType !== 'symbolic') {
+      g.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('g')
+        .call(d3.axisLeft(yScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+    }
+
+    // Add axis labels
+    const xLabel = visualizationType === 'time' ? 'Iteration' :
+                   visualizationType === 'bifurcation' ? 'Parameter α' : 'x';
+    const yLabel = visualizationType === 'density' ? 'Density' : 'y';
+
+    g.append('text')
+      .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
+      .style('text-anchor', 'middle')
+      .style('fill', 'var(--text-primary)')
+      .style('font-size', '14px')
+      .text(xLabel);
+
+    if (visualizationType !== 'symbolic') {
+      g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (innerHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text(yLabel);
+    }
+
+    // Add title
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', 0 - 10)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-primary)')
+      .style('font-size', '18px')
+      .style('font-weight', 'bold')
+      .text(getVisualizationTitle());
+
+  }, [alpha, x0, iterations, visualizationType]);
+
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Tent Map Visualization</h3>
@@ -374,7 +379,7 @@ const TentMapVisualization: React.FC = () => {
           </div>
 
           {/* Lyapunov Exponent Display */}
-          {lyapunovExponent !== null && (
+          {hydrated && lyapunovExponent !== null && (
             <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
               <p className="text-sm text-gray-300">
                 <span className="font-medium text-cyan-400">Lyapunov Exponent:</span> {lyapunovExponent.toFixed(4)}

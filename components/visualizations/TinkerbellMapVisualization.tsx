@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
+import { useHydrated } from '@/hooks/useHydrated';
 import {
   calculateTinkerbellMap,
   calculateTinkerbellAttractor,
@@ -19,118 +20,32 @@ const TinkerbellMapVisualization: React.FC = () => {
   const [iterations, setIterations] = useState(2000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b' | 'c' | 'd'>('a');
-  const [lyapunovExponents, setLyapunovExponents] = useState<{ lambda1: number; lambda2: number } | null>(null);
-  const [fixedPoints, setFixedPoints] = useState<{ x: number; y: number }[]>([]);
   const svgRef = useRef<SVGSVGElement>(null);
+  // Lyapunov exponents come from a chaotic iteration whose result can differ
+  // in the last ULP between the build-time and browser JS engines, so they are
+  // rendered only after hydration. See hooks/useHydrated.
+  const hydrated = useHydrated();
 
   const width = 600;
   const height = 400;
 
-  const parameters = getInterestingTinkerbellParameters();
+  // Memoized so currentParams keeps a stable identity across renders; a fresh
+  // call each render would give the useMemo deps below a new object every
+  // time and defeat them.
+  const parameters = useMemo(() => getInterestingTinkerbellParameters(), []);
   const currentParams = parameters[selectedParams];
 
-  // Calculate Lyapunov exponents and fixed points
-  useEffect(() => {
-    const le = calculateTinkerbellLyapunovExponents(currentParams.params, 2000);
-    setLyapunovExponents(le);
-
-    const fp = calculateTinkerbellFixedPoints(currentParams.params);
-    setFixedPoints(fp);
-  }, [currentParams]);
-
-  useEffect(() => {
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
-
-    // Render based on visualization type
-    if (visualizationType === 'attractor') {
-      renderAttractor(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'basin') {
-      renderBasinOfAttraction(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'bifurcation') {
-      renderBifurcation(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'crisis') {
-      renderCrisisBehavior(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'return') {
-      renderReturnMap(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'fixed') {
-      renderFixedPoints(g, innerWidth, innerHeight);
-    }
-
-    // Add axes for appropriate visualizations
-    if (visualizationType !== 'crisis') {
-      const xDomain = visualizationType === 'bifurcation' ?
-        [bifurcationParam === 'a' ? 0.3 : bifurcationParam === 'b' ? -1.0 : 1.5,
-         bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : [-2, 2];
-      const yDomain = visualizationType === 'bifurcation' ? [-2, 2] : [-2, 2];
-
-      const xScale = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
-
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      // Add axis labels
-      const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}` : 'x';
-      const yLabel = visualizationType === 'bifurcation' ? 'y' : 'y';
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(xLabel);
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(yLabel);
-    }
-
-    // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
-
-  }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
+  // Both are pure functions of currentParams, so they are derived during
+  // render instead of being pushed into state by an effect. State here would
+  // cost an extra render pass and briefly show values for the old parameters.
+  const lyapunovExponents = useMemo(
+    () => calculateTinkerbellLyapunovExponents(currentParams.params, 2000),
+    [currentParams]
+  );
+  const fixedPoints = useMemo(
+    () => calculateTinkerbellFixedPoints(currentParams.params),
+    [currentParams]
+  );
 
   const renderAttractor = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                           innerWidth: number, innerHeight: number) => {
@@ -501,6 +416,100 @@ const TinkerbellMapVisualization: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    // Clear previous visualization
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const svg = d3.select(svgRef.current);
+
+    // Set margins
+    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    // Create a group element for the visualization
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Add background
+    g.append('rect')
+      .attr('width', innerWidth)
+      .attr('height', innerHeight)
+      .attr('fill', 'rgba(0, 0, 0, 0.1)')
+      .attr('rx', 5);
+
+    // Render based on visualization type
+    if (visualizationType === 'attractor') {
+      renderAttractor(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'basin') {
+      renderBasinOfAttraction(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'bifurcation') {
+      renderBifurcation(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'crisis') {
+      renderCrisisBehavior(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'return') {
+      renderReturnMap(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'fixed') {
+      renderFixedPoints(g, innerWidth, innerHeight);
+    }
+
+    // Add axes for appropriate visualizations
+    if (visualizationType !== 'crisis') {
+      const xDomain = visualizationType === 'bifurcation' ?
+        [bifurcationParam === 'a' ? 0.3 : bifurcationParam === 'b' ? -1.0 : 1.5,
+         bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : [-2, 2];
+      const yDomain = visualizationType === 'bifurcation' ? [-2, 2] : [-2, 2];
+
+      const xScale = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
+      const yScale = d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
+
+      g.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('g')
+        .call(d3.axisLeft(yScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      // Add axis labels
+      const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}` : 'x';
+      const yLabel = visualizationType === 'bifurcation' ? 'y' : 'y';
+
+      g.append('text')
+        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text(xLabel);
+
+      g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (innerHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text(yLabel);
+    }
+
+    // Add title
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', 0 - 10)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-primary)')
+      .style('font-size', '18px')
+      .style('font-weight', 'bold')
+      .text(getVisualizationTitle());
+
+  }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
+
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Tinkerbell Map Visualization</h3>
@@ -578,7 +587,7 @@ const TinkerbellMapVisualization: React.FC = () => {
           )}
 
           {/* Lyapunov Exponents Display */}
-          {lyapunovExponents && (
+          {hydrated && lyapunovExponents && (
             <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
               <p className="text-sm font-medium text-cyan-400 mb-1">Lyapunov Exponents:</p>
               <p className="text-xs text-gray-300">

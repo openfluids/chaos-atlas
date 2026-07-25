@@ -162,11 +162,15 @@ export function ThemeProvider({
     }
   }, [resolvedThemeState, theme, themes, storageKey, onThemeChange, applyTheme]);
 
-  // Debounced theme sync
-  const syncTheme = useCallback(
-    debounce((newTheme: string) => {
-      setTheme(newTheme);
-    }, 100),
+  // Debounced theme sync.
+  // useMemo, not useCallback: useCallback expects an inline function and would
+  // receive the already-built debounced wrapper, which means the debounce timer
+  // was rebuilt on every render and never actually debounced.
+  const syncTheme = useMemo(
+    () =>
+      debounce((newTheme: string) => {
+        setTheme(newTheme);
+      }, 100),
     [setTheme]
   );
 

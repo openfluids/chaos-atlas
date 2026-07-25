@@ -48,98 +48,6 @@ const ArnoldMapVisualization: React.FC = () => {
     };
   }, [isAnimating, visualizationType]);
 
-  useEffect(() => {
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
-
-    // Create scales
-    const xScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([0, innerWidth]);
-
-    const yScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([innerHeight, 0]);
-
-    // Render based on visualization type
-    if (visualizationType === 'trajectory') {
-      renderTrajectory(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'grid') {
-      renderGridTransform(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'scrambling') {
-      renderImageScrambling(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'periodic') {
-      renderPeriodicOrbits(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'fibonacci') {
-      renderFibonacciRelation(g, innerWidth, innerHeight, xScale, yScale);
-    } else if (visualizationType === 'properties') {
-      renderMatrixProperties(g, innerWidth, innerHeight);
-    }
-
-    // Add axes for appropriate visualizations
-    if (visualizationType !== 'properties' && visualizationType !== 'fibonacci') {
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      // Add axis labels
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('y');
-    }
-
-    // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
-
-  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep]);
-
   const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                            innerWidth: number, innerHeight: number,
                            xScale: d3.ScaleLinear<number, number>,
@@ -408,6 +316,98 @@ const ArnoldMapVisualization: React.FC = () => {
       setAnimationStep(0);
     }
   };
+
+  useEffect(() => {
+    if (!svgRef.current) return;
+
+    // Clear previous visualization
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const svg = d3.select(svgRef.current);
+
+    // Set margins
+    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
+    const innerWidth = width - margin.left - margin.right;
+    const innerHeight = height - margin.top - margin.bottom;
+
+    // Create a group element for the visualization
+    const g = svg.append('g')
+      .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    // Add background
+    g.append('rect')
+      .attr('width', innerWidth)
+      .attr('height', innerHeight)
+      .attr('fill', 'rgba(0, 0, 0, 0.1)')
+      .attr('rx', 5);
+
+    // Create scales
+    const xScale = d3.scaleLinear()
+      .domain([0, 1])
+      .range([0, innerWidth]);
+
+    const yScale = d3.scaleLinear()
+      .domain([0, 1])
+      .range([innerHeight, 0]);
+
+    // Render based on visualization type
+    if (visualizationType === 'trajectory') {
+      renderTrajectory(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'grid') {
+      renderGridTransform(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'scrambling') {
+      renderImageScrambling(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'periodic') {
+      renderPeriodicOrbits(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'fibonacci') {
+      renderFibonacciRelation(g, innerWidth, innerHeight, xScale, yScale);
+    } else if (visualizationType === 'properties') {
+      renderMatrixProperties(g, innerWidth, innerHeight);
+    }
+
+    // Add axes for appropriate visualizations
+    if (visualizationType !== 'properties' && visualizationType !== 'fibonacci') {
+      g.append('g')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .call(d3.axisBottom(xScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('g')
+        .call(d3.axisLeft(yScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      // Add axis labels
+      g.append('text')
+        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text('x');
+
+      g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - margin.left)
+        .attr('x', 0 - (innerHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text('y');
+    }
+
+    // Add title
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', 0 - 10)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-primary)')
+      .style('font-size', '18px')
+      .style('font-weight', 'bold')
+      .text(getVisualizationTitle());
+
+  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

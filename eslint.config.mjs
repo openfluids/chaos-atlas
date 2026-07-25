@@ -40,19 +40,18 @@ export default [
   },
 
   {
-    // React Compiler diagnostics, new in eslint-config-next 16. They report 55
-    // findings in the visualization components — real patterns, but resolving
-    // them means restructuring how those components build their D3 scenes, which
-    // is a refactor rather than a dependency upgrade. Kept visible as warnings
-    // so the upgrade does not silently raise the bar CI enforces; promote to
-    // 'error' once the components have been reworked.
+    // React Compiler diagnostics, from eslint-config-next 16. All 55 findings
+    // have been resolved, so these are errors: the codebase is clean and should
+    // stay that way. The single justified exception is the hydration guard in
+    // theme-switcher.tsx, disabled inline with its reasoning.
     files: ['**/*.{ts,tsx}'],
     rules: {
-      'react-hooks/immutability': 'warn',
-      'react-hooks/set-state-in-effect': 'warn',
-      'react-hooks/refs': 'warn',
-      'react-hooks/use-memo': 'warn',
-      'react-hooks/preserve-manual-memoization': 'warn',
+      'react-hooks/immutability': 'error',
+      'react-hooks/set-state-in-effect': 'error',
+      'react-hooks/refs': 'error',
+      'react-hooks/use-memo': 'error',
+      'react-hooks/preserve-manual-memoization': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
     },
   },
 ];

@@ -18,7 +18,9 @@ interface InteractiveSVGProps {
   maxScale?: number;
   enablePan?: boolean;
   enableZoom?: boolean;
-  svgRef?: React.RefObject<SVGSVGElement>;
+  // React.Ref rather than RefObject so a callback ref is accepted too; the
+  // merge below has to handle both forms.
+  svgRef?: React.Ref<SVGSVGElement>;
 }
 
 export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
@@ -159,12 +161,13 @@ export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
     }
   }, [enablePan]);
 
-  // Update external ref when svgRef changes
-  useEffect(() => {
-    if (externalRef && internalSvgRef.current) {
-      (externalRef as any).current = internalSvgRef.current;
-    }
-  }, [externalRef, internalSvgRef.current]);
+  // Expose the underlying <svg> on the forwarded ref. The previous version
+  // copied internal to external inside an effect that listed
+  // internalSvgRef.current as a dependency — a mutable value, so mutating it
+  // never re-ran the effect and the external ref could go stale.
+  // useImperativeHandle is the supported way to populate a forwarded ref;
+  // assigning to the prop by hand is a prop mutation.
+  useImperativeHandle(externalRef, () => internalSvgRef.current as SVGSVGElement, []);
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>

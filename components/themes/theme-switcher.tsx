@@ -22,6 +22,11 @@ export function ThemeSwitcher({
   // the client may load a different saved theme — the mounted flag ensures the
   // first render matches the server output exactly.
   const [mounted, setMounted] = useState(false);
+  // This is the one setState-in-effect that cannot be derived during render:
+  // "has hydration finished" is knowable only after the effect runs, and the
+  // whole point is that the first client render must match the server output.
+  // It runs once with an empty dependency array, so there is no cascade.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
 
   const [glowIntensity, setGlowIntensity] = useState(0.8);

@@ -52,6 +52,9 @@ plan_*.md
 *.log
 
 # Python
+# uv.lock stays untracked: chaos-atlas is a library, so pinning a resolution
+# here would only constrain contributors, never consumers.
+uv.lock
 __pycache__/
 *.py[cod]
 .venv/

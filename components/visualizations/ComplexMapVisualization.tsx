@@ -31,10 +31,6 @@ const ComplexMapVisualization: React.FC = () => {
   const juliaParameters = useMemo(() => getInterestingJuliaParameters(), []);
   const mandelbrotLocations = useMemo(() => getInterestingMandelbrotLocations(), []);
 
-  useEffect(() => {
-    renderFractal();
-  }, [visualizationType, selectedJuliaParam, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel]);
-
   const renderFractal = async () => {
     if (!canvasRef.current || isRendering) return;
 
@@ -170,6 +166,10 @@ const ComplexMapVisualization: React.FC = () => {
   };
 
   const info = getCurrentInfo();
+
+  useEffect(() => {
+    renderFractal();
+  }, [visualizationType, selectedJuliaParam, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

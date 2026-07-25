@@ -35,19 +35,6 @@ export const usePlotTransform = ({
   const [transform, setTransform] = useState<ViewTransform>(initialTransform);
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Calculate data bounds based on transform
-  const getDataBounds = useCallback((): PlotBounds => {
-    const dataTopLeft = screenToData(0, 0);
-    const dataBottomRight = screenToData(width, height);
-
-    return {
-      minX: dataTopLeft.x,
-      maxX: dataBottomRight.x,
-      minY: dataTopLeft.y,
-      maxY: dataBottomRight.y,
-    };
-  }, [width, height]);
-
   // Transform coordinates from screen to data space
   const screenToData = useCallback((screenX: number, screenY: number) => {
     if (!svgRef.current) return { x: 0, y: 0 };
@@ -66,6 +53,19 @@ export const usePlotTransform = ({
       y: (svgP.y - transform.y) / transform.scale,
     };
   }, [transform]);
+
+  // Calculate data bounds based on transform
+  const getDataBounds = useCallback((): PlotBounds => {
+    const dataTopLeft = screenToData(0, 0);
+    const dataBottomRight = screenToData(width, height);
+
+    return {
+      minX: dataTopLeft.x,
+      maxX: dataBottomRight.x,
+      minY: dataTopLeft.y,
+      maxY: dataBottomRight.y,
+    };
+  }, [width, height, screenToData]);
 
   // Transform coordinates from data to screen space
   const dataToScreen = useCallback((dataX: number, dataY: number) => {
