@@ -9,6 +9,8 @@ systems interactively.
 
 ## Install
 
+Requires Python 3.14 or newer.
+
 ```bash
 pip install chaos-atlas
 ```
@@ -69,8 +71,9 @@ numerical result to it.
 ## Development
 
 ```bash
-uv venv && uv pip install -e ".[dev]"
-pytest
+uv venv --python 3.14
+uv pip install -e ".[dev]"
+uv run pytest
 ```
 
 ## License

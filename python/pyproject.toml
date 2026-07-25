@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chaos-atlas"
-version = "0.1.0"
+version = "0.2.0"
 description = "Iterated maps, coupled map lattices, and Lyapunov exponents for chaotic dynamical systems"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Ricardo A S Frantz", email = "rasfrantz@gmail.com" }]
@@ -26,10 +26,6 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Scientific/Engineering :: Mathematics",
     "Topic :: Scientific/Engineering :: Physics",
@@ -54,4 +50,4 @@ addopts = "-q"
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py314"
