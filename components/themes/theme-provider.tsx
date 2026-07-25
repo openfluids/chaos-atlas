@@ -262,12 +262,3 @@ export function ThemeProvider({
     </ThemeContext.Provider>
   );
 }
-
-// Export a default provider for convenience
-export const DefaultThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <ThemeProvider>
-      {children}
-    </ThemeProvider>
-  );
-};

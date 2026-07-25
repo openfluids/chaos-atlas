@@ -10,7 +10,6 @@ import {
   calculateArnoldEigenvalues,
   calculateArnoldMatrixProperties,
   calculateArnoldFibonacciRelation,
-  calculateArnoldAreaPreservation,
   calculateArnoldIteration
 } from '@/lib/maps/arnold';
 
@@ -90,8 +89,8 @@ const ArnoldMapVisualization: React.FC = () => {
 
     const renderGridTransform = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                 innerWidth: number, innerHeight: number,
-                                xScale: d3.ScaleLinear<number, number>,
-                                yScale: d3.ScaleLinear<number, number>) => {
+                                _xScale: d3.ScaleLinear<number, number>,
+                                _yScale: d3.ScaleLinear<number, number>) => {
       const data = calculateArnoldGridTransform(gridSize, isAnimating ? animationStep + 1 : gridIterations);
       const cellWidth = innerWidth / gridSize;
       const cellHeight = innerHeight / gridSize;
@@ -183,8 +182,8 @@ const ArnoldMapVisualization: React.FC = () => {
 
     const renderFibonacciRelation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                     innerWidth: number, innerHeight: number,
-                                    xScale: d3.ScaleLinear<number, number>,
-                                    yScale: d3.ScaleLinear<number, number>) => {
+                                    _xScale: d3.ScaleLinear<number, number>,
+                                    _yScale: d3.ScaleLinear<number, number>) => {
       const data = calculateArnoldFibonacciRelation(15);
       const { lambda1 } = calculateArnoldEigenvalues();
 

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '@/components/themes/theme-provider';
 import { ThemeSwitcher } from '@/components/themes/theme-switcher';
@@ -226,9 +226,6 @@ describe('Theme Accessibility Tests', () => {
       </ThemeProvider>
     );
 
-    const button = screen.getByRole('button', { name: 'Reduced Motion Button' });
-    const styles = window.getComputedStyle(button);
-
     // Should detect reduced motion preference
     expect(window.matchMedia).toHaveBeenCalledWith('(prefers-reduced-motion: reduce)');
   });
@@ -247,8 +244,6 @@ describe('Theme Accessibility Tests', () => {
         <NeonButton>High Contrast Button</NeonButton>
       </ThemeProvider>
     );
-
-    const button = screen.getByRole('button', { name: 'High Contrast Button' });
 
     // Should detect high contrast preference
     expect(window.matchMedia).toHaveBeenCalledWith('(prefers-contrast: high)');

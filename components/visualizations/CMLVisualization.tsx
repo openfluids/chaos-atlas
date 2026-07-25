@@ -8,7 +8,6 @@ const CMLVisualization: React.FC = () => {
   const [r, setR] = useState(3.8);
   const [latticeSize, setLatticeSize] = useState(50);
   const [timeSteps, setTimeSteps] = useState(100);
-  const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   
   const width = 600;

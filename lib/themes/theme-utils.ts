@@ -72,11 +72,11 @@ export const defaultThemes: ThemeConfiguration[] = [
 ];
 
 // Color validation utilities
-export function isValidHexColor(color: string): boolean {
+function isValidHexColor(color: string): boolean {
   return /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
 }
 
-export function isValidThemeColors(colors: Partial<ThemeColors>): colors is ThemeColors {
+function isValidThemeColors(colors: Partial<ThemeColors>): colors is ThemeColors {
   const requiredColors: (keyof ThemeColors)[] = [
     'background', 'primary', 'secondary', 'tertiary', 'warning',
     'text', 'textSecondary', 'border', 'glow'
@@ -92,7 +92,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
 
-export function sanitizeTheme(theme: Partial<ThemeConfiguration> | null | undefined): ThemeConfiguration | null {
+function sanitizeTheme(theme: Partial<ThemeConfiguration> | null | undefined): ThemeConfiguration | null {
   try {
     if (!isObject(theme)) {
       console.warn('Invalid theme object provided');
@@ -167,11 +167,11 @@ export function sanitizeThemes(themes: Partial<ThemeConfiguration>[]): ThemeConf
 }
 
 // Theme color utilities
-export function getThemeColor(theme: ThemeConfiguration, colorKey: keyof ThemeColors): string {
+function getThemeColor(theme: ThemeConfiguration, colorKey: keyof ThemeColors): string {
   return theme.colors[colorKey] || defaultThemes[0].colors[colorKey];
 }
 
-export function createGlowEffect(color: string, intensity: number, blurRadius: string, spreadRadius: string): string {
+function createGlowEffect(color: string, intensity: number, blurRadius: string, spreadRadius: string): string {
   return `0 0 ${blurRadius} ${spreadRadius} ${color}${Math.round(intensity * 255).toString(16).padStart(2, '0')}`;
 }
 
@@ -183,39 +183,6 @@ export function getThemeGlow(theme: ThemeConfiguration, colorKey: keyof ThemeCol
     theme.glow.blurRadius,
     theme.glow.spreadRadius
   );
-}
-
-// Contrast ratio calculation for accessibility
-export function getLuminance(hexColor: string): number {
-  const hex = hexColor.replace('#', '');
-  const rgb = {
-    r: parseInt(hex.substr(0, 2), 16) / 255,
-    g: parseInt(hex.substr(2, 2), 16) / 255,
-    b: parseInt(hex.substr(4, 2), 16) / 255,
-  };
-
-  const { r, g, b } = rgb;
-  const luminance = 0.2126 * (r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4)) +
-                     0.7152 * (g <= 0.03928 ? g / 12.92 : Math.pow((g + 0.055) / 1.055, 2.4)) +
-                     0.0722 * (b <= 0.03928 ? b / 12.92 : Math.pow((b + 0.055) / 1.055, 2.4));
-
-  return luminance;
-}
-
-export function getContrastRatio(color1: string, color2: string): number {
-  const lum1 = getLuminance(color1);
-  const lum2 = getLuminance(color2);
-  const brightest = Math.max(lum1, lum2);
-  const darkest = Math.min(lum1, lum2);
-  return (brightest + 0.05) / (darkest + 0.05);
-}
-
-export function meetsWCAGAA(foreground: string, background: string): boolean {
-  return getContrastRatio(foreground, background) >= 4.5;
-}
-
-export function meetsWCAGAAA(foreground: string, background: string): boolean {
-  return getContrastRatio(foreground, background) >= 7;
 }
 
 // System theme detection
@@ -342,21 +309,6 @@ export function debounce<T extends (...args: any[]) => any>(
   };
 }
 
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): (...args: Parameters<T>) => void {
-  let inThrottle: boolean;
-
-  return (...args: Parameters<T>) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-}
-
 // Error boundary utilities
 export function createSafeThemeWrapper<T extends (...args: any[]) => any>(
   fn: T,
@@ -402,16 +354,3 @@ export function safeStorageSet(key: string, value: string): boolean {
   }
 }
 
-export function safeStorageRemove(key: string): boolean {
-  try {
-    if (typeof window === 'undefined' || !window.localStorage) {
-      return false;
-    }
-
-    window.localStorage.removeItem(key);
-    return true;
-  } catch (error) {
-    console.warn('Error removing from localStorage:', error);
-    return false;
-  }
-}

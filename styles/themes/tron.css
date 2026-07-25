@@ -101,46 +101,6 @@
   }
 }
 
-/* Theme Class Application */
-.tron-theme {
-  background-color: var(--tron-bg);
-  color: var(--tron-text-primary);
-  transition: color var(--tron-transition-normal) var(--tron-ease-out);
-}
-
-/* Base element styling in Tron theme */
-.tron-theme h1,
-.tron-theme h2,
-.tron-theme h3,
-.tron-theme h4,
-.tron-theme h5,
-.tron-theme h6 {
-  color: var(--tron-text-primary);
-  text-shadow: var(--tron-glow-cyan);
-}
-
-.tron-theme p {
-  color: var(--tron-text-secondary);
-}
-
-.tron-theme a {
-  color: var(--tron-cyan);
-  text-shadow: var(--tron-glow-cyan);
-  transition: all var(--tron-transition-fast) var(--tron-ease-out);
-}
-
-.tron-theme a:hover {
-  color: var(--tron-cyan-bright);
-  text-shadow: var(--tron-glow-cyan-hover);
-}
-
-/* Focus states for accessibility */
-.tron-theme *:focus {
-  outline: 2px solid var(--tron-cyan);
-  outline-offset: 2px;
-  box-shadow: var(--tron-glow-cyan);
-}
-
 /* Dark theme base styles */
 [data-theme="tron"] {
   color-scheme: dark;

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { NeonButton, ThemeSwitcher } from '@/components/themes';
+import { ThemeSwitcher } from '@/components/themes';
 
 export default function GlobalCMLPage() {
   return (

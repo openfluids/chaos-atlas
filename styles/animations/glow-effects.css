@@ -5,19 +5,6 @@
   transition: all var(--tron-transition-normal) var(--tron-ease-out);
 }
 
-/* Glow Intensity Variants */
-.neon-glow--subtle {
-  filter: brightness(0.8) contrast(0.9);
-}
-
-.neon-glow--normal {
-  filter: brightness(1) contrast(1);
-}
-
-.neon-glow--intense {
-  filter: brightness(1.2) contrast(1.1);
-}
-
 /* Color-specific Glow Effects */
 .neon-glow-cyan {
   box-shadow: var(--tron-glow-cyan), var(--tron-shadow-md);
@@ -27,39 +14,6 @@
 .neon-glow-cyan:hover {
   box-shadow: var(--tron-glow-cyan-hover), var(--tron-shadow-lg);
   border-color: var(--tron-cyan-bright);
-  transform: translateY(-1px);
-}
-
-.neon-glow-orange {
-  box-shadow: var(--tron-glow-orange), var(--tron-shadow-md);
-  border-color: var(--tron-orange);
-}
-
-.neon-glow-orange:hover {
-  box-shadow: var(--tron-glow-orange-hover), var(--tron-shadow-lg);
-  border-color: var(--tron-orange-bright);
-  transform: translateY(-1px);
-}
-
-.neon-glow-magenta {
-  box-shadow: var(--tron-glow-magenta), var(--tron-shadow-md);
-  border-color: var(--tron-magenta);
-}
-
-.neon-glow-magenta:hover {
-  box-shadow: var(--tron-glow-magenta-hover), var(--tron-shadow-lg);
-  border-color: var(--tron-magenta-bright);
-  transform: translateY(-1px);
-}
-
-.neon-glow-yellow {
-  box-shadow: var(--tron-glow-yellow), var(--tron-shadow-md);
-  border-color: var(--tron-yellow);
-}
-
-.neon-glow-yellow:hover {
-  box-shadow: var(--tron-glow-yellow-hover), var(--tron-shadow-lg);
-  border-color: var(--tron-yellow-bright);
   transform: translateY(-1px);
 }
 
@@ -109,39 +63,6 @@
   text-shadow: var(--tron-glow-magenta-hover);
 }
 
-/* Pulse Animation */
-@keyframes neon-pulse {
-  0%, 100% {
-    opacity: 1;
-    filter: brightness(1);
-  }
-  50% {
-    opacity: 0.8;
-    filter: brightness(1.2);
-  }
-}
-
-.neon-pulse {
-  animation: neon-pulse 2s ease-in-out infinite;
-}
-
-/* Breathing Animation */
-@keyframes neon-breathe {
-  0%, 100% {
-    box-shadow: var(--tron-glow-cyan);
-  }
-  25% {
-    box-shadow: var(--tron-glow-cyan-hover);
-  }
-  75% {
-    box-shadow: var(--tron-glow-cyan);
-  }
-}
-
-.neon-breathe {
-  animation: neon-breathe 4s ease-in-out infinite;
-}
-
 /* Scanning Effect */
 @keyframes neon-scan {
   0% {
@@ -163,127 +84,11 @@
   animation: neon-scan 3s linear infinite;
 }
 
-/* Flicker Effect */
-@keyframes neon-flicker {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.8;
-  }
-  51% {
-    opacity: 1;
-  }
-  52% {
-    opacity: 0.9;
-  }
-  53% {
-    opacity: 1;
-  }
-}
-
-.neon-flicker {
-  animation: neon-flicker 5s ease-in-out infinite;
-}
-
-/* Loading Animation */
-@keyframes neon-loading {
-  0%, 100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-.neon-loading {
-  animation: neon-loading 1.5s ease-in-out infinite;
-}
-
-/* Border Animation */
-@keyframes neon-border-flow {
-  0% {
-    border-color: var(--tron-cyan);
-    box-shadow: var(--tron-glow-cyan);
-  }
-  25% {
-    border-color: var(--tron-orange);
-    box-shadow: var(--tron-glow-orange);
-  }
-  50% {
-    border-color: var(--tron-magenta);
-    box-shadow: var(--tron-glow-magenta);
-  }
-  75% {
-    border-color: var(--tron-yellow);
-    box-shadow: var(--tron-glow-yellow);
-  }
-  100% {
-    border-color: var(--tron-cyan);
-    box-shadow: var(--tron-glow-cyan);
-  }
-}
-
-.neon-border-flow {
-  border: 2px solid var(--tron-cyan);
-  animation: neon-border-flow 6s linear infinite;
-}
-
-/* Glow In Animation */
-@keyframes neon-glow-in {
-  0% {
-    opacity: 0;
-    filter: brightness(0) blur(10px);
-    transform: scale(0.8);
-  }
-  100% {
-    opacity: 1;
-    filter: brightness(1) blur(0);
-    transform: scale(1);
-  }
-}
-
-.neon-glow-in {
-  animation: neon-glow-in 0.6s ease-out forwards;
-}
-
-/* Power Up Animation */
-@keyframes neon-power-up {
-  0% {
-    opacity: 0;
-    filter: brightness(0) blur(20px);
-    transform: scale(0.5) rotate(-180deg);
-  }
-  50% {
-    opacity: 0.5;
-    filter: brightness(0.5) blur(10px);
-    transform: scale(1.2) rotate(-90deg);
-  }
-  100% {
-    opacity: 1;
-    filter: brightness(1) blur(0);
-    transform: scale(1) rotate(0deg);
-  }
-}
-
-.neon-power-up {
-  animation: neon-power-up 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
-}
-
 /* Reduced Motion Support */
 @media (prefers-reduced-motion: reduce) {
   .neon-glow,
   .neon-text,
-  .neon-pulse,
-  .neon-breathe,
-  .neon-scan,
-  .neon-flicker,
-  .neon-loading,
-  .neon-border-flow,
-  .neon-glow-in,
-  .neon-power-up {
+  .neon-scan {
     animation: none;
     transition: none;
   }

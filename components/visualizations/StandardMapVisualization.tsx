@@ -69,13 +69,13 @@ const StandardMapVisualization: React.FC = () => {
       .attr('opacity', 0.6);
     
     // Add axes
-    const xAxis = g.append('g')
+    g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
       .call(d3.axisBottom(xScale).tickFormat(d => `${(d as number / Math.PI).toFixed(1)}π`))
       .selectAll('text, line, path')
       .style('color', 'var(--text-secondary)');
-    
-    const yAxis = g.append('g')
+
+    g.append('g')
       .call(d3.axisLeft(yScale).tickFormat(d => `${(d as number / Math.PI).toFixed(1)}π`))
       .selectAll('text, line, path')
       .style('color', 'var(--text-secondary)');

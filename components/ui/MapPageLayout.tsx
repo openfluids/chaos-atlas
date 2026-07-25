@@ -6,14 +6,12 @@ interface MapPageLayoutProps {
   title: string;
   description: string;
   children: ReactNode;
-  showThemeSwitcher?: boolean;
 }
 
 export default function MapPageLayout({
   title,
   description,
-  children,
-  showThemeSwitcher = true
+  children
 }: MapPageLayoutProps): React.ReactElement {
   return (
     <div className="min-h-screen" style={{
@@ -35,11 +33,9 @@ export default function MapPageLayout({
               {description}
             </p>
           </div>
-          {showThemeSwitcher && (
-            <div className="flex items-center gap-4">
-              <ThemeSwitcher />
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            <ThemeSwitcher />
+          </div>
         </div>
       </header>
       <main className="container mx-auto p-6">

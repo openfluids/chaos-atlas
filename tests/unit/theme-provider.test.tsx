@@ -464,7 +464,7 @@ describe('ThemeProvider', () => {
     }));
 
     const TestComponent = () => {
-      const context = require('@/components/themes/theme-provider').useTheme();
+      require('@/components/themes/theme-provider').useTheme();
       return <div>Theme Ready</div>;
     };
 

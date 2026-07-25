@@ -142,8 +142,8 @@ const BakersMapVisualization: React.FC = () => {
 
     const renderInvariantMeasure = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                    innerWidth: number, innerHeight: number,
-                                   xScale: d3.ScaleLinear<number, number>,
-                                   yScale: d3.ScaleLinear<number, number>) => {
+                                   _xScale: d3.ScaleLinear<number, number>,
+                                   _yScale: d3.ScaleLinear<number, number>) => {
       const data = calculateBakersInvariantMeasure(5000, 20);
       const binWidth = innerWidth / 20;
       const binHeight = innerHeight / 20;
@@ -166,7 +166,7 @@ const BakersMapVisualization: React.FC = () => {
     const renderPhaseSpacePartition = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                       innerWidth: number, innerHeight: number,
                                       xScale: d3.ScaleLinear<number, number>,
-                                      yScale: d3.ScaleLinear<number, number>) => {
+                                      _yScale: d3.ScaleLinear<number, number>) => {
       const { grid } = calculateBakersPhaseSpacePartition(16);
       const binWidth = innerWidth / 16;
       const binHeight = innerHeight / 16;

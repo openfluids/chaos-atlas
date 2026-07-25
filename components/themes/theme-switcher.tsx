@@ -265,17 +265,3 @@ export function ThemeSwitcher({
     </div>
   );
 }
-
-// Compact version for mobile or tight spaces
-export function CompactThemeSwitcher(props: Omit<ThemeSwitcherProps, 'compact'>) {
-  return <ThemeSwitcher {...props} compact={true} />;
-}
-
-// Floating version for overlays
-export function FloatingThemeSwitcher(props: Omit<ThemeSwitcherProps, 'position'>) {
-  return (
-    <div className="fixed top-4 right-4 z-50">
-      <ThemeSwitcher {...props} position="floating" />
-    </div>
-  );
-}

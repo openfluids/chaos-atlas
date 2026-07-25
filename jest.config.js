@@ -26,11 +26,12 @@ const customJestConfig = {
     '^@/styles/(.*)$': '<rootDir>/styles/$1',
   },
   // Scoped to what this suite is actually responsible for: the theme system.
-  // The visualization components and lib/maps are exercised by the Playwright
-  // suite against a real browser, because they measure DOM geometry and draw
-  // through D3/canvas — jsdom reports every element as 0x0, so unit-covering
-  // them would assert nothing. Including them dragged the reported figure to
-  // 11% and made the 70% threshold unreachable by construction.
+  // The visualization components are covered by the e2e suite in a real
+  // browser, because they measure DOM geometry and draw through D3/canvas —
+  // jsdom reports every element as 0x0, so unit-covering them would assert
+  // nothing. lib/maps is unit-tested separately in tests/unit/maps. Including
+  // either here dragged the reported figure to 11% and made the 70% threshold
+  // unreachable by construction.
   collectCoverageFrom: [
     'components/themes/**/*.{js,jsx,ts,tsx}',
     'lib/themes/**/*.{js,jsx,ts,tsx}',
@@ -44,10 +45,10 @@ const customJestConfig = {
   // raised as coverage improves rather than left as a figure nothing meets.
   coverageThreshold: {
     global: {
-      branches: 70,
-      functions: 55,
-      lines: 65,
-      statements: 65,
+      branches: 84,
+      functions: 78,
+      lines: 84,
+      statements: 80,
     },
   },
   transform: {

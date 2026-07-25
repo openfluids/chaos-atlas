@@ -3,7 +3,7 @@
 import React from 'react';
 import CMLVisualization from '@/components/visualizations/CMLVisualization';
 import Link from 'next/link';
-import { NeonButton, ThemeSwitcher } from '@/components/themes';
+import { ThemeSwitcher } from '@/components/themes';
 
 export default function DiffusiveCMLPage() {
   return (

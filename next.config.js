@@ -9,9 +9,7 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Base path will be automatically injected by GitHub Actions
-  // Uncomment if you want to set it manually for local development
-  // basePath: process.env.NODE_ENV === 'production' ? '/chaos-atlas' : '',
+  // Base path is handled by actions/configure-pages in CI.
 }
 
 module.exports = nextConfig

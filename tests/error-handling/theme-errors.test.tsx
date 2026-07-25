@@ -501,11 +501,6 @@ describe('Theme Error Handling Tests', () => {
   });
 
   it('provides fallback behavior when errors occur', () => {
-    // Mock a scenario where theme switching fails
-    const mockSetTheme = jest.fn(() => {
-      throw new Error('Theme switching failed');
-    });
-
     expect(() => {
       render(
         <ThemeProvider themes={errorTestThemes}>

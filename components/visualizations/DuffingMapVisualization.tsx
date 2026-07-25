@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import {
-  calculateDuffingMap,
   calculateDuffingAttractor,
   calculateDuffingPotential,
   calculateDuffingBifurcation,
@@ -85,7 +84,7 @@ const DuffingMapVisualization: React.FC = () => {
         .attr('opacity', 0.8);
 
       // Draw fixed points
-      fixedPoints.forEach((fp, i) => {
+      fixedPoints.forEach((fp, _i) => {
         g.append('circle')
           .attr('cx', xScale(fp.x))
           .attr('cy', yScale(fp.y))

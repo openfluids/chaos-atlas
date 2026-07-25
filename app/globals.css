@@ -56,16 +56,6 @@
   --viz-point: #ff6b6b;
   --viz-line: #a2d2ff;
   --viz-area: rgba(255, 107, 107, 0.3);
-  
-  --btn-primary-bg: #ff6b6b;
-  --btn-primary-hover: #ff8a8a;
-  --btn-primary-text: #e6f1ff;
-  --btn-secondary-bg: #16213e;
-  --btn-secondary-hover: #1f2b4d;
-  --btn-secondary-text: #e6f1ff;
-  --btn-outline-border: #a2d2ff;
-  --btn-outline-hover: rgba(162, 210, 255, 0.2);
-  --btn-outline-text: #a2d2ff;
 
   /* Accent colors used by D3 visualizations — bridged from theme in theme-utils.ts */
   --accent-cyan: #00ffff;
@@ -94,55 +84,6 @@ body {
 .footer {
   background-color: var(--bg-footer);
   border-color: var(--border-primary);
-}
-
-.btn-primary {
-  background-color: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-}
-
-.btn-primary:hover {
-  background-color: var(--btn-primary-hover);
-}
-
-.btn-secondary {
-  background-color: var(--btn-secondary-bg);
-  color: var(--btn-secondary-text);
-}
-
-.btn-secondary:hover {
-  background-color: var(--btn-secondary-hover);
-}
-
-.btn-outline {
-  border-color: var(--btn-outline-border);
-  color: var(--btn-outline-text);
-}
-
-.btn-outline:hover {
-  background-color: var(--btn-outline-hover);
-}
-
-/* Visualization styles */
-.visualization-container svg {
-  background-color: var(--bg-card);
-  border-radius: 0.5rem;
-}
-
-.visualization-container path {
-  stroke: var(--viz-line);
-}
-
-.visualization-container circle {
-  fill: var(--viz-point);
-}
-
-.visualization-container .grid line {
-  stroke: var(--viz-grid);
-}
-
-.visualization-container text {
-  fill: var(--text-primary);
 }
 
 /* Responsive design for macOS */
@@ -177,10 +118,7 @@ body {
 
 /* Touch-friendly controls for mobile and tablets */
 @media (pointer: coarse) {
-  button, 
-  .btn-primary,
-  .btn-secondary,
-  .btn-outline,
+  button,
   select,
   input[type="range"] {
     min-height: 44px;

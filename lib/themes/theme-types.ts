@@ -12,19 +12,19 @@ export interface ThemeColors {
   glow: string;
 }
 
-export interface GlowSettings {
+interface GlowSettings {
   intensity: number;
   blurRadius: string;
   spreadRadius: string;
 }
 
-export interface AnimationSettings {
+interface AnimationSettings {
   duration: string;
   easing: string;
   reducedMotion: boolean;
 }
 
-export interface AccessibilitySettings {
+interface AccessibilitySettings {
   highContrast: boolean;
   reducedGlow: boolean;
 }
@@ -36,78 +36,6 @@ export interface ThemeConfiguration {
   glow: GlowSettings;
   animation: AnimationSettings;
   accessibility: AccessibilitySettings;
-}
-
-export interface UserPreferences {
-  userId: string;
-  selectedTheme: string;
-  customSettings: {
-    glowIntensity?: number;
-    animationSpeed?: number;
-    colorScheme?: string;
-  };
-  accessibilityPreferences: {
-    prefersReducedMotion: boolean;
-    prefersHighContrast: boolean;
-    lightSensitivity: boolean;
-  };
-  lastUpdated: number;
-}
-
-export interface VisualizationColorMapping {
-  visualizationType: 'logistic' | 'henon' | 'standard' | 'cml';
-  dataMappings: Array<{
-    dataType: string;
-    colorScale: string[];
-    valueRange: {
-      min: number;
-      max: number;
-    };
-  }>;
-  neonEffects: {
-    glowEnabled: boolean;
-    trailEnabled: boolean;
-    pulseEnabled: boolean;
-  };
-  performanceSettings: {
-    maxDataPoints: number;
-    reducedEffectsThreshold: number;
-  };
-}
-
-export interface InteractiveElementStates {
-  elementType: string;
-  states: {
-    default: {
-      backgroundColor: string;
-      textColor: string;
-      borderColor: string;
-      glowIntensity: number;
-    };
-    hover: {
-      backgroundColor: string;
-      textColor: string;
-      glowIntensity: number;
-      transitionDuration: string;
-    };
-    focus: {
-      backgroundColor: string;
-      textColor: string;
-      glowIntensity: number;
-      outlineStyle: string;
-    };
-    active: {
-      backgroundColor: string;
-      textColor: string;
-      transform: string;
-      glowIntensity: number;
-    };
-  };
-  animations: {
-    entrance?: string;
-    exit?: string;
-    interaction?: string;
-  };
 }
 
 export interface ThemeContextType {

@@ -1,13 +1,10 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import * as d3 from 'd3';
 import {
   ComplexNumber,
   calculateComplexQuadraticMap,
   calculateJuliaSet,
-  calculateMandelbrotSet,
-  calculateJuliaSetBoundary,
   getInterestingJuliaParameters,
   calculateFractalColor,
   calculateMandelbrotZoom,

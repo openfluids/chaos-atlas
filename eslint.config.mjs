@@ -42,10 +42,28 @@ const config = [
     rules: {
       'react/display-name': 'off',
       'import/no-anonymous-default-export': 'off',
-      // jest.setup.js stubs next/image with a plain <img> so jsdom can render it.
-      // The stub never reaches a user, so the image rules do not apply.
-      '@next/next/no-img-element': 'off',
-      'jsx-a11y/alt-text': 'off',
+    },
+  },
+
+  {
+    // Enabled standalone rather than by adopting eslint-config-next/typescript
+    // wholesale, which would also surface ~111 pre-existing errors unrelated
+    // to unused variables.
+    files: ['**/*.{ts,tsx}'],
+    ignores: [
+      // Deliberately-dead code implementing pan/zoom and a DPI-correct plot
+      // exporter, kept as-is for a later phase to wire in. Not held to this
+      // rule so it doesn't have to be edited to satisfy it.
+      'components/ui/ExportControls.tsx',
+      'lib/export/plot-export.ts',
+      'hooks/usePlotTransform.ts',
+      'components/visualizations/InteractiveSVG.tsx',
+    ],
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
     },
   },
 
