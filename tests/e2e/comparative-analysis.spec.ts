@@ -88,10 +88,11 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     const svgElements = vizContainers.locator('svg');
     await expect(svgElements.first()).toBeVisible();
 
-    // Check that map names are displayed
-    await expect(page.locator('text=Logistic Map')).toBeVisible();
-    await expect(page.locator('text=Hénon Map')).toBeVisible();
-    await expect(page.locator('text=Tent Map')).toBeVisible();
+    // Check that map names are displayed. Each name also appears as a
+    // checkbox label (a <span>), so disambiguate via the card heading.
+    await expect(page.getByRole('heading', { name: 'Logistic Map' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Hénon Map' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Tent Map' })).toBeVisible();
 
     // Check iteration control works
     const iterationSlider = page.locator('input[type="range"]');
@@ -110,7 +111,9 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     // Select phase space mode
     await page.selectOption('select[name="comparison-mode"]', 'phase-space');
 
-    // Select 2D maps only
+    // The default selection includes Logistic (1D); replace it with 2D maps
+    // only, so this part of the test covers the "all 2D" case.
+    await page.locator('input[type="checkbox"][id*="logistic"]').uncheck();
     await page.locator('input[type="checkbox"][id*="henon"]').check();
     await page.locator('input[type="checkbox"][id*="ikeda"]').check();
     await page.locator('input[type="checkbox"][id*="duffing"]').check();
@@ -126,19 +129,27 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     const svgElements = vizContainers.locator('svg');
     await expect(svgElements.first()).toBeVisible();
 
-    // Check that phase space is displayed (not the "not available" message)
+    // With only 2D maps selected, no "not available" placeholder should appear
     const notAvailableMessages = page.locator('text=Phase space not available for 1D maps');
     expect(await notAvailableMessages.count()).toBe(0);
 
     // Verify 2D map names are displayed
-    await expect(page.locator('text=Hénon Map')).toBeVisible();
-    await expect(page.locator('text=Ikeda Map')).toBeVisible();
-    await expect(page.locator('text=Duffing Map')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Hénon Map' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Ikeda Map' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Duffing Map' })).toBeVisible();
+
+    // A 1D map is correctly shown with the placeholder instead of a phase
+    // space plot, since a 1D map has no 2D phase space to display.
+    await page.locator('input[type="checkbox"][id*="duffing"]').uncheck();
+    await page.locator('input[type="checkbox"][id*="logistic"]').check();
+    await page.waitForTimeout(2000);
+    await expect(page.locator('text=Phase space not available for 1D maps')).toBeVisible();
   });
 
   test('parameter synchronization works', async ({ page }) => {
-    // Enable parameter synchronization
-    const syncCheckbox = page.locator('input[type="checkbox"][id*="sync"]');
+    // Enable parameter synchronization. The sync checkbox has no id
+    // attribute, only name="sync-params" (app/compare/page.tsx).
+    const syncCheckbox = page.locator('input[type="checkbox"][name="sync-params"]');
     await expect(syncCheckbox).toBeVisible();
     await syncCheckbox.check();
 
@@ -214,11 +225,11 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     await expect(page).toHaveURL('/');
 
     // Navigate back to comparison page
-    await page.click('a[href="/compare"]');
+    await page.click('a[href^="/compare"]');
     await page.waitForLoadState('networkidle');
 
     // Verify we're back on comparison page
-    await expect(page).toHaveURL('/compare');
+    await expect(page).toHaveURL(/\/compare\/?$/);
   });
 
   test('responsive design works on mobile', async ({ page }) => {

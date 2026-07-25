@@ -1,47 +1,45 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('New Chaotic Maps - E2E Tests', () => {
-  const baseUrl = 'http://localhost:3000';
-
   test.beforeEach(async ({ page }) => {
-    // Navigate to the local development server
-    await page.goto(baseUrl);
+    // Navigate to the app under test (baseURL from playwright.config.ts)
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
   });
 
   test('main page loads with all new map cards', async ({ page }) => {
     // Check that all new map cards are present
-    const tentMapCard = page.locator('a[href="/maps/tent"]');
+    const tentMapCard = page.locator('a[href^="/maps/tent"]');
     await expect(tentMapCard).toBeVisible();
-    await expect(tentMapCard.locator('h2')).toContainText('Tent Map');
+    await expect(tentMapCard.locator('h3')).toContainText('Tent Map');
 
-    const bakersMapCard = page.locator('a[href="/maps/bakers"]');
+    const bakersMapCard = page.locator('a[href^="/maps/bakers"]');
     await expect(bakersMapCard).toBeVisible();
-    await expect(bakersMapCard.locator('h2')).toContainText('Baker\'s Map');
+    await expect(bakersMapCard.locator('h3')).toContainText('Baker’s Map');
 
-    const arnoldMapCard = page.locator('a[href="/maps/arnold"]');
+    const arnoldMapCard = page.locator('a[href^="/maps/arnold"]');
     await expect(arnoldMapCard).toBeVisible();
-    await expect(arnoldMapCard.locator('h2')).toContainText('Arnold Cat Map');
+    await expect(arnoldMapCard.locator('h3')).toContainText('Arnold Cat Map');
 
-    const ikedaMapCard = page.locator('a[href="/maps/ikeda"]');
+    const ikedaMapCard = page.locator('a[href^="/maps/ikeda"]');
     await expect(ikedaMapCard).toBeVisible();
-    await expect(ikedaMapCard.locator('h2')).toContainText('Ikeda Map');
+    await expect(ikedaMapCard.locator('h3')).toContainText('Ikeda Map');
 
-    const tinkerbellMapCard = page.locator('a[href="/maps/tinkerbell"]');
+    const tinkerbellMapCard = page.locator('a[href^="/maps/tinkerbell"]');
     await expect(tinkerbellMapCard).toBeVisible();
-    await expect(tinkerbellMapCard.locator('h2')).toContainText('Tinkerbell Map');
+    await expect(tinkerbellMapCard.locator('h3')).toContainText('Tinkerbell Map');
 
-    const duffingMapCard = page.locator('a[href="/maps/duffing"]');
+    const duffingMapCard = page.locator('a[href^="/maps/duffing"]');
     await expect(duffingMapCard).toBeVisible();
-    await expect(duffingMapCard.locator('h2')).toContainText('Duffing Map');
+    await expect(duffingMapCard.locator('h3')).toContainText('Duffing Map');
 
-    const complexMapCard = page.locator('a[href="/maps/complex"]');
+    const complexMapCard = page.locator('a[href^="/maps/complex"]');
     await expect(complexMapCard).toBeVisible();
-    await expect(complexMapCard.locator('h2')).toContainText('Complex Quadratic');
+    await expect(complexMapCard.locator('h3')).toContainText('Complex Quadratic');
   });
 
   test('Tent Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/tent"]');
+    await page.click('a[href^="/maps/tent"]');
     await page.waitForLoadState('networkidle');
 
     // Check URL
@@ -65,7 +63,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Baker\'s Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/bakers"]');
+    await page.click('a[href^="/maps/bakers"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/bakers/);
@@ -73,7 +71,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Arnold Cat Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/arnold"]');
+    await page.click('a[href^="/maps/arnold"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/arnold/);
@@ -81,7 +79,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Complex Quadratic Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/complex"]');
+    await page.click('a[href^="/maps/complex"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/complex/);
@@ -89,7 +87,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Ikeda Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/ikeda"]');
+    await page.click('a[href^="/maps/ikeda"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/ikeda/);
@@ -97,7 +95,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Tinkerbell Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/tinkerbell"]');
+    await page.click('a[href^="/maps/tinkerbell"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/tinkerbell/);
@@ -105,7 +103,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('Duffing Map page loads correctly', async ({ page }) => {
-    await page.click('a[href="/maps/duffing"]');
+    await page.click('a[href^="/maps/duffing"]');
     await page.waitForLoadState('networkidle');
 
     await expect(page).toHaveURL(/\/maps\/duffing/);
@@ -113,15 +111,18 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
   });
 
   test('navigation between maps works', async ({ page }) => {
-    // Navigate to Tent Map
-    await page.click('a[href="/maps/tent"]');
+    // Map pages have no cross-map navigation; each map is reached from the
+    // homepage. Navigate to Tent Map from home, verify, then return home and
+    // navigate to Ikeda Map.
+    await page.goto('/');
+    await page.click('a[href^="/maps/tent"]');
     await page.waitForLoadState('networkidle');
+    await expect(page).toHaveURL(/\/maps\/tent/);
+    await expect(page.locator('h1')).toContainText('Tent Map');
 
-    // Navigate to another map
-    await page.click('a[href="/maps/ikeda"]');
+    await page.goto('/');
+    await page.click('a[href^="/maps/ikeda"]');
     await page.waitForLoadState('networkidle');
-
-    // Verify navigation worked
     await expect(page).toHaveURL(/\/maps\/ikeda/);
     await expect(page.locator('h1')).toContainText('Ikeda Map');
 
@@ -134,7 +135,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
 
   test('theme switching works on map pages', async ({ page }) => {
     // Navigate to a map page
-    await page.click('a[href="/maps/tent"]');
+    await page.click('a[href^="/maps/tent"]');
     await page.waitForLoadState('networkidle');
 
     // Find and click theme switcher
@@ -172,7 +173,7 @@ test.describe('New Chaotic Maps - E2E Tests', () => {
     ];
 
     for (const mapPage of mapPages) {
-      await page.goto(baseUrl + mapPage);
+      await page.goto(mapPage);
       await page.waitForLoadState('networkidle');
       await page.waitForTimeout(1000); // Allow scripts to load
     }

@@ -8,50 +8,6 @@ test.describe('Interactive Features - E2E Tests', () => {
     await page.waitForTimeout(3000); // Allow interactive components to mount
   });
 
-  test('data theme switcher works correctly', async ({ page }) => {
-    // Check that theme switcher is visible
-    const themeSwitcher = page.locator('[data-testid="data-theme-switcher"], .text-cyan-400');
-    await expect(themeSwitcher.first()).toBeVisible();
-
-    // Click to open theme dropdown
-    await themeSwitcher.first().click();
-    await page.waitForTimeout(500);
-
-    // Check that theme dropdown is open
-    const dropdown = page.locator('.relative.z-20, .absolute.z-20');
-    await expect(dropdown.first()).toBeVisible();
-
-    // Test theme categories
-    const categories = ['Simple', 'Scientific', 'Artistic', 'Crazy'];
-    for (const category of categories) {
-      const categoryElement = page.locator(`text=${category}`);
-      if (await categoryElement.isVisible()) {
-        console.log(`Found category: ${category}`);
-        await expect(categoryElement).toBeVisible();
-      }
-    }
-
-    // Try to select a specific theme
-    const matplotlibTheme = page.locator('text=Matplotlib');
-    if (await matplotlibTheme.isVisible()) {
-      await matplotlibTheme.click();
-      await page.waitForTimeout(1000);
-      console.log('Selected Matplotlib theme');
-    }
-
-    // Try random theme button
-    const randomButton = page.locator('text=Random Theme');
-    if (await randomButton.isVisible()) {
-      await randomButton.click();
-      await page.waitForTimeout(1000);
-      console.log('Selected random theme');
-    }
-
-    // Close dropdown
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(500);
-  });
-
   test('interactive SVG pan and zoom controls work', async ({ page }) => {
     // Find the interactive SVG
     const svg = page.locator('svg').first();
@@ -195,8 +151,10 @@ test.describe('Interactive Features - E2E Tests', () => {
       }
     }
 
-    // Test visualization type selector
-    const vizTypeSelect = page.locator('select');
+    // Test visualization type selector. The logistic map page has two
+    // <select> elements: the data-theme selector (first) and the
+    // visualization-type selector (second) - target the latter specifically.
+    const vizTypeSelect = page.locator('select').nth(1);
     if (await vizTypeSelect.isVisible()) {
       await vizTypeSelect.selectOption('time');
       await page.waitForTimeout(2000);

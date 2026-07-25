@@ -28,14 +28,14 @@ test.describe('Simple Theme System - E2E Tests', () => {
     const themeSwitcher = page.locator('.theme-switcher');
     await expect(themeSwitcher).toBeVisible();
 
-    // Check navigation buttons
-    const diffusiveButton = page.locator('button:has-text("CML Diffusive")');
-    await expect(diffusiveButton).toBeVisible();
-    await expect(diffusiveButton).toHaveClass(/neon-button/);
+    // Check navigation entries are present and navigable. These are card
+    // <Link> elements (app/page.tsx), not <button>s, and are not styled as
+    // neon-buttons, so we only assert presence/navigability here.
+    const diffusiveLink = page.locator('a[href^="/cml/diffusive"]');
+    await expect(diffusiveLink).toBeVisible();
 
-    const globalButton = page.locator('button:has-text("CML Global")');
-    await expect(globalButton).toBeVisible();
-    await expect(globalButton).toHaveClass(/neon-button/);
+    const globalLink = page.locator('a[href^="/cml/global"]');
+    await expect(globalLink).toBeVisible();
   });
 
   test('theme switcher functionality', async ({ page }) => {
@@ -105,8 +105,8 @@ test.describe('Simple Theme System - E2E Tests', () => {
 
   test('navigation to CML pages works', async ({ page }) => {
     // Test CML Diffusive navigation
-    const diffusiveButton = page.locator('button:has-text("CML Diffusive")');
-    await diffusiveButton.click();
+    const diffusiveLink = page.locator('a[href^="/cml/diffusive"]');
+    await diffusiveLink.click();
     await expect(page).toHaveURL(/\/cml\/diffusive/);
 
     // Check CML Diffusive page content
@@ -117,8 +117,8 @@ test.describe('Simple Theme System - E2E Tests', () => {
     await page.goto('/');
 
     // Test CML Global navigation
-    const globalButton = page.locator('button:has-text("CML Global")');
-    await globalButton.click();
+    const globalLink = page.locator('a[href^="/cml/global"]');
+    await globalLink.click();
     await expect(page).toHaveURL(/\/cml\/global/);
 
     // Check CML Global page content
@@ -133,7 +133,7 @@ test.describe('Simple Theme System - E2E Tests', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'black-white');
 
     // Navigate to about page
-    const aboutButton = page.locator('button:has-text("About")');
+    const aboutButton = page.locator('a[href^="/about"]');
     await aboutButton.click();
     await expect(page).toHaveURL(/\/about/);
 
@@ -190,7 +190,7 @@ test.describe('Simple Theme System - E2E Tests', () => {
 
   test('about page navigation and content', async ({ page }) => {
     // Navigate to about page
-    const aboutButton = page.locator('button:has-text("About")');
+    const aboutButton = page.locator('a[href^="/about"]');
     await aboutButton.click();
     await expect(page).toHaveURL(/\/about/);
 
