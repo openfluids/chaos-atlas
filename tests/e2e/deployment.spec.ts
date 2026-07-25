@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Deployment Verification - E2E Tests', () => {
-  const deployedUrl = 'https://ricardofrantz.github.io/chaos-atlas/';
+  const deployedUrl = 'https://openfluids.github.io/chaos-atlas/';
 
   test.beforeEach(async ({ page }) => {
     // Test the deployed GitHub Pages site
@@ -22,7 +22,7 @@ test.describe('Deployment Verification - E2E Tests', () => {
 
   test('deployed site loads correctly', async ({ page }) => {
     // Check we're on the correct domain
-    expect(page.url()).toContain('ricardofrantz.github.io/chaos-atlas');
+    expect(page.url()).toContain('openfluids.github.io/chaos-atlas');
 
     // Check main heading loads
     const mainHeading = page.locator('h1');
@@ -38,15 +38,13 @@ test.describe('Deployment Verification - E2E Tests', () => {
     const themeSwitcher = page.locator('.theme-switcher');
     await expect(themeSwitcher).toBeVisible();
 
-    // Check main navigation buttons
-    const diffusiveButton = page.locator('button:has-text("CML Diffusive")');
-    await expect(diffusiveButton).toBeVisible();
-
-    const globalButton = page.locator('button:has-text("CML Global")');
-    await expect(globalButton).toBeVisible();
-
-    const aboutButton = page.locator('button:has-text("About")');
-    await expect(aboutButton).toBeVisible();
+    // Navigation is card <Link>s and a plain <a>, not buttons. Match on the
+    // href suffix rather than the whole path: GitHub Pages serves the site
+    // under a /chaos-atlas/ basePath, so the deployed hrefs are
+    // /chaos-atlas/cml/diffusive/ while a local build emits /cml/diffusive/.
+    await expect(page.locator('a[href$="/cml/diffusive/"]')).toBeVisible();
+    await expect(page.locator('a[href$="/cml/global/"]')).toBeVisible();
+    await expect(page.locator('a[href$="/about/"]')).toBeVisible();
   });
 
   test('theme switching works on deployed site', async ({ page }) => {
@@ -69,8 +67,7 @@ test.describe('Deployment Verification - E2E Tests', () => {
 
   test('navigation to CML pages works on deployed site', async ({ page }) => {
     // Test CML Diffusive navigation
-    const diffusiveButton = page.locator('button:has-text("CML Diffusive")');
-    await diffusiveButton.click();
+    await page.click('a[href$="/cml/diffusive/"]');
 
     // Should navigate to CML Diffusive page
     await expect(page).toHaveURL(/\/cml\/diffusive/);
@@ -84,8 +81,7 @@ test.describe('Deployment Verification - E2E Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Test CML Global navigation
-    const globalButton = page.locator('button:has-text("CML Global")');
-    await globalButton.click();
+    await page.click('a[href$="/cml/global/"]');
 
     // Should navigate to CML Global page
     await expect(page).toHaveURL(/\/cml\/global/);
@@ -97,8 +93,7 @@ test.describe('Deployment Verification - E2E Tests', () => {
 
   test('about page works on deployed site', async ({ page }) => {
     // Navigate to about page
-    const aboutButton = page.locator('button:has-text("About")');
-    await aboutButton.click();
+    await page.click('a[href$="/about/"]');
 
     // Should navigate to about page
     await expect(page).toHaveURL(/\/about/);
@@ -127,11 +122,11 @@ test.describe('Deployment Verification - E2E Tests', () => {
     await page.waitForLoadState('networkidle');
 
     // Click through main navigation
-    await page.click('button:has-text("CML Diffusive")');
+    await page.click('a[href$="/cml/diffusive/"]');
     await page.waitForLoadState('networkidle');
 
     await page.goto(deployedUrl);
-    await page.click('button:has-text("About")');
+    await page.click('a[href$="/about/"]');
     await page.waitForLoadState('networkidle');
 
     // Check for console errors
@@ -139,22 +134,23 @@ test.describe('Deployment Verification - E2E Tests', () => {
   });
 
   test('static assets load correctly', async ({ page }) => {
-    // Check if CSS loads
-    const cssLink = page.locator('link[rel="stylesheet"]');
-    await expect(cssLink.first()).toBeVisible();
+    // A <link> lives in <head> and has no box, so toBeVisible() can never pass
+    // on one -- assert it is attached instead.
+    await expect(page.locator('link[rel="stylesheet"]').first()).toBeAttached();
 
-    // Check if fonts load (no network errors for font files)
+    // The listener has to be registered before the navigation that should
+    // trigger it. beforeEach has already loaded the page, so attaching it here
+    // and only waiting would observe nothing and pass regardless.
     const networkErrors: string[] = [];
-
     page.on('response', response => {
       if (response.status() >= 400) {
         networkErrors.push(`${response.url()} - ${response.status()}`);
       }
     });
 
+    await page.reload();
     await page.waitForLoadState('networkidle');
 
-    // Should have no network errors for static assets
     const staticAssetErrors = networkErrors.filter(error =>
       error.includes('.css') || error.includes('.js') || error.includes('.woff')
     );
