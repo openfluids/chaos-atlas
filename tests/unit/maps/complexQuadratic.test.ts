@@ -132,3 +132,69 @@ describe('calculateFractalColor', () => {
     }
   });
 });
+
+/**
+ * The suite above sweeps `nu` across [0, maxIterations], which is the range a
+ * well-behaved render produces. Real escape data reaches outside it: nu is
+ * n + 1 - log2(log|z|), so a point escaping in very few iterations with a
+ * large |z| can land below zero, and a NaN anywhere upstream propagates
+ * silently because Math.max/Math.min return NaN rather than clamping it.
+ *
+ * That mattered: Math.floor(NaN) is NaN, so a NaN ratio indexed the colormap
+ * anchor table out of bounds and destructured undefined; the three schemes
+ * that compute channels arithmetically instead emitted NaN, which serialises
+ * as null and paints transparent.
+ */
+describe('calculateFractalColor survives out-of-range and non-finite input', () => {
+  const schemes: FractalColorScheme[] = [
+    'classic', 'rainbow', 'viridis', 'inferno', 'magma', 'fire', 'ocean',
+  ];
+  const hostile = [-1e6, -5, -0.1, 0, 1, 199.9, 200, 1e6, NaN, Infinity, -Infinity];
+
+  it.each(schemes)('%s returns finite channels in [0, 255] for every input', scheme => {
+    for (const nu of hostile) {
+      const c = calculateFractalColor(nu, 200, scheme, true);
+      for (const channel of [c.r, c.g, c.b]) {
+        expect(Number.isFinite(channel)).toBe(true);
+        expect(channel).toBeGreaterThanOrEqual(0);
+        expect(channel).toBeLessThanOrEqual(255);
+      }
+    }
+  });
+});
+
+/**
+ * Escape times are heavily skewed towards small values, so a linear nu -> ramp
+ * mapping crushes almost every escaped pixel into the darkest sliver of the
+ * palette. The logarithmic remap is what actually makes the render read as a
+ * gradient rather than a flat wash, so pin the property it provides.
+ */
+describe('colour ramp is used across its range, not just the dark end', () => {
+  it('spreads a realistic escape-time distribution over most of the palette', () => {
+    const MAX = 200;
+    const bins = new Array(10).fill(0);
+    let escaped = 0;
+
+    for (let i = 0; i < 200; i++) {
+      for (let j = 0; j < 200; j++) {
+        const c = new ComplexNumber(-2.2 + (i / 199) * 3.0, -1.3 + (j / 199) * 2.6);
+        const r = calculateComplexQuadraticMap(c, new ComplexNumber(0, 0), MAX);
+        if (!r.escaped) continue;
+        escaped++;
+        const colour = calculateFractalColor(
+          computeSmoothIterationCount(r.iterations, Math.hypot(r.finalValue.real, r.finalValue.imag), true, MAX),
+          MAX, 'inferno', true,
+        );
+        // Luminance is monotonic along inferno, so it stands in for ramp position.
+        const lum = (0.2126 * colour.r + 0.7152 * colour.g + 0.0722 * colour.b) / 255;
+        bins[Math.min(9, Math.floor(lum * 10))]++;
+      }
+    }
+
+    expect(escaped).toBeGreaterThan(1000);
+    // Under the previous linear mapping 96% of escaped pixels fell in the
+    // bottom tenth of the ramp, leaving at most two or three bins populated.
+    const populated = bins.filter(n => n / escaped > 0.01).length;
+    expect(populated).toBeGreaterThanOrEqual(5);
+  });
+});

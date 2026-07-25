@@ -437,7 +437,10 @@ export function calculateFractalColor(
   //   log1p             10                       178
   //
   // (for reference, integer escape time gives 44 on the same line)
-  const nu = Math.max(0, smoothIterations);
+  // Math.max/min propagate NaN rather than clamping it, so guard explicitly:
+  // the arithmetic schemes below would otherwise emit NaN channels, which
+  // JSON-serialise as null and paint as transparent.
+  const nu = Number.isFinite(smoothIterations) ? Math.max(0, smoothIterations) : 0;
   const ratio = Math.min(1, Math.log1p(nu) / Math.log1p(Math.max(1, maxIterations)));
 
   switch (colorScheme) {
