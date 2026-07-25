@@ -23,7 +23,8 @@ Every map shares the same surface, so switching systems is a one-word change.
 from chaos_atlas.maps import logistic, henon
 
 orbit = logistic.trajectory(r=3.9, x0=0.5, iterations=1000)
-exponent = logistic.lyapunov(r=4.0)          # -> log 2, the Bernoulli shift
+exponent = logistic.lyapunov(r=4.0)          # -> log 4, the default x0 = 0.5 is preperiodic
+exponent = logistic.lyapunov(r=4.0, x0=0.2)  # -> log 2, a generic x0 gives the attractor's exponent
 
 points = henon.attractor(a=1.4, b=0.3, iterations=10_000)   # (10000, 2)
 ```

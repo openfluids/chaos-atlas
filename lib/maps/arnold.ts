@@ -23,8 +23,10 @@ export interface ArnoldImagePoint {
 export function calculateArnoldIteration(point: ArnoldPoint): ArnoldPoint {
   const { x, y } = point;
 
-  const newX = (x + y) % 1;
-  const newY = (x + 2 * y) % 1;
+  // JS `%` is remainder, not modulo, so it can return negative values for
+  // negative inputs. Fold onto the unit torus with a true modulo.
+  const newX = (((x + y) % 1) + 1) % 1;
+  const newY = (((x + 2 * y) % 1) + 1) % 1;
 
   return { x: newX, y: newY };
 }

@@ -1,4 +1,6 @@
 // src/lib/maps/henon.ts
+import { lyapunovSpectrum2D } from './lyapunov';
+
 export interface HenonPoint {
   x: number;
   y: number;
@@ -111,28 +113,25 @@ export function calculateHenonLyapunovExponent(
   y0: number = 0.1,
   iterations: number = 1000
 ): number {
-  const transient = 100;
-  let x = x0;
-  let y = y0;
-  
-  // Run the transient iterations
-  for (let i = 0; i < transient; i++) {
-    const newPoint = calculateHenonIteration(x, y, a, b);
-    x = newPoint.x;
-    y = newPoint.y;
-  }
-  
-  // Calculate the Lyapunov exponent
-  let sum = 0;
-  for (let i = 0; i < iterations; i++) {
-    const newPoint = calculateHenonIteration(x, y, a, b);
-    x = newPoint.x;
-    y = newPoint.y;
-    
-    // The derivative of the Hénon map with respect to x is -2*a*x
-    const derivative = Math.abs(-2 * a * x);
-    sum += Math.log(derivative);
-  }
-  
-  return sum / iterations;
+  // Jacobian J = [[-2ax, 1], [b, 0]]
+  const iterateFn = (x: number, y: number): [number, number] => {
+    const p = calculateHenonIteration(x, y, a, b);
+    return [p.x, p.y];
+  };
+
+  const jacobianFn = (x: number): [[number, number], [number, number]] => [
+    [-2 * a * x, 1],
+    [b, 0]
+  ];
+
+  const { lambda1 } = lyapunovSpectrum2D(
+    iterateFn,
+    (x, _y) => jacobianFn(x),
+    x0,
+    y0,
+    iterations,
+    100
+  );
+
+  return lambda1;
 }

@@ -1,5 +1,6 @@
 // src/lib/maps/standard.ts
 // Implementation of the standard map and related calculations
+import { lyapunovSpectrum2D } from './lyapunov';
 
 /**
  * Calculate iterations of the standard map
@@ -112,51 +113,37 @@ export function calculateLyapunovExponent(
   p0: number,
   iterations: number
 ): number {
-  let theta = theta0;
-  let p = p0;
-  
-  // Discard transient behavior
-  for (let i = 0; i < 100; i++) {
-    p = (p + K * Math.sin(theta)) % (2 * Math.PI);
-    if (p < 0) p += 2 * Math.PI;
-    
-    theta = (theta + p) % (2 * Math.PI);
-    if (theta < 0) theta += 2 * Math.PI;
-  }
-  
-  // Initialize tangent vector
-  let dtheta = 1.0;
-  let dp = 0.0;
-  
-  let sum = 0.0;
-  
-  for (let i = 0; i < iterations; i++) {
-    // Calculate the Jacobian matrix at the current point
-    // | 1  1 |
-    // | K*cos(theta)  1 |
-    
-    // Apply the Jacobian to the tangent vector
-    const nextDtheta = dtheta + dp;
-    const nextDp = K * Math.cos(theta) * dtheta + dp;
-    
-    // Normalize the tangent vector
-    const norm = Math.sqrt(nextDtheta * nextDtheta + nextDp * nextDp);
-    dtheta = nextDtheta / norm;
-    dp = nextDp / norm;
-    
-    // Accumulate the logarithm of the stretching factor
-    sum += Math.log(norm);
-    
-    // Iterate the map
-    p = (p + K * Math.sin(theta)) % (2 * Math.PI);
-    if (p < 0) p += 2 * Math.PI;
-    
-    theta = (theta + p) % (2 * Math.PI);
-    if (theta < 0) theta += 2 * Math.PI;
-  }
-  
-  // Return the average stretching factor
-  return sum / iterations;
+  // p' = p + K sin(theta); theta' = theta + p'
+  // Jacobian: [[1 + K cos(theta), 1], [K cos(theta), 1]], det = 1
+  // (area-preserving, as the standard map must be).
+  const iterateFn = (theta: number, p: number): [number, number] => {
+    let newP = (p + K * Math.sin(theta)) % (2 * Math.PI);
+    if (newP < 0) newP += 2 * Math.PI;
+
+    let newTheta = (theta + newP) % (2 * Math.PI);
+    if (newTheta < 0) newTheta += 2 * Math.PI;
+
+    return [newTheta, newP];
+  };
+
+  const jacobianFn = (theta: number): [[number, number], [number, number]] => {
+    const kc = K * Math.cos(theta);
+    return [
+      [1 + kc, 1],
+      [kc, 1]
+    ];
+  };
+
+  const { lambda1 } = lyapunovSpectrum2D(
+    iterateFn,
+    (theta, _p) => jacobianFn(theta),
+    theta0,
+    p0,
+    iterations,
+    100
+  );
+
+  return lambda1;
 }
 
 /**

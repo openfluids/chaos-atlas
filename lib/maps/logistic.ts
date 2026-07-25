@@ -85,8 +85,11 @@ export function calculateLogisticBifurcation(
   
   for (let rIndex = 0; rIndex <= rSteps; rIndex++) {
     const r = rMin + rIndex * rStep;
-    let x = 0.5; // Start with x0 = 0.5
-    
+    // x0 = 0.5 degenerates to the single value {0} at r = 4 (0.5 -> 1 -> 0
+    // -> 0 -> ...), which would draw a misleadingly sparse column in the
+    // bifurcation diagram. Use a generic seed instead.
+    let x = 0.2;
+
     // Discard transient
     for (let i = 0; i < transient; i++) {
       x = calculateLogisticIteration(x, r);
@@ -124,12 +127,22 @@ export function calculateLogisticLyapunovExponent(
   
   // Calculate the Lyapunov exponent
   let sum = 0;
+  let counted = 0;
   for (let i = 0; i < iterations; i++) {
     // The derivative of the logistic map with respect to x is r * (1 - 2x)
     const derivative = Math.abs(r * (1 - 2 * x));
-    sum += Math.log(derivative);
+    // The orbit can land exactly on the critical point x = 1/2, where the
+    // derivative vanishes and log(0) = -Infinity would poison the average.
+    // Skip that sample rather than returning -Infinity for the whole exponent.
+    if (derivative > 0) {
+      sum += Math.log(derivative);
+      counted++;
+    }
     x = calculateLogisticIteration(x, r);
   }
-  
-  return sum / iterations;
+
+  if (counted === 0) {
+    return -Infinity;
+  }
+  return sum / counted;
 }

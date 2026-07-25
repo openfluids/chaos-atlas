@@ -1,7 +1,14 @@
 """Duffing map, the discrete double-well oscillator.
 
     x_new = y
-    y_new = -b y + a x - x^3
+    y_new = -b x + a y - y^3
+
+This is the Holmes cubic 2D Duffing map. It is dissipative for ``0 < b < 1``,
+with a constant Jacobian determinant equal to ``b`` everywhere (see
+``lyapunov`` below), which is the quickest way to sanity-check any change to
+the recurrence: a broken transcription of x and y shows up immediately as a
+Jacobian determinant that varies with position instead of being pinned to
+``b``.
 """
 
 from __future__ import annotations
@@ -19,7 +26,7 @@ def iterate(
     x: float, y: float, a: float = DEFAULT_A, b: float = DEFAULT_B
 ) -> tuple[float, float]:
     """Advance a single state by one step of the Duffing map."""
-    return y, -b * y + a * x - x * x * x
+    return y, -b * x + a * y - y * y * y
 
 
 def trajectory(
@@ -38,7 +45,7 @@ def trajectory(
     for i in range(iterations):
         out[i, 0] = x
         out[i, 1] = y
-        x, y = y, -b * y + a * x - x * x * x
+        x, y = y, -b * x + a * y - y * y * y
     return out
 
 
@@ -58,8 +65,10 @@ def attractor(
 def fixed_points(a: float = DEFAULT_A, b: float = DEFAULT_B) -> NDArray[np.float64]:
     """Fixed points of the map, as an ``(n, 2)`` array.
 
-    Setting ``x = y`` and ``y = -b y + a x - x^3`` gives ``x (x^2 + b + 1 - a) = 0``,
-    so the origin is always fixed and a symmetric pair exists when ``a > b + 1``.
+    A fixed point needs ``x_new = x``, i.e. ``y = x``, and then
+    ``y_new = y`` becomes ``-b y + a y - y^3 = y``, i.e.
+    ``y (y^2 + b + 1 - a) = 0``, so the origin is always fixed and a
+    symmetric pair exists when ``a > b + 1``.
     """
     points = [(0.0, 0.0)]
     discriminant = a - b - 1.0
@@ -80,20 +89,22 @@ def lyapunov(
 ) -> float:
     """Largest Lyapunov exponent, in nats per iteration.
 
-    Jacobian ``[[0, 1], [a - 3x^2, -b]]``.
+    Jacobian ``[[0, 1], [-b, a - 3y^2]]``, whose determinant is the constant
+    ``b`` (dissipation is uniform, unlike the ``a - 3x^2`` term which varies
+    with position).
     """
     if iterations < 1:
         raise ValueError("iterations must be >= 1")
 
     x, y = float(x0), float(y0)
     for _ in range(transient):
-        x, y = y, -b * y + a * x - x * x * x
+        x, y = y, -b * x + a * y - y * y * y
 
     vx, vy = 1.0, 0.0
     total = 0.0
     for _ in range(iterations):
-        j21 = a - 3.0 * x * x
-        vx, vy = vy, j21 * vx - b * vy
+        j22 = a - 3.0 * y * y
+        vx, vy = vy, -b * vx + j22 * vy
 
         norm = np.hypot(vx, vy)
         if not np.isfinite(norm):
@@ -103,6 +114,6 @@ def lyapunov(
         total += np.log(norm)
         vx, vy = vx / norm, vy / norm
 
-        x, y = y, -b * y + a * x - x * x * x
+        x, y = y, -b * x + a * y - y * y * y
 
     return total / iterations

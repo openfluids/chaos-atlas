@@ -1,4 +1,6 @@
 // src/lib/maps/tinkerbell.ts
+import { lyapunovSpectrum2D } from './lyapunov';
+
 export interface TinkerbellPoint {
   x: number;
   y: number;
@@ -170,60 +172,19 @@ export function calculateTinkerbellLyapunovExponents(
   params: { a: number; b: number; c: number; d: number },
   iterations: number = 5000
 ): { lambda1: number; lambda2: number } {
-  let sum1 = 0;
-  let sum2 = 0;
-  let currentPoint: TinkerbellPoint = { x: 0.1, y: -0.1 };
+  const { a, b, c, d } = params;
 
-  // Jacobian matrix for Tinkerbell Map
-  const calculateJacobian = (point: TinkerbellPoint): number[][] => {
-    const { x, y } = point;
-    const { a, b, c, d } = params;
-
-    const j11 = 2 * x + a;
-    const j12 = -2 * y + b;
-    const j21 = 2 * y + c;
-    const j22 = 2 * x + d;
-
-    return [[j11, j12], [j21, j22]];
+  const iterateFn = (x: number, y: number): [number, number] => {
+    const p = calculateTinkerbellIteration({ x, y }, params);
+    return [p.x, p.y];
   };
 
-  let J1 = [[1, 0], [0, 1]]; // Identity matrix
+  const jacobianFn = (x: number, y: number): [[number, number], [number, number]] => [
+    [2 * x + a, -2 * y + b],
+    [2 * y + c, 2 * x + d]
+  ];
 
-  for (let i = 0; i < iterations; i++) {
-    const J = calculateJacobian(currentPoint);
-
-    // Multiply J1 by J
-    const newJ1 = [
-      [J1[0][0] * J[0][0] + J1[0][1] * J[1][0], J1[0][0] * J[0][1] + J1[0][1] * J[1][1]],
-      [J1[1][0] * J[0][0] + J1[1][1] * J[1][0], J1[1][0] * J[0][1] + J1[1][1] * J[1][1]]
-    ];
-
-    J1[0] = newJ1[0];
-    J1[1] = newJ1[1];
-
-    // QR decomposition for numerical stability (simplified)
-    const norm1 = Math.sqrt(J1[0][0] * J1[0][0] + J1[1][0] * J1[1][0]);
-    const norm2 = Math.sqrt(J1[0][1] * J1[0][1] + J1[1][1] * J1[1][1]);
-
-    if (norm1 > 0) {
-      J1[0][0] /= norm1;
-      J1[1][0] /= norm1;
-      sum1 += Math.log(norm1);
-    }
-
-    if (norm2 > 0) {
-      J1[0][1] /= norm2;
-      J1[1][1] /= norm2;
-      sum2 += Math.log(norm2);
-    }
-
-    currentPoint = calculateTinkerbellIteration(currentPoint, params);
-  }
-
-  return {
-    lambda1: sum1 / iterations,
-    lambda2: sum2 / iterations
-  };
+  return lyapunovSpectrum2D(iterateFn, jacobianFn, 0.1, -0.1, iterations, 100);
 }
 
 /**
@@ -336,7 +297,7 @@ export function getInterestingTinkerbellParameters(): {
   return [
     {
       name: "Classic Multi-loop",
-      params: { a: 0.9, b: -0.6, c: 2.0, d: 0.5 },
+      params: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5 },
       description: "Classic Tinkerbell attractor with beautiful multi-loop structure"
     },
     {

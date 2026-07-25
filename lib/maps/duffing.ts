@@ -1,4 +1,6 @@
 // src/lib/maps/duffing.ts
+import { lyapunovSpectrum2D } from './lyapunov';
+
 export interface DuffingPoint {
   x: number;
   y: number;
@@ -6,10 +8,13 @@ export interface DuffingPoint {
 
 /**
  * Calculate a single iteration of the Duffing Map
- * Discretized version of the Duffing oscillator with double-well potential
+ * Holmes cubic 2D Duffing map, the discretized double-well oscillator
  * Equations:
  * x_{n+1} = y_n
- * y_{n+1} = -b·y_n + a·x_n - x_n³
+ * y_{n+1} = -b·x_n + a·y_n - y_n³
+ *
+ * Dissipative for 0 < b < 1, with a constant Jacobian determinant equal to
+ * b everywhere.
  *
  * @param point Current point {x, y}
  * @param params Duffing parameters {a, b}
@@ -23,7 +28,7 @@ export function calculateDuffingIteration(
   const { a, b } = params;
 
   const newX = y;
-  const newY = -b * y + a * x - x * x * x;
+  const newY = -b * x + a * y - y * y * y;
 
   return { x: newX, y: newY };
 }
@@ -211,60 +216,28 @@ export function calculateDuffingLyapunovExponents(
   params: { a: number; b: number },
   iterations: number = 5000
 ): { lambda1: number; lambda2: number } {
-  let sum1 = 0;
-  let sum2 = 0;
-  let currentPoint: DuffingPoint = { x: 0.1, y: 0.1 };
+  const { a, b } = params;
 
-  // Jacobian matrix for Duffing Map
-  const calculateJacobian = (point: DuffingPoint): number[][] => {
-    const { x } = point;
-    const { a, b } = params;
-
-    const j11 = 0; // ∂x'/∂x = 0
-    const j12 = 1; // ∂x'/∂y = 1
-    const j21 = a - 3 * x * x; // ∂y'/∂x = a - 3x²
-    const j22 = -b; // ∂y'/∂y = -b
-
-    return [[j11, j12], [j21, j22]];
+  const iterateFn = (x: number, y: number): [number, number] => {
+    const p = calculateDuffingIteration({ x, y }, params);
+    return [p.x, p.y];
   };
 
-  let J1 = [[1, 0], [0, 1]]; // Identity matrix
+  // Jacobian for x' = y; y' = -b x + a y - y^3 is [[0, 1], [-b, a - 3y^2]],
+  // with det = b (constant), as the dissipative map requires.
+  const jacobianFn = (y: number): [[number, number], [number, number]] => [
+    [0, 1],
+    [-b, a - 3 * y * y]
+  ];
 
-  for (let i = 0; i < iterations; i++) {
-    const J = calculateJacobian(currentPoint);
-
-    // Multiply J1 by J
-    const newJ1 = [
-      [J1[0][0] * J[0][0] + J1[0][1] * J[1][0], J1[0][0] * J[0][1] + J1[0][1] * J[1][1]],
-      [J1[1][0] * J[0][0] + J1[1][1] * J[1][0], J1[1][0] * J[0][1] + J1[1][1] * J[1][1]]
-    ];
-
-    J1[0] = newJ1[0];
-    J1[1] = newJ1[1];
-
-    // QR decomposition for numerical stability (simplified)
-    const norm1 = Math.sqrt(J1[0][0] * J1[0][0] + J1[1][0] * J1[1][0]);
-    const norm2 = Math.sqrt(J1[0][1] * J1[0][1] + J1[1][1] * J1[1][1]);
-
-    if (norm1 > 0) {
-      J1[0][0] /= norm1;
-      J1[1][0] /= norm1;
-      sum1 += Math.log(norm1);
-    }
-
-    if (norm2 > 0) {
-      J1[0][1] /= norm2;
-      J1[1][1] /= norm2;
-      sum2 += Math.log(norm2);
-    }
-
-    currentPoint = calculateDuffingIteration(currentPoint, params);
-  }
-
-  return {
-    lambda1: sum1 / iterations,
-    lambda2: sum2 / iterations
-  };
+  return lyapunovSpectrum2D(
+    iterateFn,
+    (_x, y) => jacobianFn(y),
+    0.1,
+    0.1,
+    iterations,
+    100
+  );
 }
 
 /**
@@ -354,21 +327,25 @@ export function getInterestingDuffingParameters(): {
   params: { a: number; b: number };
   description: string;
 }[] {
+  // Lyapunov exponents below were measured with the corrected map
+  // (x' = y; y' = -b x + a y - y^3). Only the "Chaotic Regime" entry
+  // (the canonical a=2.75, b=0.2 parameters) actually has lambda1 > 0;
+  // every other preset here is regular/non-chaotic, so labels reflect that.
   return [
     {
       name: "Classic Bistable",
       params: { a: 1.0, b: 0.2 },
-      description: "Classic double-well potential with clear bistable behavior"
+      description: "Classic double-well potential with clear bistable behavior (regular, lambda1 < 0)"
     },
     {
       name: "Chaotic Regime",
-      params: { a: 1.2, b: 0.3 },
-      description: "Parameters producing chaotic dynamics in both wells"
+      params: { a: 2.75, b: 0.2 },
+      description: "Canonical parameters producing chaotic dynamics (lambda1 ~ +0.48)"
     },
     {
       name: "Single Well Dominance",
       params: { a: 0.8, b: 0.1 },
-      description: "One well dominates, reducing bistability"
+      description: "One well dominates, reducing bistability (regular, lambda1 < 0)"
     },
     {
       name: "Symmetric Wells",
@@ -378,12 +355,12 @@ export function getInterestingDuffingParameters(): {
     {
       name: "High Damping",
       params: { a: 1.0, b: 0.5 },
-      description: "High damping suppresses chaotic behavior"
+      description: "High damping suppresses chaotic behavior (regular, lambda1 < 0)"
     },
     {
       name: "Low Barrier",
       params: { a: 0.5, b: 0.2 },
-      description: "Low barrier between wells allows easy transitions"
+      description: "Low barrier between wells allows easy transitions (regular, lambda1 < 0)"
     }
   ];
 }

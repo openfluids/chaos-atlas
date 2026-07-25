@@ -1,4 +1,6 @@
 // src/lib/maps/ikeda.ts
+import { lyapunovSpectrum2D } from './lyapunov';
+
 export interface IkedaPoint {
   x: number;
   y: number;
@@ -157,70 +159,39 @@ export function calculateIkedaLyapunovExponents(
   params: { a: number; b: number; c: number; d: number },
   iterations: number = 5000
 ): { lambda1: number; lambda2: number } {
-  let sum1 = 0;
-  let sum2 = 0;
-  let currentPoint: IkedaPoint = { x: 0.1, y: 0.1 };
+  const { a, b, c, d } = params;
 
-  // Jacobian matrix for Ikeda Map
-  const calculateJacobian = (point: IkedaPoint): number[][] => {
-    const { x, y } = point;
-    const { a, b, c, d } = params;
+  const iterateFn = (x: number, y: number): [number, number] => {
+    const result = calculateIkedaIteration({ x, y }, params);
+    return [result.x, result.y];
+  };
 
+  // Jacobian matrix for Ikeda Map.
+  // With u = x cos t - y sin t, v = x sin t + y cos t:
+  // J = [[a(cos t - v*t_x),  a(-sin t - v*t_y)],
+  //      [b(sin t + u*t_x),  b( cos t + u*t_y)]]
+  // where t_x = 2 d x / (1+x^2+y^2)^2, t_y = 2 d y / (1+x^2+y^2)^2.
+  const jacobianFn = (x: number, y: number): [[number, number], [number, number]] => {
     const denominator = 1 + x * x + y * y;
     const t = c - d / denominator;
     const cosT = Math.cos(t);
     const sinT = Math.sin(t);
 
-    // Partial derivatives of t with respect to x and y
     const dt_dx = (2 * d * x) / (denominator * denominator);
     const dt_dy = (2 * d * y) / (denominator * denominator);
 
-    // Jacobian matrix elements
-    const j11 = a * (cosT - x * sinT * dt_dx - y * cosT * dt_dx - sinT * dt_dy * y);
-    const j12 = a * (-sinT - x * sinT * dt_dy + y * cosT * dt_dy - cosT * dt_dx * x);
-    const j21 = b * (sinT + x * cosT * dt_dx + y * sinT * dt_dx + cosT * dt_dy * y);
-    const j22 = b * (cosT - x * cosT * dt_dy + y * sinT * dt_dy - sinT * dt_dx * x);
+    const u = x * cosT - y * sinT;
+    const v = x * sinT + y * cosT;
+
+    const j11 = a * (cosT - v * dt_dx);
+    const j12 = a * (-sinT - v * dt_dy);
+    const j21 = b * (sinT + u * dt_dx);
+    const j22 = b * (cosT + u * dt_dy);
 
     return [[j11, j12], [j21, j22]];
   };
 
-  let J1 = [[1, 0], [0, 1]]; // Identity matrix
-
-  for (let i = 0; i < iterations; i++) {
-    const J = calculateJacobian(currentPoint);
-
-    // Multiply J1 by J
-    const newJ1 = [
-      [J1[0][0] * J[0][0] + J1[0][1] * J[1][0], J1[0][0] * J[0][1] + J1[0][1] * J[1][1]],
-      [J1[1][0] * J[0][0] + J1[1][1] * J[1][0], J1[1][0] * J[0][1] + J1[1][1] * J[1][1]]
-    ];
-
-    J1[0] = newJ1[0];
-    J1[1] = newJ1[1];
-
-    // QR decomposition for numerical stability (simplified)
-    const norm1 = Math.sqrt(J1[0][0] * J1[0][0] + J1[1][0] * J1[1][0]);
-    const norm2 = Math.sqrt(J1[0][1] * J1[0][1] + J1[1][1] * J1[1][1]);
-
-    if (norm1 > 0) {
-      J1[0][0] /= norm1;
-      J1[1][0] /= norm1;
-      sum1 += Math.log(norm1);
-    }
-
-    if (norm2 > 0) {
-      J1[0][1] /= norm2;
-      J1[1][1] /= norm2;
-      sum2 += Math.log(norm2);
-    }
-
-    currentPoint = calculateIkedaIteration(currentPoint, params);
-  }
-
-  return {
-    lambda1: sum1 / iterations,
-    lambda2: sum2 / iterations
-  };
+  return lyapunovSpectrum2D(iterateFn, jacobianFn, 0.1, 0.1, iterations, 100);
 }
 
 /**

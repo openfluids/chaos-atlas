@@ -24,10 +24,9 @@ export interface BakersImagePoint {
 export function calculateBakersIteration(point: BakersPoint): BakersPoint {
   const { x, y } = point;
 
-  let newX = 2 * x;
-  if (newX >= 1) {
-    newX = newX - Math.floor(newX); // modulo 1
-  }
+  // JS `%` is remainder, not modulo, so it can return negative values for
+  // negative inputs. Fold onto the unit interval with a true modulo.
+  const newX = (((2 * x) % 1) + 1) % 1;
 
   let newY;
   if (x < 0.5) {

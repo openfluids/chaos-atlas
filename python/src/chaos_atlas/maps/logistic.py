@@ -60,7 +60,7 @@ def bifurcation(
     r_steps: int = 500,
     transient: int = 100,
     iterations: int = 100,
-    x0: float = 0.5,
+    x0: float = 0.2,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Sample the attractor over a range of ``r``.
 
@@ -68,6 +68,12 @@ def bifurcation(
     they can be handed straight to a scatter plot.
 
     The transient is discarded per ``r`` so only the attractor is sampled.
+
+    The default seed is ``x0 = 0.2``, not ``0.5``. At ``r = 4`` exactly,
+    ``0.5`` is preperiodic: it maps to ``1.0``, then to ``0.0``, and stays
+    there, which would collapse the whole ``r = 4`` column of the diagram to
+    the single value ``0.0`` instead of showing the attractor. ``0.2`` is a
+    generic point that actually explores the attractor at every ``r``.
     """
     if r_steps < 1:
         raise ValueError("r_steps must be >= 1")

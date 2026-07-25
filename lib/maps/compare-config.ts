@@ -81,7 +81,7 @@ export const COMPARISON_MAPS: ComparisonMapData[] = [
     name: 'Tinkerbell Map',
     id: 'tinkerbell',
     calculate: calculateTinkerbellMapWrapper,
-    defaultParams: { a: 0.9, b: -0.6, c: 2.0, d: 0.5, x0: 0.1, y0: 0.1 },
+    defaultParams: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5, x0: 0.1, y0: 0.1 },
     paramRanges: {
       a: { min: -1, max: 1, step: 0.01 },
       b: { min: -1, max: 1, step: 0.01 },
