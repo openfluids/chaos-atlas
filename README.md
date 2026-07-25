@@ -1,5 +1,8 @@
 # Chaos Atlas
 
+[![CI](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 Interactive web application for exploring chaotic dynamical systems. Visualize strange attractors, bifurcation diagrams, cobweb plots, Lyapunov exponents, and spatiotemporal patterns across 10 iterated maps and coupled map lattices.
 
 **Live demo:** [openfluids.github.io/chaos-atlas](https://openfluids.github.io/chaos-atlas/)
