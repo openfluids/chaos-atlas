@@ -1,10 +1,11 @@
+/* CSS requires @import to precede every rule except @charset and @layer, and
+   the @tailwind directives below expand into rules. These must stay first. */
+@import '../styles/themes/tron.css';
+@import '../styles/animations/glow-effects.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Tron Theme CSS Import */
-@import '../styles/themes/tron.css';
-@import '../styles/animations/glow-effects.css';
 
 :root {
   /* Theme variables will be set by ThemeContext */
