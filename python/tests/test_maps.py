@@ -69,6 +69,13 @@ class TestLogistic:
         )
         assert np.unique(np.round(x_values, 6)).size == 2
 
+    def test_bifurcation_at_r4_shows_the_full_chaotic_attractor(self):
+        # The default seed x0 = 0.2 must actually explore the r = 4 column,
+        # not collapse to the single preperiodic value that x0 = 0.5 hits.
+        r_values, x_values = logistic.bifurcation()
+        mask = np.isclose(r_values, 4.0)
+        assert np.unique(np.round(x_values[mask], 9)).size > 50
+
     def test_cobweb_chains_x_to_previous_y(self):
         pairs = logistic.cobweb(r=3.9, x0=0.3, iterations=10)
         assert pairs.shape == (10, 2)
@@ -231,6 +238,15 @@ class TestDuffing:
 
     def test_trajectory_shape_is_n_by_two(self):
         assert duffing.trajectory(iterations=500).shape == (500, 2)
+
+    def test_trajectory_stays_finite_at_default_parameters(self):
+        # A transposed x/y recurrence blows up almost immediately at the
+        # canonical (a, b) = (2.75, 0.2); the correct map does not.
+        assert np.isfinite(duffing.trajectory(iterations=500)).all()
+
+    def test_chaotic_at_canonical_parameters(self):
+        # a = 2.75, b = 0.2 is the canonical chaotic Duffing map parameter set.
+        assert duffing.lyapunov(iterations=100_000) == pytest.approx(0.478, abs=0.02)
 
 
 class TestComplexQuadratic:

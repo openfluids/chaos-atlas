@@ -32,7 +32,7 @@ def henon_jacobian(x: float, y: float, a: float, b: float) -> np.ndarray:
 
 
 def duffing_jacobian(x: float, y: float, a: float, b: float) -> np.ndarray:
-    return np.array([[0.0, 1.0], [a - 3.0 * x * x, -b]])
+    return np.array([[0.0, 1.0], [-b, a - 3.0 * y * y]])
 
 
 def tinkerbell_jacobian(x, y, a, b, c, d) -> np.ndarray:
@@ -125,4 +125,15 @@ def test_henon_jacobian_determinant_is_minus_b():
     for x in np.linspace(-1.5, 1.5, 25):
         assert np.linalg.det(henon_jacobian(float(x), 0.0, 1.4, 0.3)) == pytest.approx(
             -0.3
+        )
+
+
+def test_duffing_jacobian_determinant_is_b():
+    # det J = 0 * (a - 3y^2) - 1 * (-b) = b for the Duffing map, independent
+    # of position. This is the quickest catch for a transposed x/y map: a
+    # broken recurrence gives a determinant that varies with position instead
+    # of being pinned to b.
+    for y in np.linspace(-1.5, 1.5, 25):
+        assert np.linalg.det(duffing_jacobian(0.0, float(y), 2.75, 0.2)) == pytest.approx(
+            0.2
         )
