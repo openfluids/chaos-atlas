@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import { initChartBase, renderAxisLabelsPlain, renderChartTitleAccent } from './chartHelpers';
 
 const StandardMapVisualization: React.FC = () => {
   const [K, setK] = useState(1.2);
@@ -14,22 +16,10 @@ const StandardMapVisualization: React.FC = () => {
   const height = 400;
   
   useEffect(() => {
-    if (!svgRef.current) return;
-    
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-    
-    const svg = d3.select(svgRef.current);
-    
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-    
+    const chart = initChartBase(svgRef, width, height);
+    if (!chart) return;
+    const { g, innerWidth, innerHeight } = chart;
+
     // Calculate Standard map
     const points = [];
     let p = p0;
@@ -81,95 +71,65 @@ const StandardMapVisualization: React.FC = () => {
       .style('color', 'var(--text-secondary)');
     
     // Add axis labels
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', innerHeight + 45)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('θ');
-    
-    g.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -innerHeight / 2)
-      .attr('y', -40)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('p');
-    
+    renderAxisLabelsPlain(g, innerWidth, innerHeight, 'θ', 'p');
+
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', -15)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-accent)')
-      .style('font-weight', 'bold')
-      .text(`Standard Map (K = ${K.toFixed(2)})`);
-    
+    renderChartTitleAccent(g, innerWidth, `Standard Map (K = ${K.toFixed(2)})`);
+
   }, [K, p0, theta0, iterations]);
   
   return (
     <div className="standard-map-visualization p-6">
       {/* Controls */}
       <div className="controls mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Parameter K: {K.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="5"
-            step="0.1"
-            value={K}
-            onChange={(e) => setK(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Initial p₀: {p0.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max={2 * Math.PI}
-            step="0.1"
-            value={p0}
-            onChange={(e) => setP0(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Initial θ₀: {theta0.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max={2 * Math.PI}
-            step="0.1"
-            value={theta0}
-            onChange={(e) => setTheta0(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Iterations: {iterations}
-          </label>
-          <input
-            type="range"
-            min="100"
-            max="2000"
-            step="50"
-            value={iterations}
-            onChange={(e) => setIterations(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
+        <ParamSlider
+          label={<>Parameter K: {K.toFixed(3)}</>}
+          min={0}
+          max={5}
+          step={0.1}
+          value={K}
+          onChange={setK}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Initial p₀: {p0.toFixed(3)}</>}
+          min={0}
+          max={2 * Math.PI}
+          step={0.1}
+          value={p0}
+          onChange={setP0}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Initial θ₀: {theta0.toFixed(3)}</>}
+          min={0}
+          max={2 * Math.PI}
+          step={0.1}
+          value={theta0}
+          onChange={setTheta0}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Iterations: {iterations}</>}
+          min={100}
+          max={2000}
+          step={50}
+          value={iterations}
+          onChange={setIterations}
+          parse={parseInt}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
       </div>
       
       {/* Visualization */}

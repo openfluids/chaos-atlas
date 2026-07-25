@@ -11,6 +11,14 @@ import {
   calculateBakersTopologicalEntropy,
   calculateBakersPhaseSpacePartition
 } from '@/lib/maps/bakers';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import {
+  initChartBase,
+  renderChartAxes,
+  renderAxisLabelsRotated,
+  renderChartTitle,
+} from './chartHelpers';
 
 const BakersMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
@@ -244,28 +252,9 @@ const BakersMapVisualization: React.FC = () => {
       }
     };
 
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
+    const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
+    if (!chart) return;
+    const { g, margin, innerWidth, innerHeight } = chart;
 
     // Create scales
     const xScale = d3.scaleLinear()
@@ -292,44 +281,13 @@ const BakersMapVisualization: React.FC = () => {
     }
 
     // Add axes
-    g.append('g')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
-
-    g.append('g')
-      .call(d3.axisLeft(yScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
+    renderChartAxes(g, xScale, yScale, innerHeight);
 
     // Add axis labels
-    g.append('text')
-      .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-      .style('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '14px')
-      .text('x');
-
-    g.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('y', 0 - margin.left)
-      .attr('x', 0 - (innerHeight / 2))
-      .attr('dy', '1em')
-      .style('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '14px')
-      .text('y');
+    renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, 'x', 'y');
 
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
+    renderChartTitle(g, innerWidth, getVisualizationTitle());
 
   }, [initialX, initialY, iterations, visualizationType, mixingPoints, animationStep]);
 
@@ -340,85 +298,59 @@ const BakersMapVisualization: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Controls */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Initial x₀: {initialX.toFixed(2)}
-            </label>
-            <input
-              type="range"
-              min="0.01"
-              max="0.99"
-              step="0.01"
-              value={initialX}
-              onChange={(e) => setInitialX(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          <ParamSlider
+            label={<>Initial x₀: {initialX.toFixed(2)}</>}
+            min={0.01}
+            max={0.99}
+            step={0.01}
+            value={initialX}
+            onChange={setInitialX}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Initial y₀: {initialY.toFixed(2)}
-            </label>
-            <input
-              type="range"
-              min="0.01"
-              max="0.99"
-              step="0.01"
-              value={initialY}
-              onChange={(e) => setInitialY(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          <ParamSlider
+            label={<>Initial y₀: {initialY.toFixed(2)}</>}
+            min={0.01}
+            max={0.99}
+            step={0.01}
+            value={initialY}
+            onChange={setInitialY}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Iterations: {iterations}
-            </label>
-            <input
-              type="range"
-              min="10"
-              max="200"
-              step="5"
-              value={iterations}
-              onChange={(e) => setIterations(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          <ParamSlider
+            label={<>Iterations: {iterations}</>}
+            min={10}
+            max={200}
+            step={5}
+            value={iterations}
+            onChange={setIterations}
+            parse={parseInt}
+          />
 
           {visualizationType === 'mixing' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Mixing Points: {mixingPoints}
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={mixingPoints}
-                onChange={(e) => setMixingPoints(parseInt(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-              />
-            </div>
+            <ParamSlider
+              label={<>Mixing Points: {mixingPoints}</>}
+              min={5}
+              max={50}
+              step={5}
+              value={mixingPoints}
+              onChange={setMixingPoints}
+              parse={parseInt}
+            />
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Visualization Type
-            </label>
-            <select
-              value={visualizationType}
-              onChange={(e) => setVisualizationType(e.target.value)}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-            >
-              <option value="trajectory">Single Trajectory</option>
-              <option value="mixing">Mixing Behavior</option>
-              <option value="scrambling">Image Scrambling</option>
-              <option value="invariant">Invariant Measure</option>
-              <option value="partition">Phase Space Partition</option>
-              <option value="symbolic">Symbolic Dynamics</option>
-            </select>
-          </div>
+          <ViewModeSelect
+            label="Visualization Type"
+            value={visualizationType}
+            onChange={setVisualizationType}
+            options={[
+              { value: 'trajectory', label: 'Single Trajectory' },
+              { value: 'mixing', label: 'Mixing Behavior' },
+              { value: 'scrambling', label: 'Image Scrambling' },
+              { value: 'invariant', label: 'Invariant Measure' },
+              { value: 'partition', label: 'Phase Space Partition' },
+              { value: 'symbolic', label: 'Symbolic Dynamics' },
+            ]}
+          />
 
           {visualizationType === 'scrambling' && (
             <button

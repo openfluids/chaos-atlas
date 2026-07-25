@@ -2,6 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import {
+  initChartBase,
+  renderChartAxes,
+  renderAxisLabelsPlain,
+  renderChartTitleAccent,
+} from './chartHelpers';
 
 const HenonMapVisualization: React.FC = () => {
   const [a, setA] = useState(1.4);
@@ -15,22 +22,10 @@ const HenonMapVisualization: React.FC = () => {
   const height = 400;
   
   useEffect(() => {
-    if (!svgRef.current) return;
-    
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-    
-    const svg = d3.select(svgRef.current);
-    
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-    
+    const chart = initChartBase(svgRef, width, height);
+    if (!chart) return;
+    const { g, innerWidth, innerHeight } = chart;
+
     // Calculate Henon map
     const points = [];
     let x = x0;
@@ -79,122 +74,80 @@ const HenonMapVisualization: React.FC = () => {
       .attr('opacity', 0.6);
     
     // Add axes
-    g.append('g')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
-    
-    g.append('g')
-      .call(d3.axisLeft(yScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
-    
+    renderChartAxes(g, xScale, yScale, innerHeight);
+
     // Add axis labels
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', innerHeight + 45)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('x');
-    
-    g.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -innerHeight / 2)
-      .attr('y', -40)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('y');
-    
+    renderAxisLabelsPlain(g, innerWidth, innerHeight, 'x', 'y');
+
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', -15)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-accent)')
-      .style('font-weight', 'bold')
-      .text(`Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
-    
+    renderChartTitleAccent(g, innerWidth, `Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
+
   }, [a, b, x0, y0, iterations]);
   
   return (
     <div className="henon-map-visualization p-6">
       {/* Controls */}
       <div className="controls mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Parameter a: {a.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0.5"
-            max="2.0"
-            step="0.01"
-            value={a}
-            onChange={(e) => setA(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Parameter b: {b.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0.1"
-            max="0.5"
-            step="0.01"
-            value={b}
-            onChange={(e) => setB(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Initial x₀: {x0.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="-1"
-            max="1"
-            step="0.01"
-            value={x0}
-            onChange={(e) => setX0(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Initial y₀: {y0.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="-1"
-            max="1"
-            step="0.01"
-            value={y0}
-            onChange={(e) => setY0(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Iterations: {iterations}
-          </label>
-          <input
-            type="range"
-            min="500"
-            max="5000"
-            step="100"
-            value={iterations}
-            onChange={(e) => setIterations(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
+        <ParamSlider
+          label={<>Parameter a: {a.toFixed(3)}</>}
+          min={0.5}
+          max={2.0}
+          step={0.01}
+          value={a}
+          onChange={setA}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Parameter b: {b.toFixed(3)}</>}
+          min={0.1}
+          max={0.5}
+          step={0.01}
+          value={b}
+          onChange={setB}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Initial x₀: {x0.toFixed(3)}</>}
+          min={-1}
+          max={1}
+          step={0.01}
+          value={x0}
+          onChange={setX0}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Initial y₀: {y0.toFixed(3)}</>}
+          min={-1}
+          max={1}
+          step={0.01}
+          value={y0}
+          onChange={setY0}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Iterations: {iterations}</>}
+          min={500}
+          max={5000}
+          step={100}
+          value={iterations}
+          onChange={setIterations}
+          parse={parseInt}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
       </div>
       
       {/* Visualization */}

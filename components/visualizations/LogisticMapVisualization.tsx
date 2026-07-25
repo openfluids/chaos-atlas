@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { ParamSlider } from '@/components/ui/ParamSlider';
 
 const LogisticMapVisualization: React.FC = () => {
   const [r, setR] = useState(3.5);
@@ -348,50 +349,39 @@ const LogisticMapVisualization: React.FC = () => {
             <div className="bg-black/40 border border-cyan-500/20 rounded-lg p-6 space-y-6">
               <h2 className="text-xl font-bold neon-text-cyan">Parameters</h2>
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-cyan-400">
-                  Parameter r: {r.toFixed(3)}
-                </label>
-                <input
-                  type="range"
-                  min="2.5"
-                  max="4"
-                  step="0.01"
-                  value={r}
-                  onChange={(e) => setR(parseFloat(e.target.value))}
-                  className="w-full accent-cyan-500"
-                />
-              </div>
+              <ParamSlider
+                label={<>Parameter r: {r.toFixed(3)}</>}
+                min={2.5}
+                max={4}
+                step={0.01}
+                value={r}
+                onChange={setR}
+                className="w-full accent-cyan-500"
+                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
+              />
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-cyan-400">
-                  Initial Value x₀: {x0.toFixed(3)}
-                </label>
-                <input
-                  type="range"
-                  min="0.01"
-                  max="0.99"
-                  step="0.01"
-                  value={x0}
-                  onChange={(e) => setX0(parseFloat(e.target.value))}
-                  className="w-full accent-cyan-500"
-                />
-              </div>
+              <ParamSlider
+                label={<>Initial Value x₀: {x0.toFixed(3)}</>}
+                min={0.01}
+                max={0.99}
+                step={0.01}
+                value={x0}
+                onChange={setX0}
+                className="w-full accent-cyan-500"
+                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
+              />
 
-              <div>
-                <label className="block text-sm font-medium mb-2 text-cyan-400">
-                  Iterations: {iterations}
-                </label>
-                <input
-                  type="range"
-                  min="10"
-                  max="200"
-                  step="5"
-                  value={iterations}
-                  onChange={(e) => setIterations(parseInt(e.target.value))}
-                  className="w-full accent-cyan-500"
-                />
-              </div>
+              <ParamSlider
+                label={<>Iterations: {iterations}</>}
+                min={10}
+                max={200}
+                step={5}
+                value={iterations}
+                onChange={setIterations}
+                parse={parseInt}
+                className="w-full accent-cyan-500"
+                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
+              />
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-cyan-400">

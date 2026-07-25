@@ -13,6 +13,14 @@ import {
   getInterestingTinkerbellParameters,
   calculateTinkerbellReturnMap
 } from '@/lib/maps/tinkerbell';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import {
+  initChartBase,
+  renderChartAxes,
+  renderAxisLabelsRotated,
+  renderChartTitle,
+} from './chartHelpers';
 
 const TinkerbellMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
@@ -416,28 +424,9 @@ const TinkerbellMapVisualization: React.FC = () => {
       }
     };
 
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
+    const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
+    if (!chart) return;
+    const { g, margin, innerWidth, innerHeight } = chart;
 
     // Render based on visualization type
     if (visualizationType === 'attractor') {
@@ -464,48 +453,17 @@ const TinkerbellMapVisualization: React.FC = () => {
       const xScale = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
       const yScale = d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
 
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
+      renderChartAxes(g, xScale, yScale, innerHeight);
 
       // Add axis labels
       const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}` : 'x';
       const yLabel = visualizationType === 'bifurcation' ? 'y' : 'y';
 
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(xLabel);
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - margin.left)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(yLabel);
+      renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, xLabel, yLabel);
     }
 
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
+    renderChartTitle(g, innerWidth, getVisualizationTitle());
 
   }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
 
@@ -516,73 +474,50 @@ const TinkerbellMapVisualization: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Controls */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Parameter Set
-            </label>
-            <select
-              value={selectedParams}
-              onChange={(e) => setSelectedParams(parseInt(e.target.value))}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-            >
-              {parameters.map((param, index) => (
-                <option key={index} value={index}>
-                  {param.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">{currentParams.description}</p>
-          </div>
+          <ViewModeSelect
+            label="Parameter Set"
+            value={selectedParams}
+            onChange={(v) => setSelectedParams(parseInt(v))}
+            options={parameters.map((param, index) => ({ value: index, label: param.name }))}
+            description={currentParams.description}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Iterations: {iterations}
-            </label>
-            <input
-              type="range"
-              min="500"
-              max="5000"
-              step="500"
-              value={iterations}
-              onChange={(e) => setIterations(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          <ParamSlider
+            label={<>Iterations: {iterations}</>}
+            min={500}
+            max={5000}
+            step={500}
+            value={iterations}
+            onChange={setIterations}
+            parse={parseInt}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Visualization Type
-            </label>
-            <select
-              value={visualizationType}
-              onChange={(e) => setVisualizationType(e.target.value)}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-            >
-              <option value="attractor">Multi-loop Attractor</option>
-              <option value="basin">Basin of Attraction</option>
-              <option value="bifurcation">Bifurcation Diagram</option>
-              <option value="crisis">Crisis Behavior</option>
-              <option value="return">Return Map</option>
-              <option value="fixed">Fixed Points</option>
-            </select>
-          </div>
+          <ViewModeSelect
+            label="Visualization Type"
+            value={visualizationType}
+            onChange={setVisualizationType}
+            options={[
+              { value: 'attractor', label: 'Multi-loop Attractor' },
+              { value: 'basin', label: 'Basin of Attraction' },
+              { value: 'bifurcation', label: 'Bifurcation Diagram' },
+              { value: 'crisis', label: 'Crisis Behavior' },
+              { value: 'return', label: 'Return Map' },
+              { value: 'fixed', label: 'Fixed Points' },
+            ]}
+          />
 
           {(visualizationType === 'bifurcation' || visualizationType === 'crisis') && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bifurcation Parameter
-              </label>
-              <select
-                value={bifurcationParam}
-                onChange={(e) => setBifurcationParam(e.target.value as 'a' | 'b' | 'c' | 'd')}
-                className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-              >
-                <option value="a">Parameter a</option>
-                <option value="b">Parameter b</option>
-                <option value="c">Parameter c</option>
-                <option value="d">Parameter d</option>
-              </select>
-            </div>
+            <ViewModeSelect
+              label="Bifurcation Parameter"
+              value={bifurcationParam}
+              onChange={(v) => setBifurcationParam(v as 'a' | 'b' | 'c' | 'd')}
+              options={[
+                { value: 'a', label: 'Parameter a' },
+                { value: 'b', label: 'Parameter b' },
+                { value: 'c', label: 'Parameter c' },
+                { value: 'd', label: 'Parameter d' },
+              ]}
+            />
           )}
 
           {/* Lyapunov Exponents Display */}

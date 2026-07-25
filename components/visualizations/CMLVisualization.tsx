@@ -2,6 +2,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import {
+  initChartBase,
+  renderChartAxes,
+  renderAxisLabelsPlain,
+  renderChartTitleAccent,
+} from './chartHelpers';
 
 const CMLVisualization: React.FC = () => {
   const [epsilon, setEpsilon] = useState(0.3);
@@ -14,22 +21,10 @@ const CMLVisualization: React.FC = () => {
   const height = 400;
   
   useEffect(() => {
-    if (!svgRef.current) return;
-    
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-    
-    const svg = d3.select(svgRef.current);
-    
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-    
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-    
+    const chart = initChartBase(svgRef, width, height);
+    if (!chart) return;
+    const { g, innerWidth, innerHeight } = chart;
+
     // Initialize lattice with random values
     let lattice = Array.from({ length: latticeSize }, () => Math.random());
     
@@ -87,107 +82,69 @@ const CMLVisualization: React.FC = () => {
     }
     
     // Add axes
-    g.append('g')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
-    
-    g.append('g')
-      .call(d3.axisLeft(yScale))
-      .selectAll('text, line, path')
-      .style('color', 'var(--text-secondary)');
-    
+    renderChartAxes(g, xScale, yScale, innerHeight);
+
     // Add axis labels
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', innerHeight + 45)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('Lattice Site');
-    
-    g.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -innerHeight / 2)
-      .attr('y', -40)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('Time Step');
-    
+    renderAxisLabelsPlain(g, innerWidth, innerHeight, 'Lattice Site', 'Time Step');
+
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', -15)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-accent)')
-      .style('font-weight', 'bold')
-      .text(`CML (ε = ${epsilon.toFixed(2)}, r = ${r.toFixed(2)})`);
-    
+    renderChartTitleAccent(g, innerWidth, `CML (ε = ${epsilon.toFixed(2)}, r = ${r.toFixed(2)})`);
+
   }, [epsilon, r, latticeSize, timeSteps]);
   
   return (
     <div className="cml-visualization p-6">
       {/* Controls */}
       <div className="controls mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Coupling ε: {epsilon.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="1"
-            step="0.01"
-            value={epsilon}
-            onChange={(e) => setEpsilon(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Parameter r: {r.toFixed(3)}
-          </label>
-          <input
-            type="range"
-            min="2.5"
-            max="4"
-            step="0.01"
-            value={r}
-            onChange={(e) => setR(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Lattice Size: {latticeSize}
-          </label>
-          <input
-            type="range"
-            min="20"
-            max="100"
-            step="5"
-            value={latticeSize}
-            onChange={(e) => setLatticeSize(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
-        
-        <div>
-          <label className="block text-sm mb-2" style={{ color: 'var(--text-secondary)' }}>
-            Time Steps: {timeSteps}
-          </label>
-          <input
-            type="range"
-            min="50"
-            max="200"
-            step="10"
-            value={timeSteps}
-            onChange={(e) => setTimeSteps(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
+        <ParamSlider
+          label={<>Coupling ε: {epsilon.toFixed(3)}</>}
+          min={0}
+          max={1}
+          step={0.01}
+          value={epsilon}
+          onChange={setEpsilon}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Parameter r: {r.toFixed(3)}</>}
+          min={2.5}
+          max={4}
+          step={0.01}
+          value={r}
+          onChange={setR}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Lattice Size: {latticeSize}</>}
+          min={20}
+          max={100}
+          step={5}
+          value={latticeSize}
+          onChange={setLatticeSize}
+          parse={parseInt}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Time Steps: {timeSteps}</>}
+          min={50}
+          max={200}
+          step={10}
+          value={timeSteps}
+          onChange={setTimeSteps}
+          parse={parseInt}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
       </div>
       
       {/* Visualization */}

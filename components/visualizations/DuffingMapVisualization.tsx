@@ -13,6 +13,9 @@ import {
   calculateDuffingEnergyTrajectories,
   getInterestingDuffingParameters
 } from '@/lib/maps/duffing';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import { initChartBase, renderChartTitle } from './chartHelpers';
 
 const DuffingMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(1);
@@ -490,28 +493,9 @@ const DuffingMapVisualization: React.FC = () => {
       }
     };
 
-    if (!svgRef.current) return;
-
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
-
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create a group element for the visualization
-    const g = svg.append('g')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    g.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', 'rgba(0, 0, 0, 0.1)')
-      .attr('rx', 5);
+    const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
+    if (!chart) return;
+    const { g, innerWidth, innerHeight } = chart;
 
     // Render based on visualization type
     if (visualizationType === 'attractor') {
@@ -529,14 +513,7 @@ const DuffingMapVisualization: React.FC = () => {
     }
 
     // Add title
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', 0 - 10)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '18px')
-      .style('font-weight', 'bold')
-      .text(getVisualizationTitle());
+    renderChartTitle(g, innerWidth, getVisualizationTitle());
 
   }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
 
@@ -547,71 +524,48 @@ const DuffingMapVisualization: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Controls */}
         <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Parameter Set
-            </label>
-            <select
-              value={selectedParams}
-              onChange={(e) => setSelectedParams(parseInt(e.target.value))}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-            >
-              {parameters.map((param, index) => (
-                <option key={index} value={index}>
-                  {param.name}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-gray-400 mt-1">{currentParams.description}</p>
-          </div>
+          <ViewModeSelect
+            label="Parameter Set"
+            value={selectedParams}
+            onChange={(v) => setSelectedParams(parseInt(v))}
+            options={parameters.map((param, index) => ({ value: index, label: param.name }))}
+            description={currentParams.description}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Iterations: {iterations}
-            </label>
-            <input
-              type="range"
-              min="500"
-              max="5000"
-              step="500"
-              value={iterations}
-              onChange={(e) => setIterations(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          <ParamSlider
+            label={<>Iterations: {iterations}</>}
+            min={500}
+            max={5000}
+            step={500}
+            value={iterations}
+            onChange={setIterations}
+            parse={parseInt}
+          />
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Visualization Type
-            </label>
-            <select
-              value={visualizationType}
-              onChange={(e) => setVisualizationType(e.target.value)}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-            >
-              <option value="attractor">Phase Space Attractor</option>
-              <option value="potential">Double-Well Potential</option>
-              <option value="basins">Basins of Attraction</option>
-              <option value="bifurcation">Bifurcation Diagram</option>
-              <option value="energy">Energy Trajectories</option>
-              <option value="phase">Phase Space Density</option>
-            </select>
-          </div>
+          <ViewModeSelect
+            label="Visualization Type"
+            value={visualizationType}
+            onChange={setVisualizationType}
+            options={[
+              { value: 'attractor', label: 'Phase Space Attractor' },
+              { value: 'potential', label: 'Double-Well Potential' },
+              { value: 'basins', label: 'Basins of Attraction' },
+              { value: 'bifurcation', label: 'Bifurcation Diagram' },
+              { value: 'energy', label: 'Energy Trajectories' },
+              { value: 'phase', label: 'Phase Space Density' },
+            ]}
+          />
 
           {visualizationType === 'bifurcation' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Bifurcation Parameter
-              </label>
-              <select
-                value={bifurcationParam}
-                onChange={(e) => setBifurcationParam(e.target.value as 'a' | 'b')}
-                className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
-              >
-                <option value="a">Parameter a (Well depth)</option>
-                <option value="b">Parameter b (Damping)</option>
-              </select>
-            </div>
+            <ViewModeSelect
+              label="Bifurcation Parameter"
+              value={bifurcationParam}
+              onChange={(v) => setBifurcationParam(v as 'a' | 'b')}
+              options={[
+                { value: 'a', label: 'Parameter a (Well depth)' },
+                { value: 'b', label: 'Parameter b (Damping)' },
+              ]}
+            />
           )}
 
           {/* Lyapunov Exponents Display */}
