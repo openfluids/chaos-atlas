@@ -7,7 +7,7 @@ import { NeonButton, ThemeSwitcher } from '@/components/themes';
 export default function AboutPage() {
   return (
     <div className="min-h-screen">
-      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-sm">
+      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-xs">
         <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
             <Link href="/" className="text-sm mb-2 inline-block text-cyan-400 hover:text-cyan-300 transition-colors">
@@ -29,7 +29,7 @@ export default function AboutPage() {
       <main className="container mx-auto p-6">
         <div className="space-y-8">
           {/* Introduction */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Welcome to the Grid</h2>
             <p className="text-gray-300 leading-relaxed mb-4">
               Chaos Atlas is an interactive exploration platform for chaotic dynamical systems,
@@ -43,7 +43,7 @@ export default function AboutPage() {
           </section>
 
           {/* Key Features */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Core Features</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -81,7 +81,7 @@ export default function AboutPage() {
           </section>
 
           {/* Technical Architecture */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Technical Excellence</h2>
             <div className="grid md:grid-cols-3 gap-6">
               <div>
@@ -111,7 +111,7 @@ export default function AboutPage() {
           </section>
 
           {/* Mathematics */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">The Mathematics Behind</h2>
             <div className="space-y-6">
               <div>
@@ -149,7 +149,7 @@ export default function AboutPage() {
           </section>
 
           {/* Visualizations */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Visualization Techniques</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
@@ -187,7 +187,7 @@ export default function AboutPage() {
           </section>
 
           {/* Development Team */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Built With Excellence</h2>
             <div className="space-y-4">
               <p className="text-gray-300">
@@ -225,7 +225,7 @@ export default function AboutPage() {
           </section>
 
           {/* Call to Action */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm text-center">
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs text-center">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Start Exploring Chaos</h2>
             <p className="text-gray-300 mb-6">
               Ready to dive into the fascinating world of coupled map lattices?

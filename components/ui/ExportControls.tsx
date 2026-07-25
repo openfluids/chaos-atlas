@@ -152,7 +152,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
             const [width, height] = e.target.value.split('x').map(Number);
             setExportOptions(prev => ({ ...prev, width, height }));
           }}
-          className="w-full bg-black/50 border border-cyan-500/30 rounded px-3 py-2 text-white text-sm"
+          className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white text-sm"
         >
           {presetSizes.map(preset => (
             <option key={preset.name} value={`${preset.width}x${preset.height}`}>
@@ -174,7 +174,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
                 ...prev,
                 width: parseInt(e.target.value) || 1920
               }))}
-              className="w-full bg-black/50 border border-cyan-500/30 rounded px-2 py-1 text-white text-sm"
+              className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-2 py-1 text-white text-sm"
             />
           </div>
           <div>
@@ -186,7 +186,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
                 ...prev,
                 height: parseInt(e.target.value) || 1080
               }))}
-              className="w-full bg-black/50 border border-cyan-500/30 rounded px-2 py-1 text-white text-sm"
+              className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-2 py-1 text-white text-sm"
             />
           </div>
         </div>
@@ -201,7 +201,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
             ...prev,
             dpi: parseInt(e.target.value)
           }))}
-          className="w-full bg-black/50 border border-cyan-500/30 rounded px-3 py-2 text-white text-sm"
+          className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white text-sm"
         >
           {presetDPIs.map(preset => (
             <option key={preset.name} value={preset.value}>
@@ -235,7 +235,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
         <button
           onClick={handleExportPNG}
           disabled={isExporting || !svgElement}
-          className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-sm transition-colors flex items-center justify-center gap-2"
         >
           {isExporting ? (
             <>
@@ -256,14 +256,14 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
           <button
             onClick={handleExportSVG}
             disabled={isExporting || !svgElement}
-            className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded transition-colors text-sm"
+            className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
           >
             Export SVG
           </button>
           <button
             onClick={handleExportCSV}
             disabled={isExporting || data.length === 0}
-            className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded transition-colors text-sm"
+            className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
           >
             Export CSV
           </button>

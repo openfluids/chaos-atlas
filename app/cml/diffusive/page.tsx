@@ -8,7 +8,7 @@ import { NeonButton, ThemeSwitcher } from '@/components/themes';
 export default function DiffusiveCMLPage() {
   return (
     <div className="min-h-screen">
-      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-sm">
+      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-xs">
         <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
             <Link href="/" className="text-sm mb-2 inline-block text-cyan-400 hover:text-cyan-300 transition-colors">
@@ -28,7 +28,7 @@ export default function DiffusiveCMLPage() {
       </header>
       <main className="container mx-auto p-6">
         <div className="space-y-6">
-          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-xl font-semibold neon-text-cyan mb-4">Diffusive Coupling Visualization</h2>
             <p className="text-gray-300 mb-6">
               Explore how diffusive coupling creates complex spatiotemporal patterns in coupled map lattices.
@@ -40,7 +40,7 @@ export default function DiffusiveCMLPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h3 className="text-lg font-semibold neon-text-orange mb-3">Pattern Formation</h3>
               <p className="text-gray-300 mb-4">
                 Observe how local interactions create global patterns through diffusive coupling.
@@ -54,7 +54,7 @@ export default function DiffusiveCMLPage() {
               </ul>
             </div>
 
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h3 className="text-lg font-semibold neon-text-magenta mb-3">Coupling Strength</h3>
               <p className="text-gray-300 mb-4">
                 The diffusive coupling parameter controls how neighboring sites influence each other,

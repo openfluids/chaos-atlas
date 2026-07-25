@@ -208,7 +208,7 @@ export default function Home() {
       background: `linear-gradient(135deg, var(--bg-primary), var(--bg-secondary))`
     }}>
       {/* Header */}
-      <header className="p-6 border-b bg-black/50 backdrop-blur-sm" style={{ borderColor: 'var(--border-primary)' }}>
+      <header className="p-6 border-b bg-black/50 backdrop-blur-xs" style={{ borderColor: 'var(--border-primary)' }}>
         <div className="container mx-auto flex items-center justify-between">
           <div>
             <h1 className="text-4xl font-bold neon-text-cyan mb-1">
@@ -228,7 +228,7 @@ export default function Home() {
       </header>
 
       {/* Sections */}
-      <main className="flex-grow container mx-auto p-6 space-y-12">
+      <main className="grow container mx-auto p-6 space-y-12">
         {sections.map((section) => (
           <section key={section.title}>
             {/* Section heading */}
@@ -247,7 +247,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {section.maps.map((map) => (
                 <Link key={map.href} href={map.href} className="block">
-                  <div className={`h-full p-5 rounded-lg transition-all duration-300 hover:scale-105 border-2 bg-black/30 backdrop-blur-sm ${cardBorder[section.accent]}`}>
+                  <div className={`h-full p-5 rounded-lg transition-all duration-300 hover:scale-105 border-2 bg-black/30 backdrop-blur-xs ${cardBorder[section.accent]}`}>
                     <div className="flex items-start gap-3 mb-2">
                       <span className={`text-3xl leading-none ${map.iconColor}`}>{map.icon}</span>
                       <h3 className={`text-xl font-bold neon-text-${section.accent}`}>

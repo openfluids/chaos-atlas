@@ -106,7 +106,7 @@ const renderTimeSeriesCard = (
     <div key={map?.id || mapId} className="bg-black/30 border border-cyan-500/20 rounded-lg p-4">
       <h3 className="text-lg font-bold mb-3 neon-text-cyan">{map?.name || mapId}</h3>
       <div className="h-64">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" className="border border-cyan-500/10 rounded bg-black/80">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" className="border border-cyan-500/10 rounded-sm bg-black/80">
           {data.length > 0 && (
             <g>
               <path
@@ -142,7 +142,7 @@ const renderPhaseSpaceCard = (
     <div key={map?.id || mapId} className="bg-black/30 border border-cyan-500/20 rounded-lg p-4">
       <h3 className="text-lg font-bold mb-3 neon-text-cyan">{map?.name || mapId}</h3>
       <div className="h-64">
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" className="border border-cyan-500/10 rounded bg-black/80">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" width="100%" height="100%" className="border border-cyan-500/10 rounded-sm bg-black/80">
           {data.length > 0 && (
             <g>
               <path
@@ -232,7 +232,7 @@ const ComparativeAnalysis: React.FC = () => {
   }, [selectedMaps, iterations, syncParams, sharedParam]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -242,7 +242,7 @@ const ComparativeAnalysis: React.FC = () => {
             </svg>
             Back to Home
           </Link>
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold mb-4 bg-linear-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
             Comparative Analysis Framework
           </h1>
           <p className="text-gray-300 text-lg">
@@ -274,7 +274,7 @@ const ComparativeAnalysis: React.FC = () => {
                           setSelectedMaps(selectedMaps.filter(id => id !== map.id));
                         }
                       }}
-                      className="mr-2 rounded border-cyan-500/30 bg-black/50 text-cyan-400"
+                      className="mr-2 rounded-sm border-cyan-500/30 bg-black/50 text-cyan-400"
                     />
                     <span className="text-sm">{map.name}</span>
                   </label>
@@ -291,7 +291,7 @@ const ComparativeAnalysis: React.FC = () => {
                 name="comparison-mode"
                 value={comparisonMode}
                 onChange={(e) => setComparisonMode(e.target.value as ComparisonMode)}
-                className="w-full bg-black/50 border border-cyan-500/30 rounded px-3 py-2 text-white"
+                className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white"
               >
                 <option value="time-series">Time Series</option>
                 <option value="phase-space">Phase Space</option>
@@ -324,7 +324,7 @@ const ComparativeAnalysis: React.FC = () => {
                   type="checkbox"
                   checked={syncParams}
                   onChange={(e) => setSyncParams(e.target.checked)}
-                  className="mr-2 rounded border-cyan-500/30 bg-black/50 text-cyan-400"
+                  className="mr-2 rounded-sm border-cyan-500/30 bg-black/50 text-cyan-400"
                 />
                 Sync Parameters
               </label>
@@ -333,7 +333,7 @@ const ComparativeAnalysis: React.FC = () => {
                   name="shared-param"
                   value={sharedParam}
                   onChange={(e) => setSharedParam(e.target.value)}
-                  className="w-full bg-black/50 border border-cyan-500/30 rounded px-3 py-2 text-white text-sm"
+                  className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white text-sm"
                 >
                   <option value="r">Growth Rate (r)</option>
                   <option value="a">Parameter (a)</option>

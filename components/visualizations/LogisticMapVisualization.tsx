@@ -324,7 +324,7 @@ const LogisticMapVisualization: React.FC = () => {
   }, [r, x0, iterations, visualizationType, theme]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header with Theme Switcher */}
         <div className="flex justify-between items-center mb-6">
@@ -333,7 +333,7 @@ const LogisticMapVisualization: React.FC = () => {
             <select
               value={currentTheme}
               onChange={(e) => setCurrentTheme(e.target.value)}
-              className="bg-black/70 border border-cyan-500/30 rounded px-4 py-2 text-white"
+              className="bg-black/70 border border-cyan-500/30 rounded-sm px-4 py-2 text-white"
             >
               <option value="matplotlib">Matplotlib</option>
               <option value="seaborn">Seaborn</option>
@@ -410,7 +410,7 @@ const LogisticMapVisualization: React.FC = () => {
                 <select
                   value={visualizationType}
                   onChange={(e) => setVisualizationType(e.target.value)}
-                  className="w-full bg-black/50 border border-cyan-500/30 rounded px-3 py-2 text-white"
+                  className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white"
                 >
                   <option value="cobweb">Cobweb Plot</option>
                   <option value="time">Time Series</option>
@@ -422,13 +422,13 @@ const LogisticMapVisualization: React.FC = () => {
               <div className="space-y-2">
                 <button
                   onClick={() => setZoomLevel(1)}
-                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded transition-colors text-sm"
+                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
                 >
                   Reset View
                 </button>
                 <button
                   onClick={() => alert('Pan and zoom coming soon!')}
-                  className="w-full bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded transition-colors text-sm"
+                  className="w-full bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
                 >
                   Pan & Zoom
                 </button>
@@ -440,7 +440,7 @@ const LogisticMapVisualization: React.FC = () => {
           <div className="lg:col-span-3">
             <div className="bg-black/40 border border-cyan-500/20 rounded-lg p-6">
               <div className="flex justify-center">
-                <div className="border border-cyan-500/20 rounded">
+                <div className="border border-cyan-500/20 rounded-sm">
                   <svg
                     ref={svgRef}
                     viewBox={`0 0 ${width} ${height}`}

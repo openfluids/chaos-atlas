@@ -410,7 +410,7 @@ const ArnoldMapVisualization: React.FC = () => {
   };
 
   return (
-    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Arnold Cat Map Visualization</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -502,7 +502,7 @@ const ArnoldMapVisualization: React.FC = () => {
             <select
               value={visualizationType}
               onChange={(e) => setVisualizationType(e.target.value)}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-none focus:border-cyan-400/40"
+              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
             >
               <option value="trajectory">Trajectory</option>
               <option value="grid">Grid Transformation</option>

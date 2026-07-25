@@ -71,7 +71,7 @@ export function ThemeSwitcher({
       case 'sidebar':
         return 'flex-col gap-2 p-4';
       case 'floating':
-        return 'flex-col gap-2 p-4 rounded-lg border border-cyan-500/20 bg-black/80 backdrop-blur-sm';
+        return 'flex-col gap-2 p-4 rounded-lg border border-cyan-500/20 bg-black/80 backdrop-blur-xs';
       default:
         return 'flex-row gap-2 p-2';
     }
@@ -121,7 +121,7 @@ export function ThemeSwitcher({
             aria-label={`Switch to ${themeConfig.name} theme`}
             className={cn(
               'theme-button relative rounded-md border-2 transition-all duration-300',
-              'focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-black',
+              'focus:outline-hidden focus:ring-2 focus:ring-cyan-400 focus:ring-offset-2 focus:ring-offset-black',
               'hover:scale-105 active:scale-95',
               isActive
                 ? 'border-cyan-400 neon-glow-cyan'
@@ -136,7 +136,7 @@ export function ThemeSwitcher({
             disabled={isLoading}
           >
             {compact ? (
-              <span className="w-full h-full rounded-sm block" style={{
+              <span className="w-full h-full rounded-xs block" style={{
                 backgroundColor: themeConfig.colors.primary,
                 boxShadow: isActive ? `0 0 12px ${themeConfig.colors.glow}` : 'none',
               }} />
@@ -156,7 +156,7 @@ export function ThemeSwitcher({
 
             {isActive && (
               <span className="absolute inset-0 rounded-md pointer-events-none block">
-                <span className="absolute inset-0 rounded-md bg-gradient-to-r from-cyan-400/20 to-purple-400/20 animate-pulse block" />
+                <span className="absolute inset-0 rounded-md bg-linear-to-r from-cyan-400/20 to-purple-400/20 animate-pulse block" />
               </span>
             )}
           </button>
@@ -210,7 +210,7 @@ export function ThemeSwitcher({
           <div className="preset-buttons grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="px-2 py-1 text-xs bg-cyan-500/20 border border-cyan-500/50 rounded hover:bg-cyan-500/30 transition-colors"
+              className="px-2 py-1 text-xs bg-cyan-500/20 border border-cyan-500/50 rounded-sm hover:bg-cyan-500/30 transition-colors"
               onClick={() => {
                 setGlowIntensity(0.8);
                 setAnimationSpeed(1);
@@ -220,7 +220,7 @@ export function ThemeSwitcher({
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs bg-purple-500/20 border border-purple-500/50 rounded hover:bg-purple-500/30 transition-colors"
+              className="px-2 py-1 text-xs bg-purple-500/20 border border-purple-500/50 rounded-sm hover:bg-purple-500/30 transition-colors"
               onClick={() => {
                 setGlowIntensity(1);
                 setAnimationSpeed(1.5);
@@ -230,7 +230,7 @@ export function ThemeSwitcher({
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs bg-orange-500/20 border border-orange-500/50 rounded hover:bg-orange-500/30 transition-colors"
+              className="px-2 py-1 text-xs bg-orange-500/20 border border-orange-500/50 rounded-sm hover:bg-orange-500/30 transition-colors"
               onClick={() => {
                 setGlowIntensity(0.4);
                 setAnimationSpeed(0.5);
@@ -240,7 +240,7 @@ export function ThemeSwitcher({
             </button>
             <button
               type="button"
-              className="px-2 py-1 text-xs bg-green-500/20 border border-green-500/50 rounded hover:bg-green-500/30 transition-colors"
+              className="px-2 py-1 text-xs bg-green-500/20 border border-green-500/50 rounded-sm hover:bg-green-500/30 transition-colors"
               onClick={() => {
                 setGlowIntensity(0);
                 setAnimationSpeed(0);

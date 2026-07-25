@@ -42,7 +42,7 @@ export const DataThemeSwitcher: React.FC<DataThemeSwitcherProps> = ({
         {theme.colors.data.slice(0, isSmall ? 3 : 5).map((color, index) => (
           <div
             key={index}
-            className="rounded-sm"
+            className="rounded-xs"
             style={{
               backgroundColor: color,
               width: `${barWidth}px`,
@@ -194,7 +194,7 @@ export const CompactDataThemeSwitcher: React.FC<DataThemeSwitcherProps> = ({
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 bg-black/70 border border-cyan-500/30 rounded px-3 py-1.5 hover:bg-black/80 transition-colors"
+        className="flex items-center gap-2 bg-black/70 border border-cyan-500/30 rounded-sm px-3 py-1.5 hover:bg-black/80 transition-colors"
       >
         <div className="flex gap-0.5">
           {currentTheme.colors.data.slice(0, 4).map((color, index) => (

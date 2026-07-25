@@ -533,7 +533,7 @@ const DuffingMapVisualization: React.FC = () => {
   };
 
   return (
-    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Duffing Map Visualization</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -546,7 +546,7 @@ const DuffingMapVisualization: React.FC = () => {
             <select
               value={selectedParams}
               onChange={(e) => setSelectedParams(parseInt(e.target.value))}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-none focus:border-cyan-400/40"
+              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
             >
               {parameters.map((param, index) => (
                 <option key={index} value={index}>
@@ -579,7 +579,7 @@ const DuffingMapVisualization: React.FC = () => {
             <select
               value={visualizationType}
               onChange={(e) => setVisualizationType(e.target.value)}
-              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-none focus:border-cyan-400/40"
+              className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
             >
               <option value="attractor">Phase Space Attractor</option>
               <option value="potential">Double-Well Potential</option>
@@ -598,7 +598,7 @@ const DuffingMapVisualization: React.FC = () => {
               <select
                 value={bifurcationParam}
                 onChange={(e) => setBifurcationParam(e.target.value as 'a' | 'b')}
-                className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-none focus:border-cyan-400/40"
+                className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
               >
                 <option value="a">Parameter a (Well depth)</option>
                 <option value="b">Parameter b (Damping)</option>

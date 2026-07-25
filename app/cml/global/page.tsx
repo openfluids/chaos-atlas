@@ -7,7 +7,7 @@ import { NeonButton, ThemeSwitcher } from '@/components/themes';
 export default function GlobalCMLPage() {
   return (
     <div className="min-h-screen">
-      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-sm">
+      <header className="p-6 border-b border-cyan-500/20 bg-black/50 backdrop-blur-xs">
         <div className="container mx-auto flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex-1">
             <Link href="/" className="text-sm mb-2 inline-block text-cyan-400 hover:text-cyan-300 transition-colors">
@@ -28,7 +28,7 @@ export default function GlobalCMLPage() {
 
       <main className="container mx-auto p-6">
         <div className="space-y-6">
-          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-xl font-semibold neon-text-cyan mb-4">Global Coupling Visualization</h2>
             <p className="text-gray-300 mb-6">
               In globally coupled map lattices, each site interacts with the global average of all sites.
@@ -49,7 +49,7 @@ export default function GlobalCMLPage() {
           </div>
 
           <div className="grid md:grid-cols-2 gap-6">
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h3 className="text-lg font-semibold neon-text-orange mb-3">Synchronization Phenomena</h3>
               <p className="text-gray-300 mb-4">
                 Global coupling leads to various synchronization states and collective dynamics
@@ -64,7 +64,7 @@ export default function GlobalCMLPage() {
               </ul>
             </div>
 
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h3 className="text-lg font-semibold neon-text-magenta mb-3">Global Coupling Strength</h3>
               <p className="text-gray-300 mb-4">
                 The global coupling parameter ε controls how strongly each site is influenced
@@ -79,7 +79,7 @@ export default function GlobalCMLPage() {
             </div>
           </div>
 
-          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+          <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h3 className="text-lg font-semibold neon-text-yellow mb-4">Mathematical Framework</h3>
             <div className="bg-black/50 rounded-lg p-4 border border-cyan-500/10 font-mono text-sm">
               <p className="text-cyan-400 mb-2">Global Coupled Map Lattice:</p>
@@ -94,7 +94,7 @@ export default function GlobalCMLPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h4 className="text-lg font-semibold neon-text-cyan mb-3">Ott-Antonsen Ansatz</h4>
               <p className="text-gray-300 text-sm">
                 Powerful theoretical framework for understanding synchronization
@@ -102,7 +102,7 @@ export default function GlobalCMLPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h4 className="text-lg font-semibold neon-text-orange mb-3">Kuramoto Model</h4>
               <p className="text-gray-300 text-sm">
                 Classic model for synchronization in globally coupled phase oscillators,
@@ -110,7 +110,7 @@ export default function GlobalCMLPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-sm">
+            <div className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
               <h4 className="text-lg font-semibold neon-text-magenta mb-3">Network Theory</h4>
               <p className="text-gray-300 text-sm">
                 Global coupling represents the special case of a complete graph

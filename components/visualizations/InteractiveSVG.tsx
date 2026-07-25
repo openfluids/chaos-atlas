@@ -172,7 +172,7 @@ export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
         ref={internalSvgRef}
         width={width}
         height={height}
-        className={`border border-cyan-500/20 rounded ${enablePan ? 'cursor-grab' : ''}`}
+        className={`border border-cyan-500/20 rounded-sm ${enablePan ? 'cursor-grab' : ''}`}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -202,7 +202,7 @@ export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
               setTransform(newTransform);
               onTransformChange?.(newTransform);
             }}
-            className="bg-black/70 text-cyan-400 px-2 py-1 rounded text-xs hover:bg-black/90 border border-cyan-500/30"
+            className="bg-black/70 text-cyan-400 px-2 py-1 rounded-sm text-xs hover:bg-black/90 border border-cyan-500/30"
             title="Zoom in"
           >
             +
@@ -221,14 +221,14 @@ export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
               setTransform(newTransform);
               onTransformChange?.(newTransform);
             }}
-            className="bg-black/70 text-cyan-400 px-2 py-1 rounded text-xs hover:bg-black/90 border border-cyan-500/30"
+            className="bg-black/70 text-cyan-400 px-2 py-1 rounded-sm text-xs hover:bg-black/90 border border-cyan-500/30"
             title="Zoom out"
           >
             −
           </button>
           <button
             onClick={resetView}
-            className="bg-black/70 text-cyan-400 px-2 py-1 rounded text-xs hover:bg-black/90 border border-cyan-500/30"
+            className="bg-black/70 text-cyan-400 px-2 py-1 rounded-sm text-xs hover:bg-black/90 border border-cyan-500/30"
             title="Reset view"
           >
             ⟲
@@ -237,7 +237,7 @@ export const InteractiveSVG: React.FC<InteractiveSVGProps> = ({
       )}
 
       {/* Transform info */}
-      <div className="absolute bottom-2 left-2 bg-black/70 text-cyan-400 px-2 py-1 rounded text-xs border border-cyan-500/30">
+      <div className="absolute bottom-2 left-2 bg-black/70 text-cyan-400 px-2 py-1 rounded-sm text-xs border border-cyan-500/30">
         Zoom: {(transform.scale * 100).toFixed(0)}%
       </div>
     </div>
