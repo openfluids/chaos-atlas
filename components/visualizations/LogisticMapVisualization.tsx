@@ -8,7 +8,6 @@ const LogisticMapVisualization: React.FC = () => {
   const [x0, setX0] = useState(0.5);
   const [iterations, setIterations] = useState(50);
   const [visualizationType, setVisualizationType] = useState('cobweb');
-  const [zoomLevel, setZoomLevel] = useState(1);
 
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -340,15 +339,6 @@ const LogisticMapVisualization: React.FC = () => {
               <option value="neon">Neon</option>
               <option value="scientific">Scientific</option>
             </select>
-            <button
-              onClick={() => alert('Export functionality coming soon!')}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Export
-            </button>
           </div>
         </div>
 
@@ -418,21 +408,6 @@ const LogisticMapVisualization: React.FC = () => {
                 </select>
               </div>
 
-              {/* Quick Actions */}
-              <div className="space-y-2">
-                <button
-                  onClick={() => setZoomLevel(1)}
-                  className="w-full bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
-                >
-                  Reset View
-                </button>
-                <button
-                  onClick={() => alert('Pan and zoom coming soon!')}
-                  className="w-full bg-gray-600 hover:bg-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
-                >
-                  Pan & Zoom
-                </button>
-              </div>
             </div>
           </div>
 
@@ -445,7 +420,7 @@ const LogisticMapVisualization: React.FC = () => {
                     ref={svgRef}
                     viewBox={`0 0 ${width} ${height}`}
                     className="w-full"
-                    style={{ maxWidth: width * zoomLevel, aspectRatio: `${width}/${height}` }}
+                    style={{ maxWidth: width, aspectRatio: `${width}/${height}` }}
                   />
                 </div>
               </div>
@@ -453,7 +428,7 @@ const LogisticMapVisualization: React.FC = () => {
               {/* Visualization Info */}
               <div className="mt-4 text-center text-sm text-gray-400">
                 <p>Interactive Controls: Adjust parameters using controls panel • Themes change colors</p>
-                <p className="mt-1">Current Theme: {currentTheme} • Zoom: {Math.round(zoomLevel * 100)}%</p>
+                <p className="mt-1">Current Theme: {currentTheme}</p>
               </div>
             </div>
           </div>

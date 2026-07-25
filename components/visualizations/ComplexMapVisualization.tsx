@@ -124,7 +124,10 @@ const ComplexMapVisualization: React.FC = () => {
       setIsRendering(true);
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        setIsRendering(false);
+        return;
+      }
 
       const imageData = ctx.createImageData(width, height);
       const data = imageData.data;

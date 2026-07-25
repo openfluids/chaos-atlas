@@ -49,32 +49,6 @@ export const MacOSCompatibility: React.FC = () => {
       `;
       document.head.appendChild(style);
     }
-    
-    // Handle macOS trackpad and mouse wheel behavior
-    const handleWheel = (e: WheelEvent) => {
-      // Adjust sensitivity for trackpad
-      if (Math.abs(e.deltaX) < 10 && Math.abs(e.deltaY) < 10) {
-        // Likely a trackpad with fine-grained control
-        // No need to modify behavior
-      } else {
-        // Likely a mouse wheel, might need to prevent overscrolling
-        if (Math.abs(e.deltaY) > 100) {
-          // Prevent excessive scrolling
-          e.preventDefault();
-        }
-      }
-    };
-    
-    // Only add listener if we're in the browser
-    if (typeof window !== 'undefined') {
-      // Use passive: false to allow preventDefault
-      window.addEventListener('wheel', handleWheel, { passive: false });
-      
-      // Cleanup
-      return () => {
-        window.removeEventListener('wheel', handleWheel);
-      };
-    }
   }, []);
 
   // This component doesn't render anything
