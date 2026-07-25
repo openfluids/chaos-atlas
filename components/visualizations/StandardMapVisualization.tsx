@@ -3,7 +3,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { ParamSlider } from '@/components/ui/ParamSlider';
-import { initChartBase, renderAxisLabelsPlain, renderChartTitleAccent } from './chartHelpers';
+import {
+  initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
+  renderAxisLabelsPlain,
+  renderChartTitleAccent,
+} from './chartHelpers';
 
 const StandardMapVisualization: React.FC = () => {
   const [K, setK] = useState(1.2);
@@ -18,36 +24,40 @@ const StandardMapVisualization: React.FC = () => {
   useEffect(() => {
     const chart = initChartBase(svgRef, width, height);
     if (!chart) return;
-    const { g, innerWidth, innerHeight } = chart;
+    const { svg, g, innerWidth, innerHeight } = chart;
 
     // Calculate Standard map
     const points = [];
     let p = p0;
     let theta = theta0;
-    
+
     // Collect points
     for (let i = 0; i < iterations; i++) {
       points.push({ theta: theta % (2 * Math.PI), p: p % (2 * Math.PI) });
-      
+
       // Standard map iteration
       const pNext = (p + K * Math.sin(theta)) % (2 * Math.PI);
       const thetaNext = (theta + pNext) % (2 * Math.PI);
-      
+
       p = pNext;
       theta = thetaNext;
     }
-    
-    // Create scales
-    const xScale = d3.scaleLinear()
-      .domain([0, 2 * Math.PI])
-      .range([0, innerWidth]);
-    
-    const yScale = d3.scaleLinear()
-      .domain([0, 2 * Math.PI])
-      .range([innerHeight, 0]);
-    
+
+    // θ and p both live on [0, 2π): the Chirikov standard map's KAM islands
+    // are only recognizably round if that square domain is drawn at 1:1
+    // pixels-per-unit rather than fit independently to a wide box.
+    const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
+      equalAspectScales([0, 2 * Math.PI], [0, 2 * Math.PI], innerWidth, innerHeight);
+
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight },
+      'standard-plot-clip'
+    );
+
     // Add points
-    g.selectAll('.standard-point')
+    dataGroup.selectAll('.standard-point')
       .data(points)
       .enter()
       .append('circle')
@@ -57,7 +67,7 @@ const StandardMapVisualization: React.FC = () => {
       .attr('r', 1.5)
       .attr('fill', 'var(--viz-primary)')
       .attr('opacity', 0.6);
-    
+
     // Add axes
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
@@ -69,7 +79,7 @@ const StandardMapVisualization: React.FC = () => {
       .call(d3.axisLeft(yScale).tickFormat(d => `${(d as number / Math.PI).toFixed(1)}π`))
       .selectAll('text, line, path')
       .style('color', 'var(--text-secondary)');
-    
+
     // Add axis labels
     renderAxisLabelsPlain(g, innerWidth, innerHeight, 'θ', 'p');
 

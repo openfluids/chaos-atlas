@@ -15,6 +15,8 @@ import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
@@ -128,19 +130,19 @@ const BakersMapVisualization: React.FC = () => {
     };
 
     const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number,
                                  xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>) => {
+                                 yScale: d3.ScaleLinear<number, number>,
+                                 plotWidth: number, plotHeight: number) => {
       const frames = calculateBakersImageScrambling(16, 16, 10);
       const currentFrame = frames[animationStep];
 
       currentFrame.forEach(row => {
         row.forEach(point => {
           g.append('rect')
-            .attr('x', xScale(point.x) - innerWidth / 32)
-            .attr('y', yScale(point.y) - innerHeight / 32)
-            .attr('width', innerWidth / 16)
-            .attr('height', innerHeight / 16)
+            .attr('x', xScale(point.x) - plotWidth / 32)
+            .attr('y', yScale(point.y) - plotHeight / 32)
+            .attr('width', plotWidth / 16)
+            .attr('height', plotHeight / 16)
             .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
             .attr('stroke', 'none')
             .attr('opacity', 0.8);
@@ -149,18 +151,19 @@ const BakersMapVisualization: React.FC = () => {
     };
 
     const renderInvariantMeasure = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   innerWidth: number, innerHeight: number,
-                                   _xScale: d3.ScaleLinear<number, number>,
-                                   _yScale: d3.ScaleLinear<number, number>) => {
+                                   plotWidth: number, plotHeight: number,
+                                   offsetX: number, offsetY: number) => {
       const data = calculateBakersInvariantMeasure(5000, 20);
-      const binWidth = innerWidth / 20;
-      const binHeight = innerHeight / 20;
+      // Baker's map is measure-preserving on the unit square: bins are
+      // square cells of a square grid, not cells stretched to a 520x300 box.
+      const binWidth = plotWidth / 20;
+      const binHeight = plotHeight / 20;
 
       data.forEach((row, y) => {
         row.forEach((value, x) => {
           g.append('rect')
-            .attr('x', x * binWidth)
-            .attr('y', y * binHeight)
+            .attr('x', offsetX + x * binWidth)
+            .attr('y', offsetY + y * binHeight)
             .attr('width', binWidth)
             .attr('height', binHeight)
             .attr('fill', 'var(--accent-cyan)')
@@ -172,18 +175,18 @@ const BakersMapVisualization: React.FC = () => {
     };
 
     const renderPhaseSpacePartition = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                      innerWidth: number, innerHeight: number,
                                       xScale: d3.ScaleLinear<number, number>,
-                                      _yScale: d3.ScaleLinear<number, number>) => {
+                                      plotWidth: number, plotHeight: number,
+                                      offsetX: number, offsetY: number) => {
       const { grid } = calculateBakersPhaseSpacePartition(16);
-      const binWidth = innerWidth / 16;
-      const binHeight = innerHeight / 16;
+      const binWidth = plotWidth / 16;
+      const binHeight = plotHeight / 16;
 
       grid.forEach((row, y) => {
         row.forEach((value, x) => {
           g.append('rect')
-            .attr('x', x * binWidth)
-            .attr('y', y * binHeight)
+            .attr('x', offsetX + x * binWidth)
+            .attr('y', offsetY + y * binHeight)
             .attr('width', binWidth)
             .attr('height', binHeight)
             .attr('fill', value === 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)')
@@ -196,9 +199,9 @@ const BakersMapVisualization: React.FC = () => {
       // Add partition boundary
       g.append('line')
         .attr('x1', xScale(0.5))
-        .attr('y1', 0)
+        .attr('y1', offsetY)
         .attr('x2', xScale(0.5))
-        .attr('y2', innerHeight)
+        .attr('y2', offsetY + plotHeight)
         .attr('stroke', 'var(--text-primary)')
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5');
@@ -254,34 +257,38 @@ const BakersMapVisualization: React.FC = () => {
 
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
-    const { g, margin, innerWidth, innerHeight } = chart;
+    const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // Create scales
-    const xScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([0, innerWidth]);
+    // Baker's map is measure-preserving on the unit square [0,1]^2 --
+    // fitting x and y independently to a 520x300 box distorts that square
+    // into a rectangle. equalAspectScales letterboxes to a square plot rect.
+    const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
+      equalAspectScales([0, 1], [0, 1], innerWidth, innerHeight);
 
-    const yScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([innerHeight, 0]);
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight },
+      'bakers-plot-clip'
+    );
 
     // Render based on visualization type
     if (visualizationType === 'trajectory') {
-      renderTrajectory(g, innerWidth, innerHeight, xScale, yScale);
+      renderTrajectory(dataGroup, innerWidth, innerHeight, xScale, yScale);
     } else if (visualizationType === 'mixing') {
-      renderMixing(g, innerWidth, innerHeight, xScale, yScale);
+      renderMixing(dataGroup, innerWidth, innerHeight, xScale, yScale);
     } else if (visualizationType === 'scrambling') {
-      renderImageScrambling(g, innerWidth, innerHeight, xScale, yScale);
+      renderImageScrambling(dataGroup, xScale, yScale, plotWidth, plotHeight);
     } else if (visualizationType === 'invariant') {
-      renderInvariantMeasure(g, innerWidth, innerHeight, xScale, yScale);
+      renderInvariantMeasure(dataGroup, plotWidth, plotHeight, offsetX, offsetY);
     } else if (visualizationType === 'partition') {
-      renderPhaseSpacePartition(g, innerWidth, innerHeight, xScale, yScale);
+      renderPhaseSpacePartition(dataGroup, xScale, plotWidth, plotHeight, offsetX, offsetY);
     } else if (visualizationType === 'symbolic') {
-      renderSymbolicDynamics(g, innerWidth, innerHeight, xScale, yScale);
+      renderSymbolicDynamics(dataGroup, innerWidth, innerHeight, xScale, yScale);
     }
 
     // Add axes
-    renderChartAxes(g, xScale, yScale, innerHeight);
+    renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
 
     // Add axis labels
     renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, 'x', 'y');

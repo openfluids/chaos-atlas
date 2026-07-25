@@ -15,14 +15,28 @@ import {
 } from '@/lib/maps/duffing';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
-import { initChartBase, renderChartTitle } from './chartHelpers';
+import {
+  initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
+  renderChartTitle,
+  CHART_MARGIN,
+} from './chartHelpers';
+import { renderDensityCanvas } from './densityCanvas';
 
 const DuffingMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(1);
   const [iterations, setIterations] = useState(2000);
+  // Separate from `iterations`: that slider also drives the bifurcation and
+  // energy-trajectories views, which stay in the 500-5000 range that keeps
+  // their SVG point/line counts reasonable. The (now canvas-based)
+  // attractor and phase-space-density views have no per-point DOM cost, so
+  // they get their own, much higher default and ceiling.
+  const [attractorIterations, setAttractorIterations] = useState(200_000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b'>('a');
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   // Lyapunov exponents come from a chaotic iteration whose result can differ
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
@@ -49,45 +63,21 @@ const DuffingMapVisualization: React.FC = () => {
     [currentParams]
   );
 
+  // On a chaotic attractor, successive iterates jump all over the set, so
+  // the previous per-iterate/per-point color coding on both the 'attractor'
+  // view (`interpolatePlasma` over point order) and the 'phase' view (a
+  // hand-rolled linear-normalised density, `Math.max(...array)` and all --
+  // a stack-overflow risk on a large binned array, and linear normalisation
+  // buries a heavy-tailed occupancy near zero) was noise dressed up as
+  // information. Both views now share the canvas density renderer used by
+  // Hénon, Ikeda and Tinkerbell; see `renderAttractorOverlay` and the
+  // 'attractor'/'phase' branches below.
   useEffect(() => {
-    const renderAttractor = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number) => {
-      const data = calculateDuffingAttractor(currentParams.params, iterations);
-
-      const xScale = d3.scaleLinear().domain([-2.5, 2.5]).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain([-2.5, 2.5]).range([innerHeight, 0]);
-
-      // Create color gradient based on velocity
-      const colorScale = d3.scaleSequential(d3.interpolatePlasma)
-        .domain([0, data.length]);
-
-      // Draw trajectory
-      const line = d3.line<{x: number; y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-orange)')
-        .attr('stroke-width', 0.5)
-        .attr('opacity', 0.4)
-        .attr('d', line);
-
-      // Draw points with velocity-based coloring
-      g.selectAll('circle')
-        .data(data.filter((d, i) => i % 3 === 0))
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 1)
-        .attr('fill', (d, i) => colorScale(i * 3))
-        .attr('opacity', 0.8);
-
-      // Draw fixed points
-      fixedPoints.forEach((fp, _i) => {
+    const renderAttractorOverlay = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                            xScale: d3.ScaleLinear<number, number>,
+                            yScale: d3.ScaleLinear<number, number>) => {
+      // Draw fixed points on top of the density canvas.
+      fixedPoints.forEach((fp) => {
         g.append('circle')
           .attr('cx', xScale(fp.x))
           .attr('cy', yScale(fp.y))
@@ -96,35 +86,6 @@ const DuffingMapVisualization: React.FC = () => {
           .attr('stroke', 'white')
           .attr('stroke-width', 1);
       });
-
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('y');
     };
 
     const renderPotential = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -221,10 +182,13 @@ const DuffingMapVisualization: React.FC = () => {
     };
 
     const renderBasins = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                         innerWidth: number, innerHeight: number) => {
+                         plotWidth: number, plotHeight: number,
+                         offsetX: number, offsetY: number) => {
       const basinData = calculateDuffingBasins(currentParams.params, 60);
-      const cellWidth = innerWidth / 60;
-      const cellHeight = innerHeight / 60;
+      // Basins are computed over a square [-2,2]^2 grid; cells are square,
+      // not stretched to a 520x300 box.
+      const cellWidth = plotWidth / 60;
+      const cellHeight = plotHeight / 60;
 
       basinData.forEach((row, y) => {
         row.forEach((value, x) => {
@@ -234,8 +198,8 @@ const DuffingMapVisualization: React.FC = () => {
                        'rgba(50, 50, 50, 0.5)';
 
           g.append('rect')
-            .attr('x', x * cellWidth)
-            .attr('y', y * cellHeight)
+            .attr('x', offsetX + x * cellWidth)
+            .attr('y', offsetY + y * cellHeight)
             .attr('width', cellWidth)
             .attr('height', cellHeight)
             .attr('fill', color)
@@ -403,84 +367,6 @@ const DuffingMapVisualization: React.FC = () => {
         .text('Position x');
     };
 
-    const renderPhaseSpace = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                             innerWidth: number, innerHeight: number) => {
-      const data = calculateDuffingAttractor(currentParams.params, Math.min(iterations, 1000));
-
-      const xScale = d3.scaleLinear().domain([-2.5, 2.5]).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain([-2.5, 2.5]).range([innerHeight, 0]);
-
-      // Create density-based coloring
-      const densityMap = new Map<string, number>();
-      const binSize = 0.1;
-
-      data.forEach(point => {
-        const xBin = Math.floor(point.x / binSize);
-        const yBin = Math.floor(point.y / binSize);
-        const key = `${xBin},${yBin}`;
-        densityMap.set(key, (densityMap.get(key) || 0) + 1);
-      });
-
-      const maxDensity = Math.max(...Array.from(densityMap.values()));
-      const colorScale = d3.scaleSequential(d3.interpolateViridis)
-        .domain([0, maxDensity]);
-
-      g.selectAll('circle')
-        .data(data.filter((d, i) => i % 2 === 0))
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 2)
-        .attr('fill', d => {
-          const xBin = Math.floor(d.x / binSize);
-          const yBin = Math.floor(d.y / binSize);
-          const key = `${xBin},${yBin}`;
-          return colorScale(densityMap.get(key) || 0);
-        })
-        .attr('opacity', 0.7);
-
-      // Add fixed points
-      fixedPoints.forEach(fp => {
-        g.append('circle')
-          .attr('cx', xScale(fp.x))
-          .attr('cy', yScale(fp.y))
-          .attr('r', 4)
-          .attr('fill', 'var(--accent-cyan)')
-          .attr('stroke', 'white')
-          .attr('stroke-width', 1);
-      });
-
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('y');
-    };
-
     const getVisualizationTitle = () => {
       switch (visualizationType) {
         case 'attractor': return 'Duffing Attractor';
@@ -495,27 +381,118 @@ const DuffingMapVisualization: React.FC = () => {
 
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
-    const { g, innerWidth, innerHeight } = chart;
+    const { svg, g, innerWidth, innerHeight } = chart;
+
+    // Attractor, basins and phase-space-density all plot x and y on the
+    // same [-2.5, 2.5] (or [-2, 2] for basins) domain; equalAspectScales
+    // keeps them undistorted instead of fitting each axis independently to
+    // the 520x300 box. Potential, bifurcation and energy-trajectories keep
+    // the wide box: position-vs-potential, parameter-vs-x and
+    // time-vs-position are genuinely incommensurate axes.
+    const densityDomain: [number, number] = [-2.5, 2.5];
+    const squareViews = visualizationType === 'attractor' || visualizationType === 'phase' ||
+      visualizationType === 'basins';
+    const layout = squareViews
+      ? equalAspectScales(
+          visualizationType === 'basins' ? [-2, 2] : densityDomain,
+          visualizationType === 'basins' ? [-2, 2] : densityDomain,
+          innerWidth,
+          innerHeight
+        )
+      : null;
+
+    const usesDensityCanvas = visualizationType === 'attractor' || visualizationType === 'phase';
+    if (usesDensityCanvas && canvasRef.current && layout) {
+      // The 'attractor' and 'phase space density' views previously differed
+      // only in which per-point coloring scheme they used (iteration order
+      // vs. a hand-rolled linear density bucket) -- both are now the same
+      // shared density field, so they render identically. Higher iteration
+      // counts (attractorIterations) resolve finer structure in the folds.
+      const data = calculateDuffingAttractor(currentParams.params, attractorIterations);
+      renderDensityCanvas(
+        canvasRef.current,
+        data,
+        densityDomain,
+        densityDomain,
+        width,
+        height,
+        {
+          x: CHART_MARGIN.left + layout.offsetX,
+          y: CHART_MARGIN.top + layout.offsetY,
+          width: layout.plotWidth,
+          height: layout.plotHeight,
+        },
+        d3.interpolateViridis
+      );
+    } else if (canvasRef.current) {
+      // Clear any density paint left over from a previous render in the
+      // 'attractor'/'phase' views -- `renderDensityCanvas` clears its
+      // backing store before painting, so calling it with no points is
+      // enough.
+      renderDensityCanvas(canvasRef.current, [], densityDomain, densityDomain, width, height, {
+        x: 0, y: 0, width, height,
+      });
+    }
+
+    const dataGroup = squareViews && layout
+      ? createClippedDataGroup(
+          svg,
+          g,
+          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
+          'duffing-plot-clip'
+        )
+      : g;
 
     // Render based on visualization type
-    if (visualizationType === 'attractor') {
-      renderAttractor(g, innerWidth, innerHeight);
+    if ((visualizationType === 'attractor' || visualizationType === 'phase') && layout) {
+      renderAttractorOverlay(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'potential') {
       renderPotential(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'basins') {
-      renderBasins(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'basins' && layout) {
+      renderBasins(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
     } else if (visualizationType === 'bifurcation') {
       renderBifurcation(g, innerWidth, innerHeight);
     } else if (visualizationType === 'energy') {
       renderEnergyTrajectories(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'phase') {
-      renderPhaseSpace(g, innerWidth, innerHeight);
+    }
+
+    // Add axes for the square (canvas-backed) views; the others draw their
+    // own axes inline (their scales aren't shared with this outer scope).
+    if (layout) {
+      g.append('g')
+        .attr('transform', `translate(0,${innerHeight - layout.offsetY})`)
+        .call(d3.axisBottom(layout.xScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('g')
+        .attr('transform', `translate(${layout.offsetX},0)`)
+        .call(d3.axisLeft(layout.yScale))
+        .selectAll('text, line, path')
+        .style('color', 'var(--text-secondary)');
+
+      g.append('text')
+        .attr('transform', `translate(${innerWidth / 2}, ${innerHeight + 40})`)
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text('x');
+
+      g.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', 0 - 40)
+        .attr('x', 0 - (innerHeight / 2))
+        .attr('dy', '1em')
+        .style('text-anchor', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '14px')
+        .text('y');
     }
 
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -532,15 +509,27 @@ const DuffingMapVisualization: React.FC = () => {
             description={currentParams.description}
           />
 
-          <ParamSlider
-            label={<>Iterations: {iterations}</>}
-            min={500}
-            max={5000}
-            step={500}
-            value={iterations}
-            onChange={setIterations}
-            parse={parseInt}
-          />
+          {(visualizationType === 'attractor' || visualizationType === 'phase') ? (
+            <ParamSlider
+              label={<>Attractor Iterations: {attractorIterations.toLocaleString()}</>}
+              min={10_000}
+              max={1_000_000}
+              step={10_000}
+              value={attractorIterations}
+              onChange={setAttractorIterations}
+              parse={parseInt}
+            />
+          ) : (
+            <ParamSlider
+              label={<>Iterations: {iterations}</>}
+              min={500}
+              max={5000}
+              step={500}
+              value={iterations}
+              onChange={setIterations}
+              parse={parseInt}
+            />
+          )}
 
           <ViewModeSelect
             label="Visualization Type"
@@ -626,12 +615,22 @@ const DuffingMapVisualization: React.FC = () => {
 
         {/* Visualization */}
         <div className="flex justify-center">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${width} ${height}`}
-            className="w-full border border-cyan-500/20 rounded-lg bg-black/50"
+          <div
+            className="relative w-full border border-cyan-500/20 rounded-lg bg-black/50 overflow-hidden"
             style={{ maxWidth: width, aspectRatio: `${width}/${height}` }}
-          />
+          >
+            <canvas
+              ref={canvasRef}
+              width={width}
+              height={height}
+              className="absolute inset-0 w-full h-full"
+            />
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${width} ${height}`}
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
         </div>
       </div>
     </div>

@@ -17,17 +17,28 @@ import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  CHART_MARGIN,
 } from './chartHelpers';
+import { renderDensityCanvas } from './densityCanvas';
 
 const TinkerbellMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
   const [iterations, setIterations] = useState(2000);
+  // Separate from `iterations`: that slider also drives the bifurcation and
+  // crisis-behavior views, which stay in the 500-5000 range that keeps
+  // their SVG point counts reasonable. The (now canvas-based) multi-loop
+  // attractor view has no per-point DOM cost, so it gets its own, much
+  // higher default and ceiling.
+  const [attractorIterations, setAttractorIterations] = useState(200_000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b' | 'c' | 'd'>('a');
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   // Lyapunov exponents come from a chaotic iteration whose result can differ
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
@@ -54,44 +65,18 @@ const TinkerbellMapVisualization: React.FC = () => {
     [currentParams]
   );
 
+  // On a chaotic attractor, successive iterates jump all over the set, so
+  // the previous per-iterate color coding (`interpolateSpectral` -- a
+  // *diverging* scale, wrong for a sequential quantity even before getting
+  // to the iteration-order problem -- over `[0, iterations]`) was uniform
+  // noise dressed up as information. The attractor view below instead
+  // paints a canvas density field (see `renderDensityCanvas`), colored by
+  // the log-compressed visit density, which is what makes Tinkerbell's
+  // multi-loop structure visible at all.
   useEffect(() => {
-    const renderAttractor = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number) => {
-      const data = calculateTinkerbellAttractor(currentParams.params, iterations);
-
-      const xScale = d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
-
-      // Create color gradient for trajectory
-      const colorScale = d3.scaleSequential(d3.interpolateSpectral)
-        .domain([0, iterations]);
-
-      // Draw trajectory
-      const line = d3.line<{x: number; y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-orange)')
-        .attr('stroke-width', 0.5)
-        .attr('opacity', 0.6)
-        .attr('d', line);
-
-      // Draw points with color gradient
-      g.selectAll('circle')
-        .data(data.filter((d, i) => i % 5 === 0)) // Sample every 5th point
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 1.5)
-        .attr('fill', (d, i) => colorScale(i * 5))
-        .attr('opacity', 0.8);
-
-      // Draw fixed points
+    const renderFixedPointMarkers = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                            xScale: d3.ScaleLinear<number, number>,
+                            yScale: d3.ScaleLinear<number, number>) => {
       fixedPoints.forEach(fp => {
         g.append('circle')
           .attr('cx', xScale(fp.x))
@@ -104,10 +89,13 @@ const TinkerbellMapVisualization: React.FC = () => {
     };
 
     const renderBasinOfAttraction = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                    innerWidth: number, innerHeight: number) => {
+                                    plotWidth: number, plotHeight: number,
+                                    offsetX: number, offsetY: number) => {
       const basinData = calculateTinkerbellBasinOfAttraction(currentParams.params, 80);
-      const cellWidth = innerWidth / 80;
-      const cellHeight = innerHeight / 80;
+      // Basin is computed over a square [-2,2]^2 grid; cells are square, not
+      // stretched to a 520x300 box.
+      const cellWidth = plotWidth / 80;
+      const cellHeight = plotHeight / 80;
 
       basinData.forEach((row, y) => {
         row.forEach((value, x) => {
@@ -116,8 +104,8 @@ const TinkerbellMapVisualization: React.FC = () => {
                        'var(--accent-cyan)';
 
           g.append('rect')
-            .attr('x', x * cellWidth)
-            .attr('y', y * cellHeight)
+            .attr('x', offsetX + x * cellWidth)
+            .attr('y', offsetY + y * cellHeight)
             .attr('width', cellWidth)
             .attr('height', cellHeight)
             .attr('fill', color)
@@ -275,17 +263,12 @@ const TinkerbellMapVisualization: React.FC = () => {
     };
 
     const renderReturnMap = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number) => {
+                            innerWidth: number, innerHeight: number,
+                            xScale: d3.ScaleLinear<number, number>,
+                            yScale: d3.ScaleLinear<number, number>,
+                            offsetX: number, offsetY: number) => {
       const trajectory = calculateTinkerbellAttractor(currentParams.params, 1000);
       const returnData = calculateTinkerbellReturnMap(trajectory, 'x', 1);
-
-      const xScale = d3.scaleLinear()
-        .domain([-2, 2])
-        .range([0, innerWidth]);
-
-      const yScale = d3.scaleLinear()
-        .domain([-2, 2])
-        .range([innerHeight, 0]);
 
       g.selectAll('circle')
         .data(returnData)
@@ -309,12 +292,13 @@ const TinkerbellMapVisualization: React.FC = () => {
 
       // Update axes for return map
       g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
+        .attr('transform', `translate(0,${innerHeight - offsetY})`)
         .call(d3.axisBottom(xScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
 
       g.append('g')
+        .attr('transform', `translate(${offsetX},0)`)
         .call(d3.axisLeft(yScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
@@ -338,10 +322,10 @@ const TinkerbellMapVisualization: React.FC = () => {
     };
 
     const renderFixedPoints = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                              innerWidth: number, innerHeight: number) => {
-      const xScale = d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
-
+                              innerWidth: number, innerHeight: number,
+                              xScale: d3.ScaleLinear<number, number>,
+                              yScale: d3.ScaleLinear<number, number>,
+                              offsetX: number, offsetY: number) => {
       // Draw attractor as background
       const attractorData = calculateTinkerbellAttractor(currentParams.params, 1000);
 
@@ -384,12 +368,13 @@ const TinkerbellMapVisualization: React.FC = () => {
 
       // Add axes
       g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
+        .attr('transform', `translate(0,${innerHeight - offsetY})`)
         .call(d3.axisBottom(xScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
 
       g.append('g')
+        .attr('transform', `translate(${offsetX},0)`)
         .call(d3.axisLeft(yScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
@@ -426,34 +411,82 @@ const TinkerbellMapVisualization: React.FC = () => {
 
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
-    const { g, margin, innerWidth, innerHeight } = chart;
+    const { svg, g, margin, innerWidth, innerHeight } = chart;
+
+    // Attractor, basin, return map and fixed points all plot x and y on the
+    // same [-2, 2] domain; equalAspectScales keeps them undistorted instead
+    // of fitting each axis independently to the 520x300 box. Bifurcation and
+    // crisis-behavior keep the wide box: parameter-vs-x and
+    // parameter-vs-(size, Lyapunov) are genuinely incommensurate axes.
+    const squareViews = visualizationType === 'attractor' || visualizationType === 'basin' ||
+      visualizationType === 'return' || visualizationType === 'fixed';
+    const layout = squareViews
+      ? equalAspectScales([-2, 2], [-2, 2], innerWidth, innerHeight)
+      : null;
+
+    if (visualizationType === 'attractor' && canvasRef.current) {
+      const data = calculateTinkerbellAttractor(currentParams.params, attractorIterations);
+      renderDensityCanvas(
+        canvasRef.current,
+        data,
+        [-2, 2],
+        [-2, 2],
+        width,
+        height,
+        {
+          x: CHART_MARGIN.left + layout!.offsetX,
+          y: CHART_MARGIN.top + layout!.offsetY,
+          width: layout!.plotWidth,
+          height: layout!.plotHeight,
+        },
+        d3.interpolateMagma
+      );
+    } else if (canvasRef.current) {
+      // Clear any density paint left over from a previous render in the
+      // 'attractor' view -- `renderDensityCanvas` clears its backing store
+      // before painting, so calling it with no points is enough.
+      renderDensityCanvas(canvasRef.current, [], [-2, 2], [-2, 2], width, height, {
+        x: 0, y: 0, width, height,
+      });
+    }
+
+    const dataGroup = squareViews && layout
+      ? createClippedDataGroup(
+          svg,
+          g,
+          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
+          'tinkerbell-plot-clip'
+        )
+      : g;
 
     // Render based on visualization type
-    if (visualizationType === 'attractor') {
-      renderAttractor(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'basin') {
-      renderBasinOfAttraction(g, innerWidth, innerHeight);
+    if (visualizationType === 'attractor' && layout) {
+      renderFixedPointMarkers(dataGroup, layout.xScale, layout.yScale);
+    } else if (visualizationType === 'basin' && layout) {
+      renderBasinOfAttraction(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
     } else if (visualizationType === 'bifurcation') {
       renderBifurcation(g, innerWidth, innerHeight);
     } else if (visualizationType === 'crisis') {
       renderCrisisBehavior(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'return') {
-      renderReturnMap(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'fixed') {
-      renderFixedPoints(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'return' && layout) {
+      renderReturnMap(dataGroup, innerWidth, innerHeight, layout.xScale, layout.yScale, layout.offsetX, layout.offsetY);
+    } else if (visualizationType === 'fixed' && layout) {
+      renderFixedPoints(dataGroup, innerWidth, innerHeight, layout.xScale, layout.yScale, layout.offsetX, layout.offsetY);
     }
 
     // Add axes for appropriate visualizations
     if (visualizationType !== 'crisis') {
-      const xDomain = visualizationType === 'bifurcation' ?
+      const xDomain: [number, number] = visualizationType === 'bifurcation' ?
         [bifurcationParam === 'a' ? 0.3 : bifurcationParam === 'b' ? -1.0 : 1.5,
          bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : [-2, 2];
-      const yDomain = visualizationType === 'bifurcation' ? [-2, 2] : [-2, 2];
+      const yDomain: [number, number] = [-2, 2];
 
-      const xScale = d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
-      const yScale = d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
+      const xScale = layout?.xScale ?? d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
+      const yScale = layout?.yScale ?? d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
+      const axisOffsetX = layout?.offsetX ?? 0;
+      const axisOffsetY = layout?.offsetY ?? 0;
 
-      renderChartAxes(g, xScale, yScale, innerHeight);
+      renderChartAxes(g, xScale, yScale, innerHeight, axisOffsetX, axisOffsetY);
 
       // Add axis labels
       const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}` : 'x';
@@ -465,7 +498,7 @@ const TinkerbellMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, visualizationType, bifurcationParam, fixedPoints]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -482,15 +515,27 @@ const TinkerbellMapVisualization: React.FC = () => {
             description={currentParams.description}
           />
 
-          <ParamSlider
-            label={<>Iterations: {iterations}</>}
-            min={500}
-            max={5000}
-            step={500}
-            value={iterations}
-            onChange={setIterations}
-            parse={parseInt}
-          />
+          {visualizationType === 'attractor' ? (
+            <ParamSlider
+              label={<>Attractor Iterations: {attractorIterations.toLocaleString()}</>}
+              min={10_000}
+              max={1_000_000}
+              step={10_000}
+              value={attractorIterations}
+              onChange={setAttractorIterations}
+              parse={parseInt}
+            />
+          ) : (
+            <ParamSlider
+              label={<>Iterations: {iterations}</>}
+              min={500}
+              max={5000}
+              step={500}
+              value={iterations}
+              onChange={setIterations}
+              parse={parseInt}
+            />
+          )}
 
           <ViewModeSelect
             label="Visualization Type"
@@ -581,12 +626,22 @@ const TinkerbellMapVisualization: React.FC = () => {
 
         {/* Visualization */}
         <div className="flex justify-center">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${width} ${height}`}
-            className="w-full border border-cyan-500/20 rounded-lg bg-black/50"
+          <div
+            className="relative w-full border border-cyan-500/20 rounded-lg bg-black/50 overflow-hidden"
             style={{ maxWidth: width, aspectRatio: `${width}/${height}` }}
-          />
+          >
+            <canvas
+              ref={canvasRef}
+              width={width}
+              height={height}
+              className="absolute inset-0 w-full h-full"
+            />
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${width} ${height}`}
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
         </div>
       </div>
     </div>

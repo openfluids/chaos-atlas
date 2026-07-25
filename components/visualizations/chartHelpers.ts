@@ -64,20 +64,30 @@ export function initChartBase(
 /**
  * The `axisBottom`/`axisLeft` pair with `var(--text-secondary)` styling,
  * repeated verbatim (modulo scale) across several components.
+ *
+ * `axisOffsetX`/`axisOffsetY` default to 0 (the previous, always-correct
+ * behavior for a scale that fills the whole inner box). When `xScale`/
+ * `yScale` come from `equalAspectScales` and the box isn't already square,
+ * the letterboxed plot rect sits inset from the inner box's origin/bottom
+ * by `offsetX`/`offsetY` -- pass those through so the axis lines meet the
+ * plot rather than the (padded) inner box edge.
  */
 export function renderChartAxes(
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   xScale: d3.ScaleLinear<number, number>,
   yScale: d3.ScaleLinear<number, number>,
-  innerHeight: number
+  innerHeight: number,
+  axisOffsetX = 0,
+  axisOffsetY = 0
 ): void {
   g.append('g')
-    .attr('transform', `translate(0,${innerHeight})`)
+    .attr('transform', `translate(0,${innerHeight - axisOffsetY})`)
     .call(d3.axisBottom(xScale))
     .selectAll('text, line, path')
     .style('color', 'var(--text-secondary)');
 
   g.append('g')
+    .attr('transform', `translate(${axisOffsetX},0)`)
     .call(d3.axisLeft(yScale))
     .selectAll('text, line, path')
     .style('color', 'var(--text-secondary)');
@@ -180,4 +190,87 @@ export function renderChartTitleAccent(
     .style('fill', 'var(--text-accent)')
     .style('font-weight', 'bold')
     .text(title);
+}
+
+export interface EqualAspectResult {
+  xScale: d3.ScaleLinear<number, number>;
+  yScale: d3.ScaleLinear<number, number>;
+  /** Width in px of the (letterboxed) square-aspect plot area. */
+  plotWidth: number;
+  /** Height in px of the (letterboxed) square-aspect plot area. */
+  plotHeight: number;
+  /** Offset of the plot area from the left edge of the inner chart box. */
+  offsetX: number;
+  /** Offset of the plot area from the top edge of the inner chart box. */
+  offsetY: number;
+  /** Pixels per data unit, identical in x and y by construction -- this is
+   *  the number that must match for the geometry to be undistorted. */
+  pixelsPerUnit: number;
+}
+
+/**
+ * Builds x/y scales that preserve the aspect ratio of `xDomain`/`yDomain`
+ * inside an `innerWidth`×`innerHeight` box, letterboxing (centering with
+ * padding on the shorter axis) rather than stretching either domain
+ * independently to fill the box.
+ *
+ * Several map visualizations have domains that are geometrically meaningful
+ * squares (the Arnold cat map and Baker's map are measure-preserving on
+ * [0,1]², the Standard map's (θ, p) both live on [0, 2π)) or otherwise
+ * commensurate axes (Hénon, Ikeda, Tinkerbell, Duffing phase portraits).
+ * Fitting those independently to a 520×300 box shears the picture; this
+ * keeps one scale factor for both axes.
+ */
+export function equalAspectScales(
+  xDomain: [number, number],
+  yDomain: [number, number],
+  innerWidth: number,
+  innerHeight: number
+): EqualAspectResult {
+  const xSpan = xDomain[1] - xDomain[0];
+  const ySpan = yDomain[1] - yDomain[0];
+  const pixelsPerUnit = Math.min(innerWidth / xSpan, innerHeight / ySpan);
+
+  const plotWidth = xSpan * pixelsPerUnit;
+  const plotHeight = ySpan * pixelsPerUnit;
+  const offsetX = (innerWidth - plotWidth) / 2;
+  const offsetY = (innerHeight - plotHeight) / 2;
+
+  const xScale = d3.scaleLinear()
+    .domain(xDomain)
+    .range([offsetX, offsetX + plotWidth]);
+
+  const yScale = d3.scaleLinear()
+    .domain(yDomain)
+    .range([offsetY + plotHeight, offsetY]);
+
+  return { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY, pixelsPerUnit };
+}
+
+/**
+ * Appends a `<clipPath>` to the chart's `<defs>` and returns a `<g>` clipped
+ * to the inner chart rectangle (or, for phase portraits, the letterboxed
+ * square plot rectangle within it). Data marks go in the returned group so
+ * out-of-range points cannot paint over the axes/frame -- previously no
+ * chart in this codebase clipped its data layer at all.
+ *
+ * `svg` (not just `g`) is needed because `<clipPath>` must live in `<defs>`
+ * at the svg root, not nested under the translated chart group.
+ */
+export function createClippedDataGroup(
+  svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  rect: { x?: number; y?: number; width: number; height: number },
+  clipId: string
+): d3.Selection<SVGGElement, unknown, null, undefined> {
+  svg.append('defs')
+    .append('clipPath')
+    .attr('id', clipId)
+    .append('rect')
+    .attr('x', rect.x ?? 0)
+    .attr('y', rect.y ?? 0)
+    .attr('width', rect.width)
+    .attr('height', rect.height);
+
+  return g.append('g').attr('clip-path', `url(#${clipId})`);
 }

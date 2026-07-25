@@ -14,16 +14,31 @@ import {
 } from '@/lib/maps/ikeda';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
-import { initChartBase, renderAxisLabelsRotated, renderChartTitle } from './chartHelpers';
+import {
+  initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
+  renderAxisLabelsRotated,
+  renderChartTitle,
+  CHART_MARGIN,
+} from './chartHelpers';
+import { renderDensityCanvas } from './densityCanvas';
 
 const IkedaMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
   const [iterations, setIterations] = useState(2000);
+  // Separate from `iterations` above: that slider also drives the time
+  // evolution / bifurcation views, where a 500-5000 range keeps their SVG
+  // line/point counts reasonable. The attractor view now paints a canvas
+  // density field with no per-point DOM cost, so it gets its own, much
+  // higher default and ceiling.
+  const [attractorIterations, setAttractorIterations] = useState(200_000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b' | 'c' | 'd'>('b');
   const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   // Lyapunov exponents come from a chaotic iteration whose result can differ
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
@@ -70,37 +85,15 @@ const IkedaMapVisualization: React.FC = () => {
     }
   };
 
+  // On a chaotic attractor, successive iterates jump all over the set, so
+  // the previous per-iterate color/radius coding (`interpolatePlasma` over
+  // `[0, iterations]`, radius growing with i) was uniform noise dressed up
+  // as information -- it told you nothing about the set's structure and
+  // actively obscured it. The attractor view below instead paints a canvas
+  // density field (see `renderDensityCanvas`), colored by the
+  // log-compressed visit density, which is what makes the Ikeda
+  // attractor's spiral folds visible at all.
   useEffect(() => {
-    const renderAttractor = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number) => {
-      const data = calculateIkedaAttractor(currentParams.params, iterations);
-
-      // Create color scale based on iteration order
-      const colorScale = d3.scaleSequential(d3.interpolatePlasma)
-        .domain([0, iterations]);
-
-      // Create radius scale for points
-      const radiusScale = d3.scaleLinear()
-        .domain([0, iterations])
-        .range([0.5, 2]);
-
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-          return scale(d.x);
-        })
-        .attr('cy', d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
-          return scale(d.y);
-        })
-        .attr('r', (d, i) => radiusScale(i))
-        .attr('fill', (d, i) => colorScale(i))
-        .attr('opacity', 0.7);
-    };
-
     const renderTimeEvolution = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                innerWidth: number, innerHeight: number) => {
       const data = calculateIkedaTimeEvolution(currentParams.params, iterations);
@@ -191,19 +184,14 @@ const IkedaMapVisualization: React.FC = () => {
     };
 
     const renderPhasePortrait = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                innerWidth: number, innerHeight: number) => {
+                                xScale: d3.ScaleLinear<number, number>,
+                                yScale: d3.ScaleLinear<number, number>) => {
       const data = calculateIkedaTimeEvolution(currentParams.params, Math.min(iterations, 1000));
 
       // Create phase portrait with trajectory
       const line = d3.line<{time: number; x: number; y: number}>()
-        .x(d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-          return scale(d.x);
-        })
-        .y(d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
-          return scale(d.y);
-        })
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y))
         .curve(d3.curveLinear);
 
       g.append('path')
@@ -222,14 +210,8 @@ const IkedaMapVisualization: React.FC = () => {
         .data(data.filter((d, i) => i % 10 === 0)) // Sample every 10th point
         .enter()
         .append('circle')
-        .attr('cx', d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-          return scale(d.x);
-        })
-        .attr('cy', d => {
-          const scale = d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
-          return scale(d.y);
-        })
+        .attr('cx', d => xScale(d.x))
+        .attr('cy', d => yScale(d.y))
         .attr('r', 2)
         .attr('fill', (d, i) => colorScale(i * 10));
     };
@@ -275,17 +257,11 @@ const IkedaMapVisualization: React.FC = () => {
     };
 
     const renderReturnMap = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number) => {
+                            xScale: d3.ScaleLinear<number, number>,
+                            yScale: d3.ScaleLinear<number, number>,
+                            offsetY: number, plotHeight: number) => {
       const trajectory = calculateIkedaAttractor(currentParams.params, iterations);
       const returnPoints = calculateIkedaReturnMap(trajectory, 0);
-
-      const xScale = d3.scaleLinear()
-        .domain([-2, 2])
-        .range([0, innerWidth]);
-
-      const yScale = d3.scaleLinear()
-        .domain([-2, 2])
-        .range([innerHeight, 0]);
 
       g.selectAll('circle')
         .data(returnPoints)
@@ -300,9 +276,9 @@ const IkedaMapVisualization: React.FC = () => {
       // Add section line
       g.append('line')
         .attr('x1', xScale(0))
-        .attr('y1', 0)
+        .attr('y1', offsetY)
         .attr('x2', xScale(0))
-        .attr('y2', innerHeight)
+        .attr('y2', offsetY + plotHeight)
         .attr('stroke', 'var(--text-secondary)')
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '5,5');
@@ -322,41 +298,84 @@ const IkedaMapVisualization: React.FC = () => {
 
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
-    const { g, margin, innerWidth, innerHeight } = chart;
+    const { svg, g, margin, innerWidth, innerHeight } = chart;
+
+    // The attractor, phase portrait and return map all plot x and y on the
+    // same [-2, 2] domain; equalAspectScales keeps them undistorted instead
+    // of fitting each axis independently to the 520x300 box. Time
+    // evolution, bifurcation and the power spectrum keep the wide box: their
+    // axes are genuinely incommensurate (time vs. amplitude, parameter vs.
+    // x, frequency vs. power).
+    const squareViews = visualizationType === 'attractor' ||
+      visualizationType === 'phase' || visualizationType === 'return';
+    const layout = squareViews
+      ? equalAspectScales([-2, 2], [-2, 2], innerWidth, innerHeight)
+      : null;
+
+    if (visualizationType === 'attractor' && canvasRef.current) {
+      const data = calculateIkedaAttractor(currentParams.params, attractorIterations);
+      renderDensityCanvas(
+        canvasRef.current,
+        data,
+        [-2, 2],
+        [-2, 2],
+        width,
+        height,
+        {
+          x: CHART_MARGIN.left + layout!.offsetX,
+          y: CHART_MARGIN.top + layout!.offsetY,
+          width: layout!.plotWidth,
+          height: layout!.plotHeight,
+        },
+        d3.interpolatePlasma
+      );
+    } else if (canvasRef.current) {
+      // Clear any density paint left over from a previous render in the
+      // 'attractor' view -- `renderDensityCanvas` clears its backing store
+      // before painting, so calling it with no points is enough.
+      renderDensityCanvas(canvasRef.current, [], [-2, 2], [-2, 2], width, height, {
+        x: 0, y: 0, width, height,
+      });
+    }
+
+    const dataGroup = squareViews && layout
+      ? createClippedDataGroup(
+          svg,
+          g,
+          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
+          'ikeda-plot-clip'
+        )
+      : g;
 
     // Render based on visualization type
-    if (visualizationType === 'attractor') {
-      renderAttractor(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'time') {
+    if (visualizationType === 'time') {
       renderTimeEvolution(g, innerWidth, innerHeight);
     } else if (visualizationType === 'bifurcation') {
       renderBifurcation(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'phase') {
-      renderPhasePortrait(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'phase' && layout) {
+      renderPhasePortrait(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'spectrum') {
       renderPowerSpectrum(g, innerWidth, innerHeight);
-    } else if (visualizationType === 'return') {
-      renderReturnMap(g, innerWidth, innerHeight);
+    } else if (visualizationType === 'return' && layout) {
+      renderReturnMap(dataGroup, layout.xScale, layout.yScale, layout.offsetY, layout.plotHeight);
     }
 
     // Add axes for appropriate visualizations
     if (visualizationType !== 'spectrum') {
+      const axisXScale = layout?.xScale ?? d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
+      const axisYScale = layout?.yScale ?? d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
+      const axisOffsetX = layout?.offsetX ?? 0;
+      const axisOffsetY = layout?.offsetY ?? 0;
+
       g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(
-          visualizationType === 'spectrum' ?
-          d3.scaleLinear().domain([0, 0.5]).range([0, innerWidth]) :
-          d3.scaleLinear().domain([-2, 2]).range([0, innerWidth])
-        ))
+        .attr('transform', `translate(0,${innerHeight - axisOffsetY})`)
+        .call(d3.axisBottom(axisXScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
 
       g.append('g')
-        .call(d3.axisLeft(
-          visualizationType === 'spectrum' ?
-          d3.scaleLinear().domain([0, 1]).range([innerHeight, 0]) :
-          d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0])
-        ))
+        .attr('transform', `translate(${axisOffsetX},0)`)
+        .call(d3.axisLeft(axisYScale))
         .selectAll('text, line, path')
         .style('color', 'var(--text-secondary)');
 
@@ -373,7 +392,7 @@ const IkedaMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [selectedParams, iterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating]);
+  }, [selectedParams, iterations, attractorIterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -390,15 +409,27 @@ const IkedaMapVisualization: React.FC = () => {
             description={currentParams.description}
           />
 
-          <ParamSlider
-            label={<>Iterations: {iterations}</>}
-            min={500}
-            max={5000}
-            step={500}
-            value={iterations}
-            onChange={setIterations}
-            parse={parseInt}
-          />
+          {visualizationType === 'attractor' ? (
+            <ParamSlider
+              label={<>Attractor Iterations: {attractorIterations.toLocaleString()}</>}
+              min={10_000}
+              max={1_000_000}
+              step={10_000}
+              value={attractorIterations}
+              onChange={setAttractorIterations}
+              parse={parseInt}
+            />
+          ) : (
+            <ParamSlider
+              label={<>Iterations: {iterations}</>}
+              min={500}
+              max={5000}
+              step={500}
+              value={iterations}
+              onChange={setIterations}
+              parse={parseInt}
+            />
+          )}
 
           <ViewModeSelect
             label="Visualization Type"
@@ -487,12 +518,22 @@ const IkedaMapVisualization: React.FC = () => {
 
         {/* Visualization */}
         <div className="flex justify-center">
-          <svg
-            ref={svgRef}
-            viewBox={`0 0 ${width} ${height}`}
-            className="w-full border border-cyan-500/20 rounded-lg bg-black/50"
+          <div
+            className="relative w-full border border-cyan-500/20 rounded-lg bg-black/50 overflow-hidden"
             style={{ maxWidth: width, aspectRatio: `${width}/${height}` }}
-          />
+          >
+            <canvas
+              ref={canvasRef}
+              width={width}
+              height={height}
+              className="absolute inset-0 w-full h-full"
+            />
+            <svg
+              ref={svgRef}
+              viewBox={`0 0 ${width} ${height}`}
+              className="absolute inset-0 w-full h-full"
+            />
+          </div>
         </div>
       </div>
     </div>

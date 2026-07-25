@@ -16,6 +16,8 @@ import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
+  equalAspectScales,
+  createClippedDataGroup,
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
@@ -96,12 +98,13 @@ const ArnoldMapVisualization: React.FC = () => {
     };
 
     const renderGridTransform = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                innerWidth: number, innerHeight: number,
-                                _xScale: d3.ScaleLinear<number, number>,
-                                _yScale: d3.ScaleLinear<number, number>) => {
+                                plotWidth: number, plotHeight: number,
+                                offsetX: number, offsetY: number) => {
       const data = calculateArnoldGridTransform(gridSize, isAnimating ? animationStep + 1 : gridIterations);
-      const cellWidth = innerWidth / gridSize;
-      const cellHeight = innerHeight / gridSize;
+      // The cat map's grid is a discretized unit square: square cells,
+      // not cells stretched to a 520x300 box.
+      const cellWidth = plotWidth / gridSize;
+      const cellHeight = plotHeight / gridSize;
 
       // Create color scale
       const colorScale = d3.scaleSequential(d3.interpolateViridis)
@@ -110,8 +113,8 @@ const ArnoldMapVisualization: React.FC = () => {
       data.forEach((row, y) => {
         row.forEach((value, x) => {
           g.append('rect')
-            .attr('x', x * cellWidth)
-            .attr('y', y * cellHeight)
+            .attr('x', offsetX + x * cellWidth)
+            .attr('y', offsetY + y * cellHeight)
             .attr('width', cellWidth)
             .attr('height', cellHeight)
             .attr('fill', colorScale(value))
@@ -123,19 +126,19 @@ const ArnoldMapVisualization: React.FC = () => {
     };
 
     const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number,
                                  xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>) => {
+                                 yScale: d3.ScaleLinear<number, number>,
+                                 plotWidth: number, plotHeight: number) => {
       const frames = calculateArnoldImageScrambling(24, 24, 12);
       const currentFrame = frames[animationStep];
 
       currentFrame.forEach(row => {
         row.forEach(point => {
           g.append('rect')
-            .attr('x', xScale(point.x) - innerWidth / 48)
-            .attr('y', yScale(point.y) - innerHeight / 48)
-            .attr('width', innerWidth / 24)
-            .attr('height', innerHeight / 24)
+            .attr('x', xScale(point.x) - plotWidth / 48)
+            .attr('y', yScale(point.y) - plotHeight / 48)
+            .attr('width', plotWidth / 24)
+            .attr('height', plotHeight / 24)
             .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
             .attr('stroke', 'none')
             .attr('opacity', 0.9);
@@ -327,26 +330,35 @@ const ArnoldMapVisualization: React.FC = () => {
 
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
-    const { g, margin, innerWidth, innerHeight } = chart;
+    const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // Create scales
-    const xScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([0, innerWidth]);
+    // The Arnold cat map is *defined* by area preservation on the unit
+    // torus [0,1]^2 -- drawing it at the chart's native 520x300 aspect
+    // visibly shears its eigendirections. equalAspectScales letterboxes to
+    // a square plot rect instead of fitting x and y independently.
+    const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
+      equalAspectScales([0, 1], [0, 1], innerWidth, innerHeight);
 
-    const yScale = d3.scaleLinear()
-      .domain([0, 1])
-      .range([innerHeight, 0]);
+    const squareViews = visualizationType === 'trajectory' || visualizationType === 'grid' ||
+      visualizationType === 'scrambling' || visualizationType === 'periodic';
+    const dataGroup = squareViews
+      ? createClippedDataGroup(
+          svg,
+          g,
+          { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight },
+          'arnold-plot-clip'
+        )
+      : g;
 
     // Render based on visualization type
     if (visualizationType === 'trajectory') {
-      renderTrajectory(g, innerWidth, innerHeight, xScale, yScale);
+      renderTrajectory(dataGroup, innerWidth, innerHeight, xScale, yScale);
     } else if (visualizationType === 'grid') {
-      renderGridTransform(g, innerWidth, innerHeight, xScale, yScale);
+      renderGridTransform(dataGroup, plotWidth, plotHeight, offsetX, offsetY);
     } else if (visualizationType === 'scrambling') {
-      renderImageScrambling(g, innerWidth, innerHeight, xScale, yScale);
+      renderImageScrambling(dataGroup, xScale, yScale, plotWidth, plotHeight);
     } else if (visualizationType === 'periodic') {
-      renderPeriodicOrbits(g, innerWidth, innerHeight, xScale, yScale);
+      renderPeriodicOrbits(dataGroup, innerWidth, innerHeight, xScale, yScale);
     } else if (visualizationType === 'fibonacci') {
       renderFibonacciRelation(g, innerWidth, innerHeight, xScale, yScale);
     } else if (visualizationType === 'properties') {
@@ -355,7 +367,7 @@ const ArnoldMapVisualization: React.FC = () => {
 
     // Add axes for appropriate visualizations
     if (visualizationType !== 'properties' && visualizationType !== 'fibonacci') {
-      renderChartAxes(g, xScale, yScale, innerHeight);
+      renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
       renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, 'x', 'y');
     }
 
