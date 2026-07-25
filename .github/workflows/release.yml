@@ -2,9 +2,10 @@
 #
 # No API token is stored anywhere: the `id-token: write` permission lets the job
 # mint a short-lived OIDC credential that PyPI exchanges for an upload token.
-# This requires a Trusted Publisher to be configured once at
-# https://pypi.org/manage/project/chaos-atlas/settings/publishing/ with:
-#   owner=openfluids  repo=chaos-atlas  workflow=publish-pypi.yml  environment=pypi
+#
+# The filename must stay release.yml: PyPI matches the Trusted Publisher on the
+# workflow's filename, and the registered publisher names release.yml. Renaming
+# this file breaks the credential exchange.
 name: Publish Python package to PyPI
 
 on:
