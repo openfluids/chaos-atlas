@@ -48,268 +48,6 @@ const ArnoldMapVisualization: React.FC = () => {
     };
   }, [isAnimating, visualizationType]);
 
-  const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                           innerWidth: number, innerHeight: number,
-                           xScale: d3.ScaleLinear<number, number>,
-                           yScale: d3.ScaleLinear<number, number>) => {
-    const data = calculateArnoldMap({ x: initialX, y: initialY }, iterations);
-
-    // Draw trajectory line
-    const line = d3.line<{x: number, y: number}>()
-      .x(d => xScale(d.x))
-      .y(d => yScale(d.y))
-      .curve(d3.curveLinear);
-
-    g.append('path')
-      .datum(data)
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-orange)')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.8)
-      .attr('d', line);
-
-    // Draw points
-    g.selectAll('circle')
-      .data(data)
-      .enter()
-      .append('circle')
-      .attr('cx', d => xScale(d.x))
-      .attr('cy', d => yScale(d.y))
-      .attr('r', 2)
-      .attr('fill', 'var(--accent-cyan)')
-      .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length));
-  };
-
-  const renderGridTransform = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                              innerWidth: number, innerHeight: number,
-                              xScale: d3.ScaleLinear<number, number>,
-                              yScale: d3.ScaleLinear<number, number>) => {
-    const data = calculateArnoldGridTransform(gridSize, isAnimating ? animationStep + 1 : gridIterations);
-    const cellWidth = innerWidth / gridSize;
-    const cellHeight = innerHeight / gridSize;
-
-    // Create color scale
-    const colorScale = d3.scaleSequential(d3.interpolateViridis)
-      .domain([0, gridSize * gridSize]);
-
-    data.forEach((row, y) => {
-      row.forEach((value, x) => {
-        g.append('rect')
-          .attr('x', x * cellWidth)
-          .attr('y', y * cellHeight)
-          .attr('width', cellWidth)
-          .attr('height', cellHeight)
-          .attr('fill', colorScale(value))
-          .attr('stroke', 'var(--text-secondary)')
-          .attr('stroke-width', 0.5)
-          .attr('opacity', 0.9);
-      });
-    });
-  };
-
-  const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                               innerWidth: number, innerHeight: number,
-                               xScale: d3.ScaleLinear<number, number>,
-                               yScale: d3.ScaleLinear<number, number>) => {
-    const frames = calculateArnoldImageScrambling(24, 24, 12);
-    const currentFrame = frames[animationStep];
-
-    currentFrame.forEach(row => {
-      row.forEach(point => {
-        g.append('rect')
-          .attr('x', xScale(point.x) - innerWidth / 48)
-          .attr('y', yScale(point.y) - innerHeight / 48)
-          .attr('width', innerWidth / 24)
-          .attr('height', innerHeight / 24)
-          .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
-          .attr('stroke', 'none')
-          .attr('opacity', 0.9);
-      });
-    });
-  };
-
-  const renderPeriodicOrbits = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                               innerWidth: number, innerHeight: number,
-                               xScale: d3.ScaleLinear<number, number>,
-                               yScale: d3.ScaleLinear<number, number>) => {
-    const orbits = calculateArnoldPeriodicOrbits(5);
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-
-    orbits.forEach((orbit, orbitIndex) => {
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(orbit.orbit)
-        .attr('fill', 'none')
-        .attr('stroke', colorScale(orbitIndex.toString()) as string)
-        .attr('stroke-width', 2)
-        .attr('opacity', 0.8)
-        .attr('d', line);
-
-      // Add points
-      g.selectAll(`circle.orbit-${orbitIndex}`)
-        .data(orbit.orbit)
-        .enter()
-        .append('circle')
-        .attr('class', `orbit-${orbitIndex}`)
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 3)
-        .attr('fill', colorScale(orbitIndex.toString()) as string);
-
-      // Add period label
-      if (orbit.orbit.length > 0) {
-        g.append('text')
-          .attr('x', xScale(orbit.orbit[0].x))
-          .attr('y', yScale(orbit.orbit[0].y) - 10)
-          .attr('text-anchor', 'middle')
-          .style('fill', 'var(--text-primary)')
-          .style('font-size', '10px')
-          .text(`P=${orbit.period}`);
-      }
-    });
-  };
-
-  const renderFibonacciRelation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                  innerWidth: number, innerHeight: number,
-                                  xScale: d3.ScaleLinear<number, number>,
-                                  yScale: d3.ScaleLinear<number, number>) => {
-    const data = calculateArnoldFibonacciRelation(15);
-    const { lambda1 } = calculateArnoldEigenvalues();
-
-    const xScaleFib = d3.scaleLinear()
-      .domain([0, data.length])
-      .range([0, innerWidth]);
-
-    const yScaleFib = d3.scaleLinear()
-      .domain([0, Math.max(...data.map(d => d.fibonacci))])
-      .range([innerHeight, 0]);
-
-    // Draw eigenvalue line
-    g.append('line')
-      .attr('x1', 0)
-      .attr('y1', yScaleFib(lambda1))
-      .attr('x2', innerWidth)
-      .attr('y2', yScaleFib(lambda1))
-      .attr('stroke', 'var(--accent-cyan)')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '5,5');
-
-    // Draw Fibonacci ratios
-    const line = d3.line<{n: number, ratio: number}>()
-      .x(d => xScaleFib(d.n))
-      .y(d => yScaleFib(d.ratio))
-      .curve(d3.curveMonotoneX);
-
-    g.append('path')
-      .datum(data.filter(d => d.ratio > 0))
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-orange)')
-      .attr('stroke-width', 2)
-      .attr('d', line);
-
-    // Add points
-    g.selectAll('circle')
-      .data(data.filter(d => d.ratio > 0))
-      .enter()
-      .append('circle')
-      .attr('cx', d => xScaleFib(d.n))
-      .attr('cy', d => yScaleFib(d.ratio))
-      .attr('r', 3)
-      .attr('fill', 'var(--accent-orange)');
-
-    // Add eigenvalue label
-    g.append('text')
-      .attr('x', innerWidth - 50)
-      .attr('y', yScaleFib(lambda1) - 10)
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '12px')
-      .text(`λ₁ = ${lambda1.toFixed(3)}`);
-  };
-
-  const renderMatrixProperties = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number) => {
-    const { trace, determinant } = calculateArnoldMatrixProperties();
-    const { lambda1, lambda2 } = calculateArnoldEigenvalues();
-
-    const properties = [
-      { label: 'Matrix', value: '[[1, 1], [1, 2]]' },
-      { label: 'Trace', value: trace.toString() },
-      { label: 'Determinant', value: determinant.toString() },
-      { label: 'λ₁ (Golden Ratio)', value: lambda1.toFixed(6) },
-      { label: 'λ₂', value: lambda2.toFixed(6) },
-      { label: 'Area Preserving', value: 'Yes (det = 1)' }
-    ];
-
-    properties.forEach((prop, i) => {
-      g.append('text')
-        .attr('x', 20)
-        .attr('y', 40 + i * 35)
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '16px')
-        .style('font-weight', 'bold')
-        .text(`${prop.label}:`);
-
-      g.append('text')
-        .attr('x', 200)
-        .attr('y', 40 + i * 35)
-        .style('fill', 'var(--accent-cyan)')
-        .style('font-size', '16px')
-        .text(prop.value);
-    });
-
-    // Draw unit square
-    const squareSize = Math.min(innerWidth, innerHeight) * 0.3;
-    const squareX = (innerWidth - squareSize) / 2;
-    const squareY = innerHeight - squareSize - 50;
-
-    g.append('rect')
-      .attr('x', squareX)
-      .attr('y', squareY)
-      .attr('width', squareSize)
-      .attr('height', squareSize)
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-orange)')
-      .attr('stroke-width', 2);
-
-    // Draw transformed square corners
-    const corners = [
-      { x: 0, y: 0 },
-      { x: 1, y: 0 },
-      { x: 1, y: 1 },
-      { x: 0, y: 1 }
-    ];
-
-    const transformedCorners = corners.map(c => calculateArnoldIteration(c));
-
-    const transformLine = d3.line<{x: number, y: number}>()
-      .x(d => squareX + d.x * squareSize)
-      .y(d => squareY + (1 - d.y) * squareSize)
-      .curve(d3.curveLinearClosed);
-
-    g.append('path')
-      .datum(transformedCorners)
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-cyan)')
-      .attr('stroke-width', 2)
-      .attr('d', transformLine);
-  };
-
-  const getVisualizationTitle = () => {
-    switch (visualizationType) {
-      case 'trajectory': return 'Arnold Cat Map Trajectory';
-      case 'grid': return 'Grid Transformation';
-      case 'scrambling': return 'Image Scrambling';
-      case 'periodic': return 'Periodic Orbits';
-      case 'fibonacci': return 'Fibonacci Relation';
-      case 'properties': return 'Matrix Properties';
-      default: return 'Arnold Cat Map Visualization';
-    }
-  };
-
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
     if (!isAnimating) {
@@ -318,6 +56,268 @@ const ArnoldMapVisualization: React.FC = () => {
   };
 
   useEffect(() => {
+    const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                             innerWidth: number, innerHeight: number,
+                             xScale: d3.ScaleLinear<number, number>,
+                             yScale: d3.ScaleLinear<number, number>) => {
+      const data = calculateArnoldMap({ x: initialX, y: initialY }, iterations);
+
+      // Draw trajectory line
+      const line = d3.line<{x: number, y: number}>()
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y))
+        .curve(d3.curveLinear);
+
+      g.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.8)
+        .attr('d', line);
+
+      // Draw points
+      g.selectAll('circle')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('cx', d => xScale(d.x))
+        .attr('cy', d => yScale(d.y))
+        .attr('r', 2)
+        .attr('fill', 'var(--accent-cyan)')
+        .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length));
+    };
+
+    const renderGridTransform = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                innerWidth: number, innerHeight: number,
+                                xScale: d3.ScaleLinear<number, number>,
+                                yScale: d3.ScaleLinear<number, number>) => {
+      const data = calculateArnoldGridTransform(gridSize, isAnimating ? animationStep + 1 : gridIterations);
+      const cellWidth = innerWidth / gridSize;
+      const cellHeight = innerHeight / gridSize;
+
+      // Create color scale
+      const colorScale = d3.scaleSequential(d3.interpolateViridis)
+        .domain([0, gridSize * gridSize]);
+
+      data.forEach((row, y) => {
+        row.forEach((value, x) => {
+          g.append('rect')
+            .attr('x', x * cellWidth)
+            .attr('y', y * cellHeight)
+            .attr('width', cellWidth)
+            .attr('height', cellHeight)
+            .attr('fill', colorScale(value))
+            .attr('stroke', 'var(--text-secondary)')
+            .attr('stroke-width', 0.5)
+            .attr('opacity', 0.9);
+        });
+      });
+    };
+
+    const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                 innerWidth: number, innerHeight: number,
+                                 xScale: d3.ScaleLinear<number, number>,
+                                 yScale: d3.ScaleLinear<number, number>) => {
+      const frames = calculateArnoldImageScrambling(24, 24, 12);
+      const currentFrame = frames[animationStep];
+
+      currentFrame.forEach(row => {
+        row.forEach(point => {
+          g.append('rect')
+            .attr('x', xScale(point.x) - innerWidth / 48)
+            .attr('y', yScale(point.y) - innerHeight / 48)
+            .attr('width', innerWidth / 24)
+            .attr('height', innerHeight / 24)
+            .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
+            .attr('stroke', 'none')
+            .attr('opacity', 0.9);
+        });
+      });
+    };
+
+    const renderPeriodicOrbits = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                 innerWidth: number, innerHeight: number,
+                                 xScale: d3.ScaleLinear<number, number>,
+                                 yScale: d3.ScaleLinear<number, number>) => {
+      const orbits = calculateArnoldPeriodicOrbits(5);
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+      orbits.forEach((orbit, orbitIndex) => {
+        const line = d3.line<{x: number, y: number}>()
+          .x(d => xScale(d.x))
+          .y(d => yScale(d.y))
+          .curve(d3.curveLinear);
+
+        g.append('path')
+          .datum(orbit.orbit)
+          .attr('fill', 'none')
+          .attr('stroke', colorScale(orbitIndex.toString()) as string)
+          .attr('stroke-width', 2)
+          .attr('opacity', 0.8)
+          .attr('d', line);
+
+        // Add points
+        g.selectAll(`circle.orbit-${orbitIndex}`)
+          .data(orbit.orbit)
+          .enter()
+          .append('circle')
+          .attr('class', `orbit-${orbitIndex}`)
+          .attr('cx', d => xScale(d.x))
+          .attr('cy', d => yScale(d.y))
+          .attr('r', 3)
+          .attr('fill', colorScale(orbitIndex.toString()) as string);
+
+        // Add period label
+        if (orbit.orbit.length > 0) {
+          g.append('text')
+            .attr('x', xScale(orbit.orbit[0].x))
+            .attr('y', yScale(orbit.orbit[0].y) - 10)
+            .attr('text-anchor', 'middle')
+            .style('fill', 'var(--text-primary)')
+            .style('font-size', '10px')
+            .text(`P=${orbit.period}`);
+        }
+      });
+    };
+
+    const renderFibonacciRelation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                    innerWidth: number, innerHeight: number,
+                                    xScale: d3.ScaleLinear<number, number>,
+                                    yScale: d3.ScaleLinear<number, number>) => {
+      const data = calculateArnoldFibonacciRelation(15);
+      const { lambda1 } = calculateArnoldEigenvalues();
+
+      const xScaleFib = d3.scaleLinear()
+        .domain([0, data.length])
+        .range([0, innerWidth]);
+
+      const yScaleFib = d3.scaleLinear()
+        .domain([0, Math.max(...data.map(d => d.fibonacci))])
+        .range([innerHeight, 0]);
+
+      // Draw eigenvalue line
+      g.append('line')
+        .attr('x1', 0)
+        .attr('y1', yScaleFib(lambda1))
+        .attr('x2', innerWidth)
+        .attr('y2', yScaleFib(lambda1))
+        .attr('stroke', 'var(--accent-cyan)')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '5,5');
+
+      // Draw Fibonacci ratios
+      const line = d3.line<{n: number, ratio: number}>()
+        .x(d => xScaleFib(d.n))
+        .y(d => yScaleFib(d.ratio))
+        .curve(d3.curveMonotoneX);
+
+      g.append('path')
+        .datum(data.filter(d => d.ratio > 0))
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+
+      // Add points
+      g.selectAll('circle')
+        .data(data.filter(d => d.ratio > 0))
+        .enter()
+        .append('circle')
+        .attr('cx', d => xScaleFib(d.n))
+        .attr('cy', d => yScaleFib(d.ratio))
+        .attr('r', 3)
+        .attr('fill', 'var(--accent-orange)');
+
+      // Add eigenvalue label
+      g.append('text')
+        .attr('x', innerWidth - 50)
+        .attr('y', yScaleFib(lambda1) - 10)
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '12px')
+        .text(`λ₁ = ${lambda1.toFixed(3)}`);
+    };
+
+    const renderMatrixProperties = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                   innerWidth: number, innerHeight: number) => {
+      const { trace, determinant } = calculateArnoldMatrixProperties();
+      const { lambda1, lambda2 } = calculateArnoldEigenvalues();
+
+      const properties = [
+        { label: 'Matrix', value: '[[1, 1], [1, 2]]' },
+        { label: 'Trace', value: trace.toString() },
+        { label: 'Determinant', value: determinant.toString() },
+        { label: 'λ₁ (Golden Ratio)', value: lambda1.toFixed(6) },
+        { label: 'λ₂', value: lambda2.toFixed(6) },
+        { label: 'Area Preserving', value: 'Yes (det = 1)' }
+      ];
+
+      properties.forEach((prop, i) => {
+        g.append('text')
+          .attr('x', 20)
+          .attr('y', 40 + i * 35)
+          .style('fill', 'var(--text-primary)')
+          .style('font-size', '16px')
+          .style('font-weight', 'bold')
+          .text(`${prop.label}:`);
+
+        g.append('text')
+          .attr('x', 200)
+          .attr('y', 40 + i * 35)
+          .style('fill', 'var(--accent-cyan)')
+          .style('font-size', '16px')
+          .text(prop.value);
+      });
+
+      // Draw unit square
+      const squareSize = Math.min(innerWidth, innerHeight) * 0.3;
+      const squareX = (innerWidth - squareSize) / 2;
+      const squareY = innerHeight - squareSize - 50;
+
+      g.append('rect')
+        .attr('x', squareX)
+        .attr('y', squareY)
+        .attr('width', squareSize)
+        .attr('height', squareSize)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 2);
+
+      // Draw transformed square corners
+      const corners = [
+        { x: 0, y: 0 },
+        { x: 1, y: 0 },
+        { x: 1, y: 1 },
+        { x: 0, y: 1 }
+      ];
+
+      const transformedCorners = corners.map(c => calculateArnoldIteration(c));
+
+      const transformLine = d3.line<{x: number, y: number}>()
+        .x(d => squareX + d.x * squareSize)
+        .y(d => squareY + (1 - d.y) * squareSize)
+        .curve(d3.curveLinearClosed);
+
+      g.append('path')
+        .datum(transformedCorners)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-cyan)')
+        .attr('stroke-width', 2)
+        .attr('d', transformLine);
+    };
+
+    const getVisualizationTitle = () => {
+      switch (visualizationType) {
+        case 'trajectory': return 'Arnold Cat Map Trajectory';
+        case 'grid': return 'Grid Transformation';
+        case 'scrambling': return 'Image Scrambling';
+        case 'periodic': return 'Periodic Orbits';
+        case 'fibonacci': return 'Fibonacci Relation';
+        case 'properties': return 'Matrix Properties';
+        default: return 'Arnold Cat Map Visualization';
+      }
+    };
+
     if (!svgRef.current) return;
 
     // Clear previous visualization
@@ -407,7 +407,7 @@ const ArnoldMapVisualization: React.FC = () => {
       .style('font-weight', 'bold')
       .text(getVisualizationTitle());
 
-  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep]);
+  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep, isAnimating]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

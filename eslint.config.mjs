@@ -6,7 +6,7 @@
 // FlatCompat shim is needed.
 import nextCoreWebVitals from 'eslint-config-next/core-web-vitals';
 
-export default [
+const config = [
   {
     ignores: [
       '.next/**',
@@ -23,6 +23,16 @@ export default [
   // codebase has never been held to (111 errors, mostly no-require-imports in
   // jest.mock calls); that is a separate decision from upgrading packages.
   ...nextCoreWebVitals,
+
+  {
+    // eslint-config-next sets settings.react.version to 'detect', which makes
+    // eslint-plugin-react call resolveBasedir(context) -> context.getFilename().
+    // ESLint 10 removed getFilename, so detection throws inside every rule that
+    // consults the React version and the whole run dies. Pinning the version
+    // skips detection entirely; it is also faster and deterministic, so this is
+    // the right setting regardless of ESLint version.
+    settings: { react: { version: '19.2' } },
+  },
 
   {
     // `next lint` only ever covered app/, components/, lib/ and pages/, so test
@@ -55,3 +65,5 @@ export default [
     },
   },
 ];
+
+export default config;

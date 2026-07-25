@@ -101,11 +101,9 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     await iterationSlider.fill('2000');
     await page.waitForTimeout(1000);
 
-    // Check that recalculate button works
-    const recalcButton = page.locator('button', { hasText: 'Recalculate' });
-    await expect(recalcButton).toBeVisible();
-    await recalcButton.click();
-    await page.waitForTimeout(2000);
+    // comparisonData is derived during render, so changing a control is enough
+    // to redraw; there is no explicit recalculate step to trigger.
+    await expect(page.locator('svg').first()).toBeVisible();
   });
 
   test('phase space comparison mode works', async ({ page }) => {
@@ -158,10 +156,8 @@ test.describe('Comparative Analysis - E2E Tests', () => {
     // Verify synchronized parameter display
     await expect(page.locator('text=Sync Parameters')).toBeVisible();
 
-    // Test that calculations update with sync enabled
-    const recalcButton = page.locator('button', { hasText: 'Recalculate' });
-    await recalcButton.click();
-    await page.waitForTimeout(2000);
+    // Sync is applied through derived state, so the view is already current.
+    await expect(page.locator('svg').first()).toBeVisible();
   });
 
   test('bifurcation mode shows placeholder', async ({ page }) => {

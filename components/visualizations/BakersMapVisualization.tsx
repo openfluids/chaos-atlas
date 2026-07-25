@@ -45,197 +45,6 @@ const BakersMapVisualization: React.FC = () => {
     };
   }, [isAnimating, visualizationType]);
 
-  const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                           innerWidth: number, innerHeight: number,
-                           xScale: d3.ScaleLinear<number, number>,
-                           yScale: d3.ScaleLinear<number, number>) => {
-    const data = calculateBakersMap({ x: initialX, y: initialY }, iterations);
-
-    // Draw trajectory line
-    const line = d3.line<{x: number, y: number}>()
-      .x(d => xScale(d.x))
-      .y(d => yScale(d.y))
-      .curve(d3.curveLinear);
-
-    g.append('path')
-      .datum(data)
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-orange)')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.8)
-      .attr('d', line);
-
-    // Draw points
-    g.selectAll('circle')
-      .data(data)
-      .enter()
-      .append('circle')
-      .attr('cx', d => xScale(d.x))
-      .attr('cy', d => yScale(d.y))
-      .attr('r', 2)
-      .attr('fill', 'var(--accent-cyan)')
-      .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length)); // Fade in
-  };
-
-  const renderMixing = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                       innerWidth: number, innerHeight: number,
-                       xScale: d3.ScaleLinear<number, number>,
-                       yScale: d3.ScaleLinear<number, number>) => {
-    const trajectories = calculateBakersMixing(mixingPoints, iterations);
-
-    // Color scale for different trajectories
-    const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-
-    trajectories.forEach((trajectory, trajIndex) => {
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(trajectory)
-        .attr('fill', 'none')
-        .attr('stroke', colorScale(trajIndex.toString()) as string)
-        .attr('stroke-width', 1)
-        .attr('opacity', 0.6)
-        .attr('d', line);
-
-      // Add initial points
-      if (trajectory.length > 0) {
-        g.append('circle')
-          .attr('cx', xScale(trajectory[0].x))
-          .attr('cy', yScale(trajectory[0].y))
-          .attr('r', 3)
-          .attr('fill', colorScale(trajIndex.toString()) as string);
-      }
-    });
-  };
-
-  const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                               innerWidth: number, innerHeight: number,
-                               xScale: d3.ScaleLinear<number, number>,
-                               yScale: d3.ScaleLinear<number, number>) => {
-    const frames = calculateBakersImageScrambling(16, 16, 10);
-    const currentFrame = frames[animationStep];
-
-    currentFrame.forEach(row => {
-      row.forEach(point => {
-        g.append('rect')
-          .attr('x', xScale(point.x) - innerWidth / 32)
-          .attr('y', yScale(point.y) - innerHeight / 32)
-          .attr('width', innerWidth / 16)
-          .attr('height', innerHeight / 16)
-          .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
-          .attr('stroke', 'none')
-          .attr('opacity', 0.8);
-      });
-    });
-  };
-
-  const renderInvariantMeasure = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number,
-                                 xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>) => {
-    const data = calculateBakersInvariantMeasure(5000, 20);
-    const binWidth = innerWidth / 20;
-    const binHeight = innerHeight / 20;
-
-    data.forEach((row, y) => {
-      row.forEach((value, x) => {
-        g.append('rect')
-          .attr('x', x * binWidth)
-          .attr('y', y * binHeight)
-          .attr('width', binWidth)
-          .attr('height', binHeight)
-          .attr('fill', 'var(--accent-cyan)')
-          .attr('opacity', value)
-          .attr('stroke', 'var(--text-secondary)')
-          .attr('stroke-width', 0.5);
-      });
-    });
-  };
-
-  const renderPhaseSpacePartition = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                    innerWidth: number, innerHeight: number,
-                                    xScale: d3.ScaleLinear<number, number>,
-                                    yScale: d3.ScaleLinear<number, number>) => {
-    const { grid } = calculateBakersPhaseSpacePartition(16);
-    const binWidth = innerWidth / 16;
-    const binHeight = innerHeight / 16;
-
-    grid.forEach((row, y) => {
-      row.forEach((value, x) => {
-        g.append('rect')
-          .attr('x', x * binWidth)
-          .attr('y', y * binHeight)
-          .attr('width', binWidth)
-          .attr('height', binHeight)
-          .attr('fill', value === 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)')
-          .attr('opacity', 0.6)
-          .attr('stroke', 'var(--text-secondary)')
-          .attr('stroke-width', 0.5);
-      });
-    });
-
-    // Add partition boundary
-    g.append('line')
-      .attr('x1', xScale(0.5))
-      .attr('y1', 0)
-      .attr('x2', xScale(0.5))
-      .attr('y2', innerHeight)
-      .attr('stroke', 'var(--text-primary)')
-      .attr('stroke-width', 2)
-      .attr('stroke-dasharray', '5,5');
-  };
-
-  const renderSymbolicDynamics = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number,
-                                 xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>) => {
-    const symbols = calculateBakersSymbolicDynamics({ x: initialX, y: initialY }, 50);
-    const data = calculateBakersMap({ x: initialX, y: initialY }, 50);
-
-    // Draw trajectory
-    const line = d3.line<{x: number, y: number}>()
-      .x(d => xScale(d.x))
-      .y(d => yScale(d.y))
-      .curve(d3.curveLinear);
-
-    g.append('path')
-      .datum(data)
-      .attr('fill', 'none')
-      .attr('stroke', 'var(--accent-orange)')
-      .attr('stroke-width', 1.5)
-      .attr('opacity', 0.5)
-      .attr('d', line);
-
-    // Add symbols at points
-    g.selectAll('text')
-      .data(data.slice(0, Math.min(20, data.length))) // Limit text display
-      .enter()
-      .append('text')
-      .attr('x', d => xScale(d.x))
-      .attr('y', d => yScale(d.y))
-      .attr('text-anchor', 'middle')
-      .attr('dominant-baseline', 'middle')
-      .style('fill', 'var(--text-primary)')
-      .style('font-size', '10px')
-      .style('font-weight', 'bold')
-      .text((d, i) => symbols[i]);
-  };
-
-  const getVisualizationTitle = () => {
-    switch (visualizationType) {
-      case 'trajectory': return "Baker's Map Trajectory";
-      case 'mixing': return 'Mixing Behavior';
-      case 'scrambling': return 'Image Scrambling';
-      case 'invariant': return 'Invariant Measure';
-      case 'partition': return 'Phase Space Partition';
-      case 'symbolic': return 'Symbolic Dynamics';
-      default: return "Baker's Map Visualization";
-    }
-  };
-
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
     if (!isAnimating) {
@@ -244,6 +53,197 @@ const BakersMapVisualization: React.FC = () => {
   };
 
   useEffect(() => {
+    const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                             innerWidth: number, innerHeight: number,
+                             xScale: d3.ScaleLinear<number, number>,
+                             yScale: d3.ScaleLinear<number, number>) => {
+      const data = calculateBakersMap({ x: initialX, y: initialY }, iterations);
+
+      // Draw trajectory line
+      const line = d3.line<{x: number, y: number}>()
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y))
+        .curve(d3.curveLinear);
+
+      g.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.8)
+        .attr('d', line);
+
+      // Draw points
+      g.selectAll('circle')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('cx', d => xScale(d.x))
+        .attr('cy', d => yScale(d.y))
+        .attr('r', 2)
+        .attr('fill', 'var(--accent-cyan)')
+        .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length)); // Fade in
+    };
+
+    const renderMixing = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                         innerWidth: number, innerHeight: number,
+                         xScale: d3.ScaleLinear<number, number>,
+                         yScale: d3.ScaleLinear<number, number>) => {
+      const trajectories = calculateBakersMixing(mixingPoints, iterations);
+
+      // Color scale for different trajectories
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+      trajectories.forEach((trajectory, trajIndex) => {
+        const line = d3.line<{x: number, y: number}>()
+          .x(d => xScale(d.x))
+          .y(d => yScale(d.y))
+          .curve(d3.curveLinear);
+
+        g.append('path')
+          .datum(trajectory)
+          .attr('fill', 'none')
+          .attr('stroke', colorScale(trajIndex.toString()) as string)
+          .attr('stroke-width', 1)
+          .attr('opacity', 0.6)
+          .attr('d', line);
+
+        // Add initial points
+        if (trajectory.length > 0) {
+          g.append('circle')
+            .attr('cx', xScale(trajectory[0].x))
+            .attr('cy', yScale(trajectory[0].y))
+            .attr('r', 3)
+            .attr('fill', colorScale(trajIndex.toString()) as string);
+        }
+      });
+    };
+
+    const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                 innerWidth: number, innerHeight: number,
+                                 xScale: d3.ScaleLinear<number, number>,
+                                 yScale: d3.ScaleLinear<number, number>) => {
+      const frames = calculateBakersImageScrambling(16, 16, 10);
+      const currentFrame = frames[animationStep];
+
+      currentFrame.forEach(row => {
+        row.forEach(point => {
+          g.append('rect')
+            .attr('x', xScale(point.x) - innerWidth / 32)
+            .attr('y', yScale(point.y) - innerHeight / 32)
+            .attr('width', innerWidth / 16)
+            .attr('height', innerHeight / 16)
+            .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
+            .attr('stroke', 'none')
+            .attr('opacity', 0.8);
+        });
+      });
+    };
+
+    const renderInvariantMeasure = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                   innerWidth: number, innerHeight: number,
+                                   xScale: d3.ScaleLinear<number, number>,
+                                   yScale: d3.ScaleLinear<number, number>) => {
+      const data = calculateBakersInvariantMeasure(5000, 20);
+      const binWidth = innerWidth / 20;
+      const binHeight = innerHeight / 20;
+
+      data.forEach((row, y) => {
+        row.forEach((value, x) => {
+          g.append('rect')
+            .attr('x', x * binWidth)
+            .attr('y', y * binHeight)
+            .attr('width', binWidth)
+            .attr('height', binHeight)
+            .attr('fill', 'var(--accent-cyan)')
+            .attr('opacity', value)
+            .attr('stroke', 'var(--text-secondary)')
+            .attr('stroke-width', 0.5);
+        });
+      });
+    };
+
+    const renderPhaseSpacePartition = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                      innerWidth: number, innerHeight: number,
+                                      xScale: d3.ScaleLinear<number, number>,
+                                      yScale: d3.ScaleLinear<number, number>) => {
+      const { grid } = calculateBakersPhaseSpacePartition(16);
+      const binWidth = innerWidth / 16;
+      const binHeight = innerHeight / 16;
+
+      grid.forEach((row, y) => {
+        row.forEach((value, x) => {
+          g.append('rect')
+            .attr('x', x * binWidth)
+            .attr('y', y * binHeight)
+            .attr('width', binWidth)
+            .attr('height', binHeight)
+            .attr('fill', value === 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)')
+            .attr('opacity', 0.6)
+            .attr('stroke', 'var(--text-secondary)')
+            .attr('stroke-width', 0.5);
+        });
+      });
+
+      // Add partition boundary
+      g.append('line')
+        .attr('x1', xScale(0.5))
+        .attr('y1', 0)
+        .attr('x2', xScale(0.5))
+        .attr('y2', innerHeight)
+        .attr('stroke', 'var(--text-primary)')
+        .attr('stroke-width', 2)
+        .attr('stroke-dasharray', '5,5');
+    };
+
+    const renderSymbolicDynamics = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
+                                   innerWidth: number, innerHeight: number,
+                                   xScale: d3.ScaleLinear<number, number>,
+                                   yScale: d3.ScaleLinear<number, number>) => {
+      const symbols = calculateBakersSymbolicDynamics({ x: initialX, y: initialY }, 50);
+      const data = calculateBakersMap({ x: initialX, y: initialY }, 50);
+
+      // Draw trajectory
+      const line = d3.line<{x: number, y: number}>()
+        .x(d => xScale(d.x))
+        .y(d => yScale(d.y))
+        .curve(d3.curveLinear);
+
+      g.append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 1.5)
+        .attr('opacity', 0.5)
+        .attr('d', line);
+
+      // Add symbols at points
+      g.selectAll('text')
+        .data(data.slice(0, Math.min(20, data.length))) // Limit text display
+        .enter()
+        .append('text')
+        .attr('x', d => xScale(d.x))
+        .attr('y', d => yScale(d.y))
+        .attr('text-anchor', 'middle')
+        .attr('dominant-baseline', 'middle')
+        .style('fill', 'var(--text-primary)')
+        .style('font-size', '10px')
+        .style('font-weight', 'bold')
+        .text((d, i) => symbols[i]);
+    };
+
+    const getVisualizationTitle = () => {
+      switch (visualizationType) {
+        case 'trajectory': return "Baker's Map Trajectory";
+        case 'mixing': return 'Mixing Behavior';
+        case 'scrambling': return 'Image Scrambling';
+        case 'invariant': return 'Invariant Measure';
+        case 'partition': return 'Phase Space Partition';
+        case 'symbolic': return 'Symbolic Dynamics';
+        default: return "Baker's Map Visualization";
+      }
+    };
+
     if (!svgRef.current) return;
 
     // Clear previous visualization

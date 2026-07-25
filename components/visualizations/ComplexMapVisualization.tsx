@@ -31,56 +31,6 @@ const ComplexMapVisualization: React.FC = () => {
   const juliaParameters = useMemo(() => getInterestingJuliaParameters(), []);
   const mandelbrotLocations = useMemo(() => getInterestingMandelbrotLocations(), []);
 
-  const renderFractal = async () => {
-    if (!canvasRef.current || isRendering) return;
-
-    setIsRendering(true);
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const imageData = ctx.createImageData(width, height);
-    const data = imageData.data;
-
-    let fractalData: number[][];
-
-    if (visualizationType === 'julia') {
-      const param = juliaParameters[selectedJuliaParam];
-      fractalData = calculateJuliaSet(
-        param.c,
-        -2, 2, -2, 2,
-        width, height,
-        maxIterations
-      );
-    } else {
-      const location = mandelbrotLocations[selectedMandelbrotLocation];
-      fractalData = calculateMandelbrotZoom(
-        location.x,
-        location.y,
-        location.zoom * zoomLevel,
-        width, height,
-        location.maxIterations
-      );
-    }
-
-    // Convert fractal data to pixel colors
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        const iterations = fractalData[y][x];
-        const color = calculateFractalColor(iterations, maxIterations, colorScheme);
-        const index = (y * width + x) * 4;
-
-        data[index] = color.r;
-        data[index + 1] = color.g;
-        data[index + 2] = color.b;
-        data[index + 3] = 255;
-      }
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    setIsRendering(false);
-  };
-
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -168,8 +118,58 @@ const ComplexMapVisualization: React.FC = () => {
   const info = getCurrentInfo();
 
   useEffect(() => {
+    const renderFractal = async () => {
+      if (!canvasRef.current || isRendering) return;
+
+      setIsRendering(true);
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const imageData = ctx.createImageData(width, height);
+      const data = imageData.data;
+
+      let fractalData: number[][];
+
+      if (visualizationType === 'julia') {
+        const param = juliaParameters[selectedJuliaParam];
+        fractalData = calculateJuliaSet(
+          param.c,
+          -2, 2, -2, 2,
+          width, height,
+          maxIterations
+        );
+      } else {
+        const location = mandelbrotLocations[selectedMandelbrotLocation];
+        fractalData = calculateMandelbrotZoom(
+          location.x,
+          location.y,
+          location.zoom * zoomLevel,
+          width, height,
+          location.maxIterations
+        );
+      }
+
+      // Convert fractal data to pixel colors
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const iterations = fractalData[y][x];
+          const color = calculateFractalColor(iterations, maxIterations, colorScheme);
+          const index = (y * width + x) * 4;
+
+          data[index] = color.r;
+          data[index + 1] = color.g;
+          data[index + 2] = color.b;
+          data[index + 3] = 255;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+      setIsRendering(false);
+    };
+
     renderFractal();
-  }, [visualizationType, selectedJuliaParam, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel]);
+  }, [visualizationType, selectedJuliaParam, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel, isRendering, juliaParameters, mandelbrotLocations]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

@@ -193,10 +193,6 @@ const ComparativeAnalysis: React.FC = () => {
   const [iterations, setIterations] = useState(1000);
   const [syncParams, setSyncParams] = useState(false);
   const [sharedParam, setSharedParam] = useState('r');
-  // Bumped by the Recalculate button so an explicit request re-runs the
-  // computation even though the inputs are unchanged.
-  const [recalcNonce, setRecalcNonce] = useState(0);
-
   // Derived from the controls below, so it is computed during render rather
   // than written into state by an effect. Effect-plus-state costs an extra
   // render and leaves one frame showing the previous selection's series.
@@ -230,7 +226,7 @@ const ComparativeAnalysis: React.FC = () => {
     });
 
     return data;
-  }, [selectedMaps, iterations, syncParams, sharedParam, recalcNonce]);
+  }, [selectedMaps, iterations, syncParams, sharedParam]);
 
   return (
     <div className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
@@ -345,17 +341,10 @@ const ComparativeAnalysis: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-4 flex justify-between items-center">
+          <div className="mt-4">
             <p className="text-sm text-gray-400">
               {selectedMaps.length} maps selected • {comparisonMode} comparison • {iterations} iterations
             </p>
-            <button
-              id="recalculate-btn"
-              onClick={() => setRecalcNonce(n => n + 1)}
-              className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Recalculate
-            </button>
           </div>
         </div>
 
