@@ -8,15 +8,21 @@ import {
   getInterestingJuliaParameters,
   calculateFractalColor,
   calculateMandelbrotZoom,
-  getInterestingMandelbrotLocations
+  getInterestingMandelbrotLocations,
+  type FractalColorScheme,
+  type FractalEscapeResult
 } from '@/lib/maps/complexQuadratic';
 
 const ComplexMapVisualization: React.FC = () => {
   const [visualizationType, setVisualizationType] = useState<'julia' | 'mandelbrot'>('julia');
   const [selectedJuliaParam, setSelectedJuliaParam] = useState(0);
+  // A Julia parameter picked by clicking on the Mandelbrot set. Takes
+  // precedence over `selectedJuliaParam` when set; cleared when the user
+  // explicitly chooses a preset from the dropdown instead.
+  const [customJuliaC, setCustomJuliaC] = useState<ComplexNumber | null>(null);
   const [selectedMandelbrotLocation, setSelectedMandelbrotLocation] = useState(0);
   const [maxIterations, setMaxIterations] = useState(100);
-  const [colorScheme, setColorScheme] = useState<'classic' | 'fire' | 'ocean' | 'rainbow'>('classic');
+  const [colorScheme, setColorScheme] = useState<FractalColorScheme>('viridis');
   const [zoomLevel, setZoomLevel] = useState(1);
   const [isRendering, setIsRendering] = useState(false);
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number } | null>(null);
@@ -27,6 +33,28 @@ const ComplexMapVisualization: React.FC = () => {
 
   const juliaParameters = useMemo(() => getInterestingJuliaParameters(), []);
   const mandelbrotLocations = useMemo(() => getInterestingMandelbrotLocations(), []);
+
+  const currentJuliaC = customJuliaC ?? juliaParameters[selectedJuliaParam].c;
+
+  // Single source of truth for the iteration cap: `maxIterations` state
+  // drives both the compute pass and the color normalisation. Previously
+  // the compute pass used the Mandelbrot preset's own `maxIterations`
+  // while coloring divided by the slider's value, so a lower slider
+  // setting made every ratio exceed 1 and the whole view render as flat
+  // clipped color. Selecting a Mandelbrot preset (or switching into the
+  // Mandelbrot tab) now seeds the slider from that preset directly in the
+  // event handler, rather than via a state-syncing effect.
+  const selectMandelbrotLocation = (index: number) => {
+    setSelectedMandelbrotLocation(index);
+    setMaxIterations(mandelbrotLocations[index].maxIterations);
+  };
+
+  const selectVisualizationType = (type: 'julia' | 'mandelbrot') => {
+    setVisualizationType(type);
+    if (type === 'mandelbrot') {
+      setMaxIterations(mandelbrotLocations[selectedMandelbrotLocation].maxIterations);
+    }
+  };
 
   const handleCanvasMouseMove = (event: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -53,7 +81,7 @@ const ComplexMapVisualization: React.FC = () => {
     let value: number;
     if (visualizationType === 'julia') {
       const result = calculateComplexQuadraticMap(
-        juliaParameters[selectedJuliaParam].c,
+        currentJuliaC,
         new ComplexNumber(complexX, complexY),
         maxIterations
       );
@@ -84,9 +112,10 @@ const ComplexMapVisualization: React.FC = () => {
       const complexX = location.x - range / 2 + (x / width) * range;
       const complexY = location.y - range / 2 + (y / height) * range;
 
-      // For a clicked point in Mandelbrot set, we could show the corresponding Julia set
-      // This would require additional state management
-      console.log(`Julia parameter for clicked point: ${complexX.toFixed(4)} + ${complexY.toFixed(4)}i`);
+      // Clicking a point in the Mandelbrot set shows the corresponding
+      // Julia set for c = (complexX, complexY).
+      setCustomJuliaC(new ComplexNumber(complexX, complexY));
+      setVisualizationType('julia');
     }
   };
 
@@ -96,11 +125,11 @@ const ComplexMapVisualization: React.FC = () => {
 
   const getCurrentInfo = () => {
     if (visualizationType === 'julia') {
-      const param = juliaParameters[selectedJuliaParam];
+      const name = customJuliaC ? 'Custom (from Mandelbrot click)' : juliaParameters[selectedJuliaParam].name;
       return {
-        title: `Julia Set: ${param.name}`,
-        equation: `z_{n+1} = z_n² + ${param.c.real.toFixed(3)} + ${param.c.imag.toFixed(3)}i`,
-        description: `Visualizing the Julia set for c = ${param.c.real.toFixed(3)} + ${param.c.imag.toFixed(3)}i`
+        title: `Julia Set: ${name}`,
+        equation: `z_{n+1} = z_n² + ${currentJuliaC.real.toFixed(3)} + ${currentJuliaC.imag.toFixed(3)}i`,
+        description: `Visualizing the Julia set for c = ${currentJuliaC.real.toFixed(3)} + ${currentJuliaC.imag.toFixed(3)}i`
       };
     } else {
       const location = mandelbrotLocations[selectedMandelbrotLocation];
@@ -126,36 +155,58 @@ const ComplexMapVisualization: React.FC = () => {
         return;
       }
 
-      const imageData = ctx.createImageData(width, height);
+      // Scale the canvas backing store by devicePixelRatio so the render
+      // matches the physical pixel density of the screen -- otherwise a 2x
+      // display shows an upsampled, soft image. The CSS box size is left
+      // untouched (still governed by the `style` prop below: 100% width,
+      // capped at `width`px, height locked via aspect-ratio), so only the
+      // drawing-buffer resolution changes, not the on-screen box. `window`
+      // is only ever touched inside this effect (client-only, never during
+      // render/SSR).
+      const dpr = window.devicePixelRatio || 1;
+      const pixelWidth = Math.round(width * dpr);
+      const pixelHeight = Math.round(height * dpr);
+      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+        canvas.width = pixelWidth;
+        canvas.height = pixelHeight;
+      }
+
+      const imageData = ctx.createImageData(pixelWidth, pixelHeight);
       const data = imageData.data;
 
-      let fractalData: number[][];
+      let fractalData: FractalEscapeResult[][];
 
       if (visualizationType === 'julia') {
-        const param = juliaParameters[selectedJuliaParam];
         fractalData = calculateJuliaSet(
-          param.c,
+          currentJuliaC,
           -2, 2, -2, 2,
-          width, height,
+          pixelWidth, pixelHeight,
           maxIterations
         );
       } else {
         const location = mandelbrotLocations[selectedMandelbrotLocation];
+        // Use the single `maxIterations` state for both the compute pass
+        // and the color normalisation below -- previously this passed the
+        // preset's own `location.maxIterations` while coloring divided by
+        // the slider's `maxIterations`, so a lower slider value made every
+        // ratio exceed 1 and the whole view render as flat clipped color.
         fractalData = calculateMandelbrotZoom(
           location.x,
           location.y,
           location.zoom * zoomLevel,
-          width, height,
-          location.maxIterations
+          pixelWidth, pixelHeight,
+          maxIterations
         );
       }
 
-      // Convert fractal data to pixel colors
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const iterations = fractalData[y][x];
-          const color = calculateFractalColor(iterations, maxIterations, colorScheme);
-          const index = (y * width + x) * 4;
+      // Convert fractal data to pixel colors, coloring on the smooth
+      // (normalised) iteration count rather than the raw integer count to
+      // avoid banded contour rings.
+      for (let y = 0; y < pixelHeight; y++) {
+        for (let x = 0; x < pixelWidth; x++) {
+          const cell = fractalData[y][x];
+          const color = calculateFractalColor(cell.smoothIterations, maxIterations, colorScheme, cell.escaped);
+          const index = (y * pixelWidth + x) * 4;
 
           data[index] = color.r;
           data[index + 1] = color.g;
@@ -169,7 +220,11 @@ const ComplexMapVisualization: React.FC = () => {
     };
 
     renderFractal();
-  }, [visualizationType, selectedJuliaParam, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel, isRendering, juliaParameters, mandelbrotLocations]);
+    // `currentJuliaC` is a freshly-constructed ComplexNumber every render;
+    // depend on its primitive fields instead of the object reference so
+    // this effect doesn't re-fire every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visualizationType, currentJuliaC.real, currentJuliaC.imag, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel, isRendering, mandelbrotLocations]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -184,7 +239,7 @@ const ComplexMapVisualization: React.FC = () => {
             </label>
             <select
               value={visualizationType}
-              onChange={(e) => setVisualizationType(e.target.value as 'julia' | 'mandelbrot')}
+              onChange={(e) => selectVisualizationType(e.target.value as 'julia' | 'mandelbrot')}
               className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
             >
               <option value="julia">Julia Set</option>
@@ -199,7 +254,10 @@ const ComplexMapVisualization: React.FC = () => {
               </label>
               <select
                 value={selectedJuliaParam}
-                onChange={(e) => setSelectedJuliaParam(parseInt(e.target.value))}
+                onChange={(e) => {
+                  setSelectedJuliaParam(parseInt(e.target.value));
+                  setCustomJuliaC(null);
+                }}
                 className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
               >
                 {juliaParameters.map((param, index) => (
@@ -218,7 +276,7 @@ const ComplexMapVisualization: React.FC = () => {
               </label>
               <select
                 value={selectedMandelbrotLocation}
-                onChange={(e) => setSelectedMandelbrotLocation(parseInt(e.target.value))}
+                onChange={(e) => selectMandelbrotLocation(parseInt(e.target.value))}
                 className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
               >
                 {mandelbrotLocations.map((location, index) => (
@@ -274,9 +332,12 @@ const ComplexMapVisualization: React.FC = () => {
             </label>
             <select
               value={colorScheme}
-              onChange={(e) => setColorScheme(e.target.value as 'classic' | 'fire' | 'ocean' | 'rainbow')}
+              onChange={(e) => setColorScheme(e.target.value as FractalColorScheme)}
               className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
             >
+              <option value="viridis">Viridis</option>
+              <option value="inferno">Inferno</option>
+              <option value="magma">Magma</option>
               <option value="classic">Classic</option>
               <option value="fire">Fire</option>
               <option value="ocean">Ocean</option>
