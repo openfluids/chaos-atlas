@@ -20,13 +20,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
       - name: Scan changed React files
         if: github.event_name == 'pull_request'
-        uses: millionco/react-doctor@99f6a6ad1cc41828172b26f17a84bcf2d66ff17c
+        uses: millionco/react-doctor@4fbab2ddc8a3e808afe90a291325b4da0f7817ab
         with:
           diff: main
           github-token: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.GITHUB_TOKEN || '' }}
@@ -36,7 +36,7 @@ jobs:
 
       - name: Scan React project
         if: github.event_name != 'pull_request'
-        uses: millionco/react-doctor@99f6a6ad1cc41828172b26f17a84bcf2d66ff17c
+        uses: millionco/react-doctor@4fbab2ddc8a3e808afe90a291325b4da0f7817ab
         with:
           fail-on: none
           offline: true
