@@ -55,7 +55,7 @@ The map kernels are also published as a standalone Python package, so the same
 systems can be driven from a script or notebook without the browser.
 
 ```bash
-pip install chaos-atlas
+pip install chaos-atlas   # requires Python 3.14+
 ```
 
 ```python
@@ -73,7 +73,7 @@ Source and full API in [`python/`](python/).
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (CI builds and tests on 26)
 - npm
 
 ### Install and Run
@@ -131,9 +131,12 @@ tests/                   # 184 tests (unit, integration, a11y, e2e)
 
 ## Tech Stack
 
-- **Framework:** Next.js 14 (static export)
+- **Framework:** Next.js 16, React 19 (static export)
+- **Language:** TypeScript 6
 - **Rendering:** D3.js (SVG) + Canvas (fractals)
-- **Styling:** Tailwind CSS + CSS custom properties
+- **Styling:** Tailwind CSS 4 + CSS custom properties
+- **Testing:** Jest 30 (unit/integration/a11y), Playwright (e2e)
+- **Python package:** NumPy, Python 3.14+
 - **Deployment:** GitHub Pages via Actions
 
 ## License
