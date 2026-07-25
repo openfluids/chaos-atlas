@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "chaos-atlas"
-version = "0.2.0"
+version = "0.3.0"
 description = "Iterated maps, coupled map lattices, and Lyapunov exponents for chaotic dynamical systems"
 readme = "README.md"
 requires-python = ">=3.14"
