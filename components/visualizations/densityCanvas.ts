@@ -1,5 +1,10 @@
 import * as d3 from 'd3';
-import { computeDensityField, paintDensityField } from './densityField';
+import {
+  computeDensityFieldDetailed,
+  paintDensityField,
+  paintSparseMarkers,
+  SPARSE_OCCUPIED_BIN_THRESHOLD,
+} from './densityField';
 
 /** Number of discrete steps precomputed in a color ramp lookup table. */
 const LUT_STEPS = 256;
@@ -72,12 +77,24 @@ export interface DensityCanvasRect {
   height: number;
 }
 
+export type DensityRenderMode = 'empty' | 'sparse' | 'density';
+
+export interface DensityRenderInfo {
+  mode: DensityRenderMode;
+  /** Occupied bins after binning into the plot rectangle. */
+  distinctOccupied: number;
+}
+
 /**
  * Renders a density field of `points` onto `canvas`, scaling the backing
  * store by `devicePixelRatio` (see `hooks/useHydrated.ts` for why this must
  * only run client-side) and drawing only within `plotRect` -- the CSS-pixel
  * rectangle that must line up with the SVG axis layer drawn on top, which
  * may itself be letterboxed by `equalAspectScales` in `chartHelpers.ts`.
+ *
+ * When the orbit occupies ≤ {@link SPARSE_OCCUPIED_BIN_THRESHOLD} bins, paints
+ * visible discs instead of single-pixel density so periodic attractors read
+ * as discrete marks. Dense attractors keep the unchanged density path.
  *
  * `window` is only read here, inside a browser-only render call, never
  * during render/SSR.
@@ -91,7 +108,7 @@ export function renderDensityCanvas(
   canvasCssHeight: number,
   plotRect: DensityCanvasRect,
   colorScale: (t: number) => string = d3.interpolateInferno
-): void {
+): DensityRenderInfo {
   const dpr = window.devicePixelRatio || 1;
   const pixelWidth = Math.round(canvasCssWidth * dpr);
   const pixelHeight = Math.round(canvasCssHeight * dpr);
@@ -101,7 +118,7 @@ export function renderDensityCanvas(
   }
 
   const ctx = canvas.getContext('2d');
-  if (!ctx) return;
+  if (!ctx) return { mode: 'empty', distinctOccupied: 0 };
   ctx.clearRect(0, 0, pixelWidth, pixelHeight);
 
   // Divergent maps can yield NaN domains → NaN plotRect sizes. Math.max(1,
@@ -118,14 +135,14 @@ export function renderDensityCanvas(
     !Number.isFinite(plotRect.x) ||
     !Number.isFinite(plotRect.y)
   ) {
-    return;
+    return { mode: 'empty', distinctOccupied: 0 };
   }
   const rectPixelWidth = Math.max(1, rawW);
   const rectPixelHeight = Math.max(1, rawH);
 
   const scratch = getDensityScratch(canvas, ctx, rectPixelWidth, rectPixelHeight);
 
-  const field = computeDensityField(
+  const result = computeDensityFieldDetailed(
     points,
     {
       xDomain,
@@ -137,11 +154,40 @@ export function renderDensityCanvas(
   );
 
   const lut = buildColorLut(colorScale);
-  // Reuse ImageData pixels; paintDensityField overwrites every entry it needs.
-  paintDensityField(scratch.imageData.data, field, lut);
+
+  if (
+    result.distinctOccupied > 0 &&
+    result.distinctOccupied <= SPARSE_OCCUPIED_BIN_THRESHOLD &&
+    result.occupiedPixels.length > 0
+  ) {
+    // ~5 CSS px radius so period-2 / period-N orbits are clearly visible.
+    const radiusPx = Math.max(3, Math.round(5 * dpr));
+    const top = d3.rgb(colorScale(1));
+    paintSparseMarkers(
+      scratch.imageData.data,
+      result.occupiedPixels,
+      rectPixelWidth,
+      rectPixelHeight,
+      [top.r, top.g, top.b],
+      radiusPx
+    );
+    ctx.putImageData(
+      scratch.imageData,
+      Math.round(plotRect.x * dpr),
+      Math.round(plotRect.y * dpr)
+    );
+    return { mode: 'sparse', distinctOccupied: result.distinctOccupied };
+  }
+
+  // Dense path: identical to the previous density-only behaviour.
+  paintDensityField(scratch.imageData.data, result.field, lut);
   ctx.putImageData(
     scratch.imageData,
     Math.round(plotRect.x * dpr),
     Math.round(plotRect.y * dpr)
   );
+  return {
+    mode: result.distinctOccupied === 0 ? 'empty' : 'density',
+    distinctOccupied: result.distinctOccupied,
+  };
 }

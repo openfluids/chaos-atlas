@@ -26,6 +26,74 @@ export interface DensityFieldScratch {
 }
 
 /**
+ * Occupied-bin count at or below this → discrete markers, not a density field.
+ *
+ * A period-2 orbit lights 2 bins of ~460k; a period-86 cycle lights 86. Both
+ * are invisible as single-pixel density. The period-doubling cascade runs
+ * through periods 2…256… before chaos; 512 covers that cascade. A strange
+ * attractor at default resolution fills thousands of bins, so it stays on the
+ * unchanged density path.
+ */
+export const SPARSE_OCCUPIED_BIN_THRESHOLD = 512;
+
+/**
+ * Absolute coordinate (or axis span) above which a still-finite orbit is
+ * treated as diverging.
+ *
+ * Classical planar attractors on this site live well inside |x|,|y| ≲ 10
+ * (Hénon ≈ ±1.5×±0.4; Ikeda/Tinkerbell a few units). Slow escape
+ * (e.g. Hénon a=1.4375) can reach ~1e267 while still IEEE-finite, collapsing
+ * the domain to one pixel with no notice. 1e6 sits ~5 orders above any
+ * attractor we plot and many orders below float overflow — catch numerical
+ * blow-up without mistaking a genuine large-but-bounded set (none of ours).
+ */
+export const MAX_SANE_ORBIT_COORD = 1e6;
+
+/**
+ * True when every point is non-finite, or any finite coordinate / axis span
+ * exceeds {@link MAX_SANE_ORBIT_COORD}. Empty input is escaped (nothing to plot).
+ */
+export function isOrbitEscaped(
+  points: readonly { x: number; y: number }[]
+): boolean {
+  let anyFinite = false;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    anyFinite = true;
+    if (
+      Math.abs(p.x) > MAX_SANE_ORBIT_COORD ||
+      Math.abs(p.y) > MAX_SANE_ORBIT_COORD
+    ) {
+      return true;
+    }
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!anyFinite) return true;
+  const spanX = maxX - minX;
+  const spanY = maxY - minY;
+  return spanX > MAX_SANE_ORBIT_COORD || spanY > MAX_SANE_ORBIT_COORD;
+}
+
+export interface DensityFieldResult {
+  /** Normalised log1p field in [0, 1], row-major, y downward. */
+  field: Float32Array;
+  /** Number of bins with count > 0. */
+  distinctOccupied: number;
+  /**
+   * Pixel centres of occupied bins. Only populated when
+   * `0 < distinctOccupied ≤ SPARSE_OCCUPIED_BIN_THRESHOLD` (sparse path).
+   */
+  occupiedPixels: readonly { px: number; py: number }[];
+}
+
+/**
  * Bins `points` into a `pixelWidth`×`pixelHeight` occupancy grid and
  * normalises it with `log1p(count) / log1p(maxCount)`.
  *
@@ -41,9 +109,21 @@ export interface DensityFieldScratch {
  */
 export function computeDensityField(
   points: readonly { x: number; y: number }[],
-  { xDomain, yDomain, pixelWidth, pixelHeight }: DensityFieldOptions,
+  options: DensityFieldOptions,
   scratch?: DensityFieldScratch
 ): Float32Array {
+  return computeDensityFieldDetailed(points, options, scratch).field;
+}
+
+/**
+ * Same binning as {@link computeDensityField}, plus occupied-bin metadata for
+ * the shared sparse-marker path in `densityCanvas.ts`.
+ */
+export function computeDensityFieldDetailed(
+  points: readonly { x: number; y: number }[],
+  { xDomain, yDomain, pixelWidth, pixelHeight }: DensityFieldOptions,
+  scratch?: DensityFieldScratch
+): DensityFieldResult {
   // Non-finite or non-positive dims must never allocate / index a field —
   // divergent attractors (e.g. Hénon a ≥ 1.5) can feed NaN extents into the
   // caller and produce NaN pixel sizes. Return a trivial zero field instead.
@@ -56,16 +136,16 @@ export function computeDensityField(
   const safeH = dimsOk ? Math.floor(pixelHeight) : 1;
   const size = Math.max(1, safeW * safeH);
 
-  const zeroField = (): Float32Array => {
+  const zeroResult = (): DensityFieldResult => {
     const out =
       scratch?.normalized && scratch.normalized.length === size
         ? scratch.normalized
         : new Float32Array(size);
     out.fill(0);
-    return out;
+    return { field: out, distinctOccupied: 0, occupiedPixels: [] };
   };
 
-  if (!dimsOk) return zeroField();
+  if (!dimsOk) return zeroResult();
 
   const counts =
     scratch?.counts && scratch.counts.length === size
@@ -84,7 +164,7 @@ export function computeDensityField(
     !Number.isFinite(xDomain[0]) ||
     !Number.isFinite(yDomain[0])
   ) {
-    return zeroField();
+    return zeroResult();
   }
 
   const xToPixel = safeW / xSpan;
@@ -104,8 +184,12 @@ export function computeDensityField(
   // large typed array into a function call blows the engine's argument
   // stack (this binned array can be >500k entries at device resolution).
   let maxCount = 0;
+  let distinctOccupied = 0;
   for (let i = 0; i < counts.length; i++) {
-    if (counts[i] > maxCount) maxCount = counts[i];
+    if (counts[i] > 0) {
+      distinctOccupied += 1;
+      if (counts[i] > maxCount) maxCount = counts[i];
+    }
   }
 
   const normalized =
@@ -114,12 +198,25 @@ export function computeDensityField(
       : new Float32Array(size);
   normalized.fill(0);
 
-  if (maxCount <= 0) return normalized;
+  if (maxCount <= 0) {
+    return { field: normalized, distinctOccupied: 0, occupiedPixels: [] };
+  }
   const logMax = Math.log1p(maxCount);
   for (let i = 0; i < counts.length; i++) {
     if (counts[i] > 0) normalized[i] = Math.log1p(counts[i]) / logMax;
   }
-  return normalized;
+
+  // Collect pixel centres only when the sparse-marker path will use them.
+  const occupiedPixels: { px: number; py: number }[] = [];
+  if (distinctOccupied <= SPARSE_OCCUPIED_BIN_THRESHOLD) {
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] > 0) {
+        occupiedPixels.push({ px: i % safeW, py: Math.floor(i / safeW) });
+      }
+    }
+  }
+
+  return { field: normalized, distinctOccupied, occupiedPixels };
 }
 
 /**
@@ -147,5 +244,43 @@ export function paintDensityField(
     data[idx + 1] = lut[lutIndex + 1];
     data[idx + 2] = lut[lutIndex + 2];
     data[idx + 3] = 255;
+  }
+}
+
+/**
+ * Paints filled discs at each occupied bin so periodic / sparse orbits are
+ * visible (a single lit density pixel on a ~460k field is not). Buffer is
+ * cleared first; colour is a single RGB triple (typically the top of the
+ * density LUT).
+ */
+export function paintSparseMarkers(
+  data: Uint8ClampedArray,
+  occupiedPixels: readonly { px: number; py: number }[],
+  pixelWidth: number,
+  pixelHeight: number,
+  rgb: readonly [number, number, number],
+  radiusPx: number
+): void {
+  data.fill(0);
+  const radius = Math.max(1, Math.floor(radiusPx));
+  const r2 = radius * radius;
+  const [r, g, b] = rgb;
+  for (const { px, py } of occupiedPixels) {
+    const x0 = Math.max(0, px - radius);
+    const x1 = Math.min(pixelWidth - 1, px + radius);
+    const y0 = Math.max(0, py - radius);
+    const y1 = Math.min(pixelHeight - 1, py + radius);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const dx = x - px;
+        const dy = y - py;
+        if (dx * dx + dy * dy > r2) continue;
+        const idx = (y * pixelWidth + x) * 4;
+        data[idx] = r;
+        data[idx + 1] = g;
+        data[idx + 2] = b;
+        data[idx + 3] = 255;
+      }
+    }
   }
 }

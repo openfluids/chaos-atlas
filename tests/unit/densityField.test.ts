@@ -4,8 +4,19 @@
  * survive normalisation (a linear `count / maxCount` collapses the heavy
  * tail to near-zero), and the max-finding must not use `Math.max(...array)`
  * (a spread blows the call stack on large binned arrays).
+ *
+ * Also pins Defect A (sparse attractors → visible markers) and Defect B
+ * (astronomical finite extent → escaped).
  */
-import { computeDensityField, paintDensityField } from '@/components/visualizations/densityField';
+import {
+  computeDensityField,
+  computeDensityFieldDetailed,
+  isOrbitEscaped,
+  paintDensityField,
+  paintSparseMarkers,
+  SPARSE_OCCUPIED_BIN_THRESHOLD,
+  MAX_SANE_ORBIT_COORD,
+} from '@/components/visualizations/densityField';
 
 describe('computeDensityField', () => {
   it('normalises with log1p, not linearly, so sparse bins stay visible', () => {
@@ -121,5 +132,123 @@ describe('paintDensityField', () => {
     expect(data[3]).toBe(0); // pixel 0 alpha
     expect(data[7]).toBe(255); // pixel 1 alpha
     expect(data[4]).toBe(255); // pixel 1 red channel from the LUT's top step
+  });
+});
+
+/**
+ * Defect A: a period-2 orbit is 2 lit density pixels — invisible on a large
+ * field. Measured bin diversity below the sparse threshold must produce
+ * multi-pixel markers (not single-pixel density).
+ */
+describe('sparse attractor markers (Defect A)', () => {
+  it('measures exactly 2 occupied bins for a synthetic period-2 set', () => {
+    const period2 = [
+      { x: 0.2, y: 0.3 },
+      { x: 0.8, y: 0.7 },
+    ];
+    // Many visits to the same two points (as a long orbit would).
+    const points = Array.from({ length: 5000 }, (_, i) => period2[i % 2]);
+    const result = computeDensityFieldDetailed(points, {
+      xDomain: [0, 1],
+      yDomain: [0, 1],
+      pixelWidth: 100,
+      pixelHeight: 100,
+    });
+    expect(result.distinctOccupied).toBe(2);
+    expect(result.distinctOccupied).toBeLessThanOrEqual(SPARSE_OCCUPIED_BIN_THRESHOLD);
+    expect(result.occupiedPixels).toHaveLength(2);
+  });
+
+  it('paints visible multi-pixel marks for a 2-point set (not single pixels)', () => {
+    const period2 = [
+      { x: 0.25, y: 0.25 },
+      { x: 0.75, y: 0.75 },
+    ];
+    const points = Array.from({ length: 2000 }, (_, i) => period2[i % 2]);
+    const w = 80;
+    const h = 80;
+    const result = computeDensityFieldDetailed(points, {
+      xDomain: [0, 1],
+      yDomain: [0, 1],
+      pixelWidth: w,
+      pixelHeight: h,
+    });
+    expect(result.distinctOccupied).toBe(2);
+
+    const data = new Uint8ClampedArray(w * h * 4);
+    const radius = 5;
+    paintSparseMarkers(data, result.occupiedPixels, w, h, [255, 128, 0], radius);
+
+    let lit = 0;
+    for (let i = 3; i < data.length; i += 4) {
+      if (data[i] > 0) lit += 1;
+    }
+    // Two discs of radius 5: each has well more than 1 pixel; far above 2.
+    expect(lit).toBeGreaterThan(2);
+    // Disk area ≈ π r² each; two discs, allow some edge clipping.
+    expect(lit).toBeGreaterThan(2 * Math.floor(Math.PI * radius * radius * 0.5));
+  });
+
+  it('keeps a dense multi-bin set above the sparse threshold (strange-attractor path)', () => {
+    // Fill many distinct bins — mimics a strange attractor occupancy pattern.
+    const points = Array.from({ length: 5000 }, (_, i) => ({
+      x: (i % 100) / 100,
+      y: (Math.floor(i / 100) % 100) / 100,
+    }));
+    const result = computeDensityFieldDetailed(points, {
+      xDomain: [0, 1],
+      yDomain: [0, 1],
+      pixelWidth: 100,
+      pixelHeight: 100,
+    });
+    expect(result.distinctOccupied).toBeGreaterThan(SPARSE_OCCUPIED_BIN_THRESHOLD);
+    // Dense path: occupiedPixels list is not collected.
+    expect(result.occupiedPixels).toHaveLength(0);
+  });
+});
+
+/**
+ * Defect B: slow divergence yields finite points spanning 1e267; the old
+ * guard (`finitePoints.length === 0`) missed it. Extent past MAX_SANE_ORBIT_COORD
+ * must classify as escaped.
+ */
+describe('orbit escape by extent (Defect B)', () => {
+  it('classifies a point set spanning 1e200 as escaped', () => {
+    expect(
+      isOrbitEscaped([
+        { x: 0, y: 0 },
+        { x: 1e200, y: 1 },
+        { x: -0.5, y: 0.2 },
+      ])
+    ).toBe(true);
+  });
+
+  it('classifies a single coordinate past the sane bound as escaped', () => {
+    expect(
+      isOrbitEscaped([{ x: MAX_SANE_ORBIT_COORD * 10, y: 0.1 }])
+    ).toBe(true);
+  });
+
+  it('does not classify Hénon-scale attractor points as escaped', () => {
+    expect(
+      isOrbitEscaped([
+        { x: -1.5, y: -0.4 },
+        { x: 1.5, y: 0.4 },
+        { x: 0.0, y: 0.0 },
+      ])
+    ).toBe(false);
+  });
+
+  it('classifies an all-non-finite set as escaped', () => {
+    expect(
+      isOrbitEscaped([
+        { x: Infinity, y: 0 },
+        { x: NaN, y: NaN },
+      ])
+    ).toBe(true);
+  });
+
+  it('classifies an empty set as escaped', () => {
+    expect(isOrbitEscaped([])).toBe(true);
   });
 });

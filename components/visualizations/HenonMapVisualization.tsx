@@ -13,6 +13,10 @@ import {
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+import {
+  isOrbitEscaped,
+  SPARSE_OCCUPIED_BIN_THRESHOLD,
+} from './densityField';
 import { calculateHenonLyapunovSpectrum } from '@/lib/maps/henon';
 
 // Density views are cheap per-point (no DOM node per iterate), so the
@@ -32,9 +36,11 @@ const HenonMapVisualization: React.FC = () => {
   const [x0, setX0] = useState(0);
   const [y0, setY0] = useState(0);
   const [iterations, setIterations] = useState(DEFAULT_ITERATIONS);
-  // True when the orbit has no finite points (escapes to infinity). Used only
-  // for the under-plot notice; the density path also guards against this.
+  // True when the orbit has no finite points, or finite extent is astronomical
+  // (slow divergence that has not yet hit IEEE Infinity). Under-plot notice only.
   const [orbitEscaped, setOrbitEscaped] = useState(false);
+  // Distinct occupied bins from the last density paint; used for the sparse-orbit caption.
+  const [sparseDistinct, setSparseDistinct] = useState(0);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Iterating the map is a chaotic computation: build-time (Node) and
@@ -89,10 +95,12 @@ const HenonMapVisualization: React.FC = () => {
     // Find data bounds from finite points only. For a ≳ 1.5 the orbit
     // escapes; d3.extent over ±Infinity/NaN yields [undefined, undefined]
     // → NaN plot sizes → createImageData throws and React unmounts the page.
+    // Also treat astronomically large but still-finite extents as escaped
+    // (shared isOrbitEscaped — e.g. a=1.4375 spans ~1e267 before overflow).
     const finitePoints = points.filter(
       (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
     );
-    const escaped = finitePoints.length === 0;
+    const escaped = isOrbitEscaped(finitePoints);
     setOrbitEscaped(escaped);
 
     // Fallback domain keeps axes drawable when nothing is finite; density
@@ -114,8 +122,9 @@ const HenonMapVisualization: React.FC = () => {
     // letterboxed plot rectangle so the two line up exactly. Its CSS box is
     // the full chart (margins included); only the inner rect is painted.
     // On escape: render empty (cleared) rather than feeding non-finite bins.
+    // Sparse orbits (few occupied bins) are drawn as markers in the shared path.
     if (canvasRef.current) {
-      renderDensityCanvas(
+      const paint = renderDensityCanvas(
         canvasRef.current,
         escaped ? [] : finitePoints,
         xExtent,
@@ -130,6 +139,11 @@ const HenonMapVisualization: React.FC = () => {
         },
         d3.interpolateInferno
       );
+      setSparseDistinct(
+        !escaped && paint.mode === 'sparse' ? paint.distinctOccupied : 0
+      );
+    } else {
+      setSparseDistinct(0);
     }
 
     // Clip the (empty, kept for future markers such as fixed points) data
@@ -285,6 +299,19 @@ const HenonMapVisualization: React.FC = () => {
           Orbit escapes to infinity for these parameters.
         </p>
       )}
+
+      {/* Sparse-orbit caption from measured bin diversity (not a guessed period). */}
+      {!orbitEscaped &&
+        sparseDistinct > 0 &&
+        sparseDistinct <= SPARSE_OCCUPIED_BIN_THRESHOLD && (
+          <p
+            className="mt-2 text-sm text-center"
+            style={{ color: 'var(--text-secondary)' }}
+            data-testid="orbit-sparse-notice"
+          >
+            Sparse orbit — {sparseDistinct} distinct points
+          </p>
+        )}
 
       {/* Info */}
       <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
