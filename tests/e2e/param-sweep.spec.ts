@@ -1,6 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  EXPECTED_PATH,
+  MAP_PAGES,
+  MATRIX_JSONL_PATH,
+  SAMPLE_COUNT,
+  SETTLE_MS,
+} from './sweepConfig';
+import type { SweepMatrixRow } from './sweepSummary';
 
 /**
  * Systematic parameter-range sweep across every map page + CML.
@@ -11,49 +19,34 @@ import * as path from 'node:path';
  * raw range inputs (complex map).
  *
  * Hard fails (a)/(b): pageerror, unmounted page.
- * Soft findings (c)/(d): blank plot without notice, degenerate single-pixel paint —
- * collected into the matrix report, not auto-failed (may be correct mathematics).
+ * Soft findings: blank_with_notice and degenerate are recorded in the matrix;
+ * blank_no_notice is asserted once per run in globalTeardown via summarizeSweep
+ * (not here — fullyParallel makes afterAll partial).
  */
 
-const MAP_PAGES = [
-  '/maps/arnold',
-  '/maps/bakers',
-  '/maps/complex',
-  '/maps/duffing',
-  '/maps/henon',
-  '/maps/ikeda',
-  '/maps/logistic',
-  '/maps/standard',
-  '/maps/tent',
-  '/maps/tinkerbell',
-  '/cml/diffusive',
-] as const;
+// Declare participation at module scope (runs only when Playwright loads this
+// spec). globalSetup cleared the expectation file; teardown branches on it.
+{
+  const expectedPath = path.join(process.cwd(), EXPECTED_PATH);
+  fs.mkdirSync(path.dirname(expectedPath), { recursive: true });
+  fs.writeFileSync(
+    expectedPath,
+    JSON.stringify(
+      {
+        pages: MAP_PAGES.slice(),
+        sampleCount: SAMPLE_COUNT,
+        settleMs: SETTLE_MS,
+      },
+      null,
+      2
+    )
+  );
+}
 
-/** Inclusive samples from min→max. 9 covers extremes + interior without CI bloat. */
-const SAMPLE_COUNT = 9;
-
-/** Settle time after each scrub so density re-renders finish. */
-const SETTLE_MS = 450;
-
-type VerdictKind =
-  | 'ok'
-  | 'pageerror'
-  | 'unmounted'
-  | 'blank_no_notice'
-  | 'degenerate'
-  | 'blank_with_notice';
-
-type MatrixRow = {
-  page: string;
-  param: string;
-  value: number;
-  verdict: VerdictKind;
-  detail?: string;
-};
+type MatrixRow = SweepMatrixRow;
 
 const matrix: MatrixRow[] = [];
-const MATRIX_JSONL = () =>
-  path.join(process.cwd(), 'tests/e2e/param-sweep-matrix.jsonl');
+const MATRIX_JSONL = () => path.join(process.cwd(), MATRIX_JSONL_PATH);
 
 function pushRow(row: MatrixRow): void {
   matrix.push(row);
@@ -456,8 +449,8 @@ async function sweepDirectRanges(
 test.describe('Parameter range sweep (crash hunt)', () => {
   // Independent per page so one failure does not skip the rest of the hunt.
   // Run with --workers=1 when collecting a coherent matrix file.
-  // Do not truncate the jsonl in beforeAll — a worker restart after a failure
-  // would wipe rows already written by earlier pages.
+  // Matrix truncate → globalSetup; summary write + blank_no_notice assert →
+  // globalTeardown. Do not truncate jsonl or summarise in beforeAll/afterAll.
 
   for (const pagePath of MAP_PAGES) {
     test(`${pagePath}: every registered/available slider across full range`, async ({
@@ -501,40 +494,4 @@ test.describe('Parameter range sweep (crash hunt)', () => {
       ).toEqual([]);
     });
   }
-
-  test.afterAll(() => {
-    // Prefer durable jsonl (survives per-test process isolation) then fall
-    // back to in-memory rows from this worker.
-    let rows = matrix;
-    try {
-      const raw = fs.readFileSync(MATRIX_JSONL(), 'utf8').trim();
-      if (raw) {
-        rows = raw.split('\n').map((line) => JSON.parse(line) as MatrixRow);
-      }
-    } catch {
-      // keep in-memory
-    }
-    const outPath = path.join(process.cwd(), 'tests/e2e/param-sweep-matrix.json');
-    const summary = {
-      sampleCount: SAMPLE_COUNT,
-      settleMs: SETTLE_MS,
-      pages: MAP_PAGES.slice(),
-      generatedAt: new Date().toISOString(),
-      rows,
-      findings: rows.filter((r) => r.verdict !== 'ok'),
-      counts: rows.reduce(
-        (acc, r) => {
-          acc[r.verdict] = (acc[r.verdict] ?? 0) + 1;
-          return acc;
-        },
-        {} as Record<string, number>
-      ),
-    };
-    fs.writeFileSync(outPath, JSON.stringify(summary, null, 2));
-    // eslint-disable-next-line no-console
-    console.log(
-      `[param-sweep] matrix written to ${outPath} (` +
-        `${rows.length} rows, findings=${summary.findings.length})`
-    );
-  });
 });
