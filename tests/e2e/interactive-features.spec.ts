@@ -96,16 +96,20 @@ test.describe('Interactive Features - E2E Tests', () => {
         console.log('Selected clean export mode');
       }
 
-      // Test size presets
-      const sizeSelect = page.locator('select');
+      // Export panel selects — match by option content so playback/theme
+      // <select>s (playback-param-select, playback-speed, etc.) are not hit.
+      const sizeSelect = page.locator('select').filter({
+        has: page.locator('option', { hasText: 'HD (1920×1080)' }),
+      });
       if (await sizeSelect.isVisible()) {
         await sizeSelect.selectOption({ label: 'HD (1920×1080)' });
         await page.waitForTimeout(500);
         console.log('Selected HD size');
       }
 
-      // Test DPI settings
-      const dpiSelect = page.locator('select').nth(1);
+      const dpiSelect = page.locator('select').filter({
+        has: page.locator('option', { hasText: 'High Quality (300 DPI)' }),
+      });
       if (await dpiSelect.isVisible()) {
         await dpiSelect.selectOption({ label: 'High Quality (300 DPI)' });
         await page.waitForTimeout(500);
@@ -131,9 +135,13 @@ test.describe('Interactive Features - E2E Tests', () => {
   });
 
   test('parameter controls work correctly', async ({ page }) => {
-    // Test parameter sliders
+    // Visualization ParamSliders only — exclude the playback scrubber
+    // (also input[type=range], fine step 0.00015) so fill('3.8') is legal.
     const sliders = [
-      { name: 'Parameter r', selector: 'input[type="range"]' },
+      {
+        name: 'Parameter r',
+        selector: 'input[type="range"]:not([data-testid="playback-scrubber"])',
+      },
     ];
 
     for (const slider of sliders) {
@@ -148,13 +156,18 @@ test.describe('Interactive Features - E2E Tests', () => {
 
         const newValue = await element.inputValue();
         console.log(`${slider.name} changed from ${initialValue} to ${newValue}`);
+        // Assert the visualization control actually accepted the fill.
+        expect(newValue).toBe('3.8');
+        expect(newValue).not.toBe(initialValue);
       }
     }
 
-    // Test visualization type selector. The logistic map page has two
-    // <select> elements: the data-theme selector (first) and the
-    // visualization-type selector (second) - target the latter specifically.
-    const vizTypeSelect = page.locator('select').nth(1);
+    // Visualization type selector — match by its options, not ordinal index.
+    // Playback mounts `playback-param-select` / `playback-speed` which would
+    // steal `locator('select').nth(1)`.
+    const vizTypeSelect = page.locator('select').filter({
+      has: page.locator('option[value="bifurcation"]'),
+    });
     if (await vizTypeSelect.isVisible()) {
       await vizTypeSelect.selectOption('time');
       await page.waitForTimeout(2000);

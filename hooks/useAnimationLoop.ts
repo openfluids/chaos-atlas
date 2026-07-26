@@ -23,8 +23,23 @@ export type UseAnimationLoopResult = {
   frameRate: number;
 };
 
-/** One typical display refresh; work above this is treated as expensive. */
+/** One typical display refresh. */
 const VSYNC_MS = 1000 / 60;
+
+/**
+ * Cost must clearly exceed one vsync before we pace. A bare `> VSYNC_MS`
+ * falsely flags ordinary 16.67 ms rAF deltas (1000/60 ≈ 16.666…), which
+ * would throttle logistic down from display rate.
+ */
+const EXPENSIVE_COST_MS = VSYNC_MS + 1;
+
+/**
+ * Floor on inter-frame period when a frame is expensive (cost > one vsync).
+ * ~10 fps max under load — measured enough headroom for Hénon density paint
+ * so the main thread stays responsive to input/DOM reads during playback.
+ * Cheap frames (cost ≤ one vsync) never hit this path and stay at display rate.
+ */
+export const MIN_EXPENSIVE_FRAME_PERIOD_MS = 100;
 
 /** How often `frameRate` is written into React state (~4 Hz). */
 const FRAME_RATE_PUBLISH_MS = 250;
@@ -32,16 +47,20 @@ const FRAME_RATE_PUBLISH_MS = 250;
 /**
  * A `requestAnimationFrame` loop with adaptive pacing.
  *
- * Each `onFrame` is timed. The next frame is scheduled only after the current
- * one finishes (no stacked rAFs). Cheap callbacks fall through to plain rAF
- * and run at display refresh.
+ * Pacing is driven by the **observed inter-frame interval** (rAF timestamp
+ * delta), not by the synchronous duration of `onFrame`. That matters when
+ * `onFrame` only schedules React state updates: the expensive render runs
+ * *after* the callback returns, so timing the callback always looks free
+ * while the main thread is still saturated. The next rAF timestamp includes
+ * that render cost; we use that.
  *
- * Expensive callbacks (work longer than one vsync) intentionally leave the
- * main thread idle for about the same duration as the work just measured
- * (~50% duty cycle: work `workMs`, then wait `workMs` via `setTimeout` before
- * the next rAF). `requestAnimationFrame` already caps frame rate on its own;
- * the only thing pacing buys is main-thread headroom so the UI stays
- * responsive under load.
+ * Intentional idle time from a previous `setTimeout` is subtracted from the
+ * raw interval so a one-off hitch does not lock the loop into the expensive
+ * branch forever (logistic must stay near display rate).
+ *
+ * Expensive cost ( > one vsync) leaves the main thread idle long enough that
+ * (1) duty cycle stays near ≤50% (`wait ≥ costMs`) and (2) inter-frame period
+ * is at least `MIN_EXPENSIVE_FRAME_PERIOD_MS`.
  *
  * Reduced-motion is intentionally not consulted here: autoplay suppression
  * is a policy decision for the caller, not a hard stop inside the loop.
@@ -69,6 +88,8 @@ export function useAnimationLoop({
     let rafId = 0;
     let timeoutId: ReturnType<typeof setTimeout> | null = null;
     let lastTimestamp: number | null = null;
+    /** Idle we inserted before the next tick; excluded from cost. */
+    let lastWaitMs = 0;
     let cancelled = false;
     // EMA lives off React state so the loop can run at full rate while
     // `frameRate` is only published ~4×/s (see FRAME_RATE_PUBLISH_MS).
@@ -92,23 +113,28 @@ export function useAnimationLoop({
     };
 
     /**
-     * Schedule the next frame from the measured work duration.
-     * Cheap work → immediate rAF (display refresh). Expensive work → idle
-     * for ~workMs so main-thread duty cycle stays near 50%.
+     * Schedule the next frame from the observed frame cost.
+     * Cheap cost → immediate rAF (display refresh). Expensive cost → idle
+     * so duty ≤50% and inter-frame period ≥ MIN_EXPENSIVE_FRAME_PERIOD_MS.
      */
-    const scheduleNext = (workMs: number) => {
+    const scheduleNext = (costMs: number) => {
       if (cancelled) return;
 
-      if (workMs > VSYNC_MS) {
-        // ~50% idle: wait as long as the work just took. Do NOT subtract
-        // "elapsed since workStart" — that was measured after the same work,
-        // so waitMs would always be ~0 and this branch would be a no-op.
-        const waitMs = workMs;
+      if (costMs > EXPENSIVE_COST_MS) {
+        // Inter-frame ≈ costMs + waitMs (when cost ≈ busy time). Enforce:
+        //   waitMs ≥ costMs              → ≤50% duty
+        //   costMs + waitMs ≥ MIN_PERIOD → floor ~10 fps under load
+        const waitMs = Math.max(
+          costMs,
+          MIN_EXPENSIVE_FRAME_PERIOD_MS - costMs,
+        );
+        lastWaitMs = waitMs;
         timeoutId = setTimeout(() => {
           timeoutId = null;
           requestTick();
         }, waitMs);
       } else {
+        lastWaitMs = 0;
         requestTick();
       }
     };
@@ -117,11 +143,21 @@ export function useAnimationLoop({
       if (cancelled) return;
       rafId = 0;
 
-      const deltaSeconds =
+      // Raw rAF interval includes our intentional idle + real busy time.
+      // Cost is busy time only — that is what drives pacing.
+      const rawIntervalMs =
         lastTimestamp === null
           ? 0
-          : Math.max(0, (timestamp - lastTimestamp) / 1000);
+          : Math.max(0, timestamp - lastTimestamp);
+      const costMs =
+        lastTimestamp === null
+          ? 0
+          : Math.max(0, rawIntervalMs - lastWaitMs);
       lastTimestamp = timestamp;
+      // Consume the wait accounting for this interval (scheduleNext may set a new one).
+      lastWaitMs = 0;
+
+      const deltaSeconds = rawIntervalMs / 1000;
 
       if (deltaSeconds > 0) {
         const instant = 1 / deltaSeconds;
@@ -133,11 +169,11 @@ export function useAnimationLoop({
         }
       }
 
-      const workT0 = performance.now();
+      // Callback may be free (setState) while the following render is heavy;
+      // we still call it, but pacing uses costMs from the observed interval.
       onFrameRef.current(deltaSeconds);
-      const workMs = performance.now() - workT0;
 
-      scheduleNext(workMs);
+      scheduleNext(costMs);
     };
 
     requestTick();

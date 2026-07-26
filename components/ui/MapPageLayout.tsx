@@ -1,6 +1,10 @@
+'use client';
+
 import Link from 'next/link';
 import React, { ReactNode } from 'react';
 import { ThemeSwitcher } from '@/components/themes';
+import { PlaybackProvider } from '@/components/ui/PlaybackContext';
+import { PlaybackControls } from '@/components/ui/PlaybackControls';
 
 interface MapPageLayoutProps {
   title: string;
@@ -39,9 +43,13 @@ export default function MapPageLayout({
         </div>
       </header>
       <main className="container mx-auto p-6">
-        {children}
+        <PlaybackProvider>
+          <div className="mb-4">
+            <PlaybackControls />
+          </div>
+          {children}
+        </PlaybackProvider>
       </main>
     </div>
   );
 }
-

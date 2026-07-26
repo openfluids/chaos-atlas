@@ -57,12 +57,18 @@ function installFrameClock() {
     get setTimeoutCalls() {
       return setTimeoutSpy.mock.calls.map((c) => c[0] as number);
     },
-    /** Advance performance.now during onFrame work measurement. */
+    /** Advance performance.now during onFrame (callback-duration only). */
     advanceWork(ms: number) {
+      now += ms;
+    },
+    /** Advance virtual wall clock (e.g. past a pacing setTimeout fireAt). */
+    advance(ms: number) {
       now += ms;
     },
     /**
      * Fire due timeouts, then run one pending rAF with a display-time step.
+     * `displayDeltaMs` is the observed inter-frame interval (rAF timestamp
+     * delta) — use this to simulate a slow React render between ticks.
      */
     pump(displayDeltaMs = 16.67) {
       const due = [...timeouts.values()]
@@ -174,49 +180,116 @@ describe('useAnimationLoop', () => {
     clock.restore();
   });
 
-  it('schedules a setTimeout idle of ~workMs when onFrame exceeds one vsync', () => {
-    // Assert the scheduled delay directly — do not measure inter-frame gaps
-    // on a clock that onFrame itself advances (that passes even with pacing
-    // deleted). With the pacing branch disabled this test MUST fail.
+  it('paces when the observed rAF interval is expensive (slow render, free callback)', () => {
+    // Hénon root cause: onFrame only setStates (~0 ms) while the React render
+    // after the callback costs ~33 ms. That cost shows up in the *next* rAF
+    // timestamp delta, not in performance.now() around onFrame.
+    // Sabotage: if scheduleNext used only callback duration, this FAILS.
     const clock = installFrameClock();
-    const workMs = 50;
-
     const onFrame = jest.fn(() => {
-      clock.advanceWork(workMs);
+      // Intentionally do NOT advanceWork — callback is free.
     });
 
     renderHook(() => useAnimationLoop({ playing: true, onFrame }));
 
-    // Expensive frame: work 50ms > VSYNC (~16.67ms) → schedule setTimeout(50).
+    // First tick: no prior interval → cost 0 → no pacing timeout.
     act(() => {
-      clock.pump(16.67);
+      clock.pump(0);
+    });
+    expect(clock.setTimeoutCalls).toEqual([]);
+
+    // Second tick arrives 50 ms later (slow render between frames).
+    act(() => {
+      clock.pump(50);
     });
 
     expect(clock.setTimeoutCalls.length).toBeGreaterThan(0);
     const lastDelay = clock.setTimeoutCalls[clock.setTimeoutCalls.length - 1];
-    // ~50% duty cycle: idle for the measured work duration.
-    expect(lastDelay).toBeGreaterThanOrEqual(workMs);
-    // Pending timeout still visible on the clock.
-    expect(clock.timeoutDelays.some((d) => d >= workMs)).toBe(true);
+    // 50% duty: wait ≥ observed cost (50 ms).
+    expect(lastDelay).toBeGreaterThanOrEqual(50);
+    expect(clock.timeoutDelays.some((d) => d >= 50)).toBe(true);
 
     clock.restore();
   });
 
-  it('does not schedule a pacing timeout for cheap onFrame work', () => {
+  it('enforces MIN_EXPENSIVE_FRAME_PERIOD_MS from observed interval just over one vsync', () => {
     const clock = installFrameClock();
-    const onFrame = jest.fn(() => {
-      clock.advanceWork(2);
-    });
+    // 30 ms observed cost + 30 ms idle (old 50% only) → 60 < 100 floor.
+    // Policy: waitMs = max(cost, MIN_PERIOD - cost) = max(30, 70) = 70.
+    const onFrame = jest.fn();
 
     renderHook(() => useAnimationLoop({ playing: true, onFrame }));
 
     act(() => {
+      clock.pump(0);
+    });
+    act(() => {
+      clock.pump(30);
+    });
+
+    expect(clock.setTimeoutCalls.length).toBeGreaterThan(0);
+    const lastDelay = clock.setTimeoutCalls[clock.setTimeoutCalls.length - 1];
+    const period = 30 + lastDelay;
+    expect(period).toBeGreaterThanOrEqual(100);
+    expect(lastDelay).toBeGreaterThanOrEqual(30);
+
+    clock.restore();
+  });
+
+  it('does not schedule a pacing timeout for cheap observed intervals', () => {
+    const clock = installFrameClock();
+    // Free callback + ~1 vsync rAF deltas (logistic / display rate).
+    const onFrame = jest.fn();
+
+    renderHook(() => useAnimationLoop({ playing: true, onFrame }));
+
+    act(() => {
+      clock.pump(16.67);
       clock.pump(16.67);
       clock.pump(16.67);
     });
 
     expect(clock.setTimeoutCalls).toEqual([]);
     expect(clock.timeoutDelays).toEqual([]);
+    expect(clock.hasRaf).toBe(true);
+
+    clock.restore();
+  });
+
+  it('does not lock into expensive pacing after a one-off hitch (excludes idle)', () => {
+    // After a hitch we insert waitMs; the next raw interval includes that wait.
+    // Cost must exclude lastWaitMs so logistic recovers to display rate.
+    const clock = installFrameClock();
+    const onFrame = jest.fn();
+
+    renderHook(() => useAnimationLoop({ playing: true, onFrame }));
+
+    act(() => {
+      clock.pump(0);
+    });
+    // Hitch: 40 ms cost → wait = max(40, 60) = 60.
+    act(() => {
+      clock.pump(40);
+    });
+    expect(clock.setTimeoutCalls.length).toBe(1);
+    const hitchWait = clock.setTimeoutCalls[0];
+    expect(hitchWait).toBeGreaterThanOrEqual(40);
+
+    // Advance past the hitch wait so the pacing timeout is due, then a
+    // normal cheap vsync frame. pump fires due timeouts first.
+    act(() => {
+      clock.advance(hitchWait);
+      clock.pump(16.67);
+    });
+
+    // That frame's cost ≈ 16.67 (raw includes wait but wait is subtracted)
+    // → must NOT schedule another expensive timeout.
+    expect(clock.setTimeoutCalls.length).toBe(1);
+
+    act(() => {
+      clock.pump(16.67);
+    });
+    expect(clock.setTimeoutCalls.length).toBe(1);
     expect(clock.hasRaf).toBe(true);
 
     clock.restore();
