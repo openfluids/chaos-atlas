@@ -86,6 +86,33 @@ body {
   border-color: var(--border-primary);
 }
 
+/* Slider thumb styling for range inputs */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--viz-primary);
+  border: none;
+  cursor: pointer;
+}
+
+.slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--viz-primary);
+  border: none;
+  cursor: pointer;
+}
+
+/* Focus indicator for accessibility */
+.slider:focus-visible {
+  outline: 2px solid var(--viz-primary);
+  outline-offset: 2px;
+}
+
 /* Responsive design for macOS */
 @media (min-width: 768px) {
   .container {

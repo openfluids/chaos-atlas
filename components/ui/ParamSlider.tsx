@@ -1,8 +1,16 @@
 import React from 'react';
 
-/** Default className shared by the majority of map visualizations' sliders. */
+/**
+ * Default className shared by the majority of map visualizations' sliders.
+ * This is combined additively with any `className` prop passed to ParamSlider.
+ */
 export const PARAM_SLIDER_INPUT_CLASS =
   'w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider';
+/**
+ * Default label className. This is replaced (not merged) when a `labelClassName` prop
+ * is provided, because callers sometimes intentionally omit the text color to set it
+ * via `labelStyle` instead.
+ */
 export const PARAM_SLIDER_LABEL_CLASS = 'block text-sm font-medium text-gray-300 mb-2';
 
 interface ParamSliderProps {
@@ -15,7 +23,14 @@ interface ParamSliderProps {
   onChange: (value: number) => void;
   /** Defaults to `parseFloat`; pass `parseInt` for integer-valued params. */
   parse?: (raw: string) => number;
+  /**
+   * Additional Tailwind classes, combined additively with the default slider classes.
+   * If undefined, only the default classes are used.
+   */
   className?: string;
+  /**
+   * Custom label className, which replaces (does not merge with) the default.
+   */
   labelClassName?: string;
   labelStyle?: React.CSSProperties;
   disabled?: boolean;
@@ -29,11 +44,16 @@ export function ParamSlider({
   value,
   onChange,
   parse = parseFloat,
-  className = PARAM_SLIDER_INPUT_CLASS,
+  className,
   labelClassName = PARAM_SLIDER_LABEL_CLASS,
   labelStyle,
   disabled,
 }: ParamSliderProps): React.ReactElement {
+  // Combine default classes with any additional className
+  const computedClassName = className
+    ? `${PARAM_SLIDER_INPUT_CLASS} ${className}`
+    : PARAM_SLIDER_INPUT_CLASS;
+
   return (
     <div>
       <label className={labelClassName} style={labelStyle}>
@@ -47,7 +67,7 @@ export function ParamSlider({
         value={value}
         onChange={(e) => onChange(parse(e.target.value))}
         disabled={disabled}
-        className={className}
+        className={computedClassName}
       />
     </div>
   );
