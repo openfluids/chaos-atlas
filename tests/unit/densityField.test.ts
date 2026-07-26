@@ -67,6 +67,48 @@ describe('computeDensityField', () => {
     const total = Array.from(field).filter(v => v > 0).length;
     expect(total).toBe(1);
   });
+
+  // Pinned: divergent Hénon (a ≥ 1.5) yields all-non-finite iterates. The
+  // density path must return a valid zero field, never throw.
+  it('returns a valid zero field for an all-non-finite point set', () => {
+    const field = computeDensityField(
+      [
+        { x: Infinity, y: Infinity },
+        { x: -Infinity, y: NaN },
+        { x: NaN, y: NaN },
+      ],
+      { xDomain: [-1, 1], yDomain: [-1, 1], pixelWidth: 4, pixelHeight: 4 }
+    );
+    expect(field).toBeInstanceOf(Float32Array);
+    expect(field.length).toBe(16);
+    expect(Array.from(field).every((v) => v === 0)).toBe(true);
+  });
+
+  it('ignores non-finite points in a mixed finite/non-finite set', () => {
+    const field = computeDensityField(
+      [
+        { x: Infinity, y: 0 },
+        { x: 0.5, y: 0.5 },
+        { x: NaN, y: 1 },
+        { x: -Infinity, y: Infinity },
+      ],
+      { xDomain: [0, 1], yDomain: [0, 1], pixelWidth: 2, pixelHeight: 2 }
+    );
+    const nonzero = Array.from(field).filter((v) => v > 0).length;
+    expect(nonzero).toBe(1);
+    expect(Math.max(...Array.from(field))).toBeCloseTo(1, 5);
+  });
+
+  it('returns a trivial zero field for non-finite pixel dimensions', () => {
+    const field = computeDensityField([{ x: 0, y: 0 }], {
+      xDomain: [-1, 1],
+      yDomain: [-1, 1],
+      pixelWidth: Number.NaN,
+      pixelHeight: Number.POSITIVE_INFINITY,
+    });
+    expect(field.length).toBe(1);
+    expect(field[0]).toBe(0);
+  });
 });
 
 describe('paintDensityField', () => {

@@ -5,6 +5,49 @@ import { computeDensityField, paintDensityField } from './densityField';
 const LUT_STEPS = 256;
 
 /**
+ * Per-canvas scratch for density paint. Playback re-renders every frame;
+ * reallocating ImageData (~1.8 MB at DPR 2) + field buffers each call is
+ * enough GC traffic to freeze the main thread. Reuse when dimensions match.
+ */
+type DensityCanvasScratch = {
+  rectPixelWidth: number;
+  rectPixelHeight: number;
+  imageData: ImageData;
+  counts: Float32Array;
+  field: Float32Array;
+};
+
+const scratchByCanvas = new WeakMap<HTMLCanvasElement, DensityCanvasScratch>();
+
+function getDensityScratch(
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  rectPixelWidth: number,
+  rectPixelHeight: number
+): DensityCanvasScratch {
+  const size = Math.max(1, rectPixelWidth * rectPixelHeight);
+  const existing = scratchByCanvas.get(canvas);
+  if (
+    existing &&
+    existing.rectPixelWidth === rectPixelWidth &&
+    existing.rectPixelHeight === rectPixelHeight &&
+    existing.counts.length === size &&
+    existing.field.length === size
+  ) {
+    return existing;
+  }
+  const next: DensityCanvasScratch = {
+    rectPixelWidth,
+    rectPixelHeight,
+    imageData: ctx.createImageData(rectPixelWidth, rectPixelHeight),
+    counts: new Float32Array(size),
+    field: new Float32Array(size),
+  };
+  scratchByCanvas.set(canvas, next);
+  return next;
+}
+
+/**
  * Precomputes an RGB lookup table for a `d3.interpolateXxx`-style function
  * so the per-pixel paint loop in `paintDensityField` does integer table
  * lookups instead of parsing a CSS color string (`d3.rgb(...)`) at every one
@@ -61,18 +104,44 @@ export function renderDensityCanvas(
   if (!ctx) return;
   ctx.clearRect(0, 0, pixelWidth, pixelHeight);
 
-  const rectPixelWidth = Math.max(1, Math.round(plotRect.width * dpr));
-  const rectPixelHeight = Math.max(1, Math.round(plotRect.height * dpr));
+  // Divergent maps can yield NaN domains → NaN plotRect sizes. Math.max(1,
+  // Math.round(NaN)) is NaN, and createImageData(NaN, NaN) throws
+  // TypeError: Value is not of type 'long', which unmounts the React tree.
+  // Never let non-finite or non-positive sizes reach ImageData allocation.
+  const rawW = Math.round(plotRect.width * dpr);
+  const rawH = Math.round(plotRect.height * dpr);
+  if (
+    !Number.isFinite(rawW) ||
+    !Number.isFinite(rawH) ||
+    rawW < 1 ||
+    rawH < 1 ||
+    !Number.isFinite(plotRect.x) ||
+    !Number.isFinite(plotRect.y)
+  ) {
+    return;
+  }
+  const rectPixelWidth = Math.max(1, rawW);
+  const rectPixelHeight = Math.max(1, rawH);
 
-  const field = computeDensityField(points, {
-    xDomain,
-    yDomain,
-    pixelWidth: rectPixelWidth,
-    pixelHeight: rectPixelHeight,
-  });
+  const scratch = getDensityScratch(canvas, ctx, rectPixelWidth, rectPixelHeight);
+
+  const field = computeDensityField(
+    points,
+    {
+      xDomain,
+      yDomain,
+      pixelWidth: rectPixelWidth,
+      pixelHeight: rectPixelHeight,
+    },
+    { counts: scratch.counts, normalized: scratch.field }
+  );
 
   const lut = buildColorLut(colorScale);
-  const imageData = ctx.createImageData(rectPixelWidth, rectPixelHeight);
-  paintDensityField(imageData.data, field, lut);
-  ctx.putImageData(imageData, Math.round(plotRect.x * dpr), Math.round(plotRect.y * dpr));
+  // Reuse ImageData pixels; paintDensityField overwrites every entry it needs.
+  paintDensityField(scratch.imageData.data, field, lut);
+  ctx.putImageData(
+    scratch.imageData,
+    Math.round(plotRect.x * dpr),
+    Math.round(plotRect.y * dpr)
+  );
 }

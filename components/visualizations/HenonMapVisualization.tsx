@@ -32,6 +32,9 @@ const HenonMapVisualization: React.FC = () => {
   const [x0, setX0] = useState(0);
   const [y0, setY0] = useState(0);
   const [iterations, setIterations] = useState(DEFAULT_ITERATIONS);
+  // True when the orbit has no finite points (escapes to infinity). Used only
+  // for the under-plot notice; the density path also guards against this.
+  const [orbitEscaped, setOrbitEscaped] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Iterating the map is a chaotic computation: build-time (Node) and
@@ -83,25 +86,38 @@ const HenonMapVisualization: React.FC = () => {
       y = yNext;
     }
 
-    // Find data bounds. The Hénon attractor's x-extent (~3.0) is roughly 7x
-    // its y-extent (~0.4); fitting each independently to the box (the
-    // previous behavior) stretched y by that same factor and destroyed the
-    // recognisable silhouette, with the stretch changing every time a/b
-    // moved the extents. equalAspectScales keeps one scale factor for both
-    // axes instead, so the shape only changes because the attractor itself
-    // did.
-    const xExtent = d3.extent(points, d => d.x) as [number, number];
-    const yExtent = d3.extent(points, d => d.y) as [number, number];
+    // Find data bounds from finite points only. For a ≳ 1.5 the orbit
+    // escapes; d3.extent over ±Infinity/NaN yields [undefined, undefined]
+    // → NaN plot sizes → createImageData throws and React unmounts the page.
+    const finitePoints = points.filter(
+      (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+    );
+    const escaped = finitePoints.length === 0;
+    setOrbitEscaped(escaped);
+
+    // Fallback domain keeps axes drawable when nothing is finite; density
+    // paint is skipped below so the canvas stays cleared.
+    const fallbackDomain: [number, number] = [-1, 1];
+    const xExtent = escaped
+      ? fallbackDomain
+      : (d3.extent(finitePoints, (d) => d.x) as [number, number]);
+    const yExtent = escaped
+      ? fallbackDomain
+      : (d3.extent(finitePoints, (d) => d.y) as [number, number]);
+
+    // The Hénon attractor's x-extent (~3.0) is roughly 7x its y-extent
+    // (~0.4); equalAspectScales keeps one scale factor for both axes.
     const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
       equalAspectScales(xExtent, yExtent, innerWidth, innerHeight);
 
     // Density canvas sits under the SVG axis layer, aligned to the same
     // letterboxed plot rectangle so the two line up exactly. Its CSS box is
     // the full chart (margins included); only the inner rect is painted.
+    // On escape: render empty (cleared) rather than feeding non-finite bins.
     if (canvasRef.current) {
       renderDensityCanvas(
         canvasRef.current,
-        points,
+        escaped ? [] : finitePoints,
         xExtent,
         yExtent,
         width,
@@ -257,6 +273,17 @@ const HenonMapVisualization: React.FC = () => {
             ln|b| = {Math.log(Math.abs(b)).toFixed(6)}
           </p>
         </div>
+      )}
+
+      {/* Divergence notice — same caption idiom as the info block below */}
+      {orbitEscaped && (
+        <p
+          className="mt-2 text-sm text-center"
+          style={{ color: 'var(--text-secondary)' }}
+          data-testid="orbit-escape-notice"
+        >
+          Orbit escapes to infinity for these parameters.
+        </p>
       )}
 
       {/* Info */}

@@ -16,6 +16,16 @@ export interface DensityFieldOptions {
 }
 
 /**
+ * Optional scratch buffers for `computeDensityField`. When length matches
+ * `pixelWidth * pixelHeight`, they are zero-filled and reused instead of
+ * allocating new `Float32Array`s every call (playback / animation path).
+ */
+export interface DensityFieldScratch {
+  counts?: Float32Array;
+  normalized?: Float32Array;
+}
+
+/**
  * Bins `points` into a `pixelWidth`×`pixelHeight` occupancy grid and
  * normalises it with `log1p(count) / log1p(maxCount)`.
  *
@@ -27,23 +37,67 @@ export interface DensityFieldOptions {
  *
  * Returns a `Float32Array` of values in `[0, 1]`, row-major (`y * pixelWidth
  * + x`), y increasing downward (screen convention) to match `ImageData`.
+ * Pass `scratch` with same-sized arrays to avoid per-call allocation.
  */
 export function computeDensityField(
   points: readonly { x: number; y: number }[],
-  { xDomain, yDomain, pixelWidth, pixelHeight }: DensityFieldOptions
+  { xDomain, yDomain, pixelWidth, pixelHeight }: DensityFieldOptions,
+  scratch?: DensityFieldScratch
 ): Float32Array {
-  const counts = new Float32Array(Math.max(1, pixelWidth * pixelHeight));
+  // Non-finite or non-positive dims must never allocate / index a field —
+  // divergent attractors (e.g. Hénon a ≥ 1.5) can feed NaN extents into the
+  // caller and produce NaN pixel sizes. Return a trivial zero field instead.
+  const dimsOk =
+    Number.isFinite(pixelWidth) &&
+    Number.isFinite(pixelHeight) &&
+    pixelWidth >= 1 &&
+    pixelHeight >= 1;
+  const safeW = dimsOk ? Math.floor(pixelWidth) : 1;
+  const safeH = dimsOk ? Math.floor(pixelHeight) : 1;
+  const size = Math.max(1, safeW * safeH);
+
+  const zeroField = (): Float32Array => {
+    const out =
+      scratch?.normalized && scratch.normalized.length === size
+        ? scratch.normalized
+        : new Float32Array(size);
+    out.fill(0);
+    return out;
+  };
+
+  if (!dimsOk) return zeroField();
+
+  const counts =
+    scratch?.counts && scratch.counts.length === size
+      ? scratch.counts
+      : new Float32Array(size);
+  counts.fill(0);
+
   const xSpan = xDomain[1] - xDomain[0];
   const ySpan = yDomain[1] - yDomain[0];
-  const xToPixel = pixelWidth / xSpan;
-  const yToPixel = pixelHeight / ySpan;
+  // Degenerate or non-finite domains: leave the zero field (nothing to bin).
+  if (
+    !Number.isFinite(xSpan) ||
+    !Number.isFinite(ySpan) ||
+    xSpan === 0 ||
+    ySpan === 0 ||
+    !Number.isFinite(xDomain[0]) ||
+    !Number.isFinite(yDomain[0])
+  ) {
+    return zeroField();
+  }
+
+  const xToPixel = safeW / xSpan;
+  const yToPixel = safeH / ySpan;
 
   for (const p of points) {
+    // Escaped orbits produce ±Infinity / NaN; never index with those.
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
     const px = Math.floor((p.x - xDomain[0]) * xToPixel);
     // y is flipped: data y increases upward, pixel rows increase downward.
     const py = Math.floor((yDomain[1] - p.y) * yToPixel);
-    if (px < 0 || px >= pixelWidth || py < 0 || py >= pixelHeight) continue;
-    counts[py * pixelWidth + px] += 1;
+    if (px < 0 || px >= safeW || py < 0 || py >= safeH) continue;
+    counts[py * safeW + px] += 1;
   }
 
   // Find the max with a loop, not `Math.max(...counts)` -- spreading a
@@ -54,7 +108,12 @@ export function computeDensityField(
     if (counts[i] > maxCount) maxCount = counts[i];
   }
 
-  const normalized = new Float32Array(counts.length);
+  const normalized =
+    scratch?.normalized && scratch.normalized.length === size
+      ? scratch.normalized
+      : new Float32Array(size);
+  normalized.fill(0);
+
   if (maxCount <= 0) return normalized;
   const logMax = Math.log1p(maxCount);
   for (let i = 0; i < counts.length; i++) {
