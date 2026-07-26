@@ -244,6 +244,18 @@ export function calculateArnoldEigenvalues(): { lambda1: number; lambda2: number
 }
 
 /**
+ * Calculate the Lyapunov exponent of the Arnold Cat Map
+ * For a linear area-preserving map, the exponent is exactly ln|λ₁| where
+ * λ₁ is the largest eigenvalue. No iteration is required.
+ * Note: λ₂ = 1/λ₁, so the exponents sum to zero (det M = 1 ensures area preservation).
+ * @returns The maximum Lyapunov exponent
+ */
+export function calculateArnoldLyapunov(): number {
+  const { lambda1 } = calculateArnoldEigenvalues();
+  return Math.log(lambda1);
+}
+
+/**
  * Calculate the trace and determinant of the transformation matrix
  * @returns Object with trace and determinant
  */

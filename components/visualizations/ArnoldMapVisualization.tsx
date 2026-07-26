@@ -8,6 +8,7 @@ import {
   calculateArnoldImageScrambling,
   calculateArnoldPeriodicOrbits,
   calculateArnoldEigenvalues,
+  calculateArnoldLyapunov,
   calculateArnoldMatrixProperties,
   calculateArnoldFibonacciRelation,
   calculateArnoldIteration
@@ -257,7 +258,7 @@ const ArnoldMapVisualization: React.FC = () => {
         { label: 'Matrix', value: '[[1, 1], [1, 2]]' },
         { label: 'Trace', value: trace.toString() },
         { label: 'Determinant', value: determinant.toString() },
-        { label: 'λ₁ (Golden Ratio)', value: lambda1.toFixed(6) },
+        { label: 'λ₁ = φ²', value: lambda1.toFixed(6) },
         { label: 'λ₂', value: lambda2.toFixed(6) },
         { label: 'Area Preserving', value: 'Yes (det = 1)' }
       ];
@@ -462,10 +463,13 @@ const ArnoldMapVisualization: React.FC = () => {
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm font-medium text-cyan-400 mb-1">Eigenvalues:</p>
             <p className="text-xs text-gray-300 font-mono">
-              λ₁ = {calculateArnoldEigenvalues().lambda1.toFixed(4)} (Golden Ratio)
+              λ₁ = {calculateArnoldEigenvalues().lambda1.toFixed(4)} = φ²
             </p>
             <p className="text-xs text-gray-300 font-mono">
               λ₂ = {calculateArnoldEigenvalues().lambda2.toFixed(4)}
+            </p>
+            <p className="text-xs text-gray-300 font-mono">
+              λ_max = ln λ₁ = {calculateArnoldLyapunov().toFixed(6)}
             </p>
           </div>
 

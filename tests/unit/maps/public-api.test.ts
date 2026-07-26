@@ -30,6 +30,11 @@ import {
   calculateTinkerbellIteration,
 } from '@/lib/maps/tinkerbell';
 
+import {
+  calculateArnoldEigenvalues,
+  calculateArnoldLyapunov,
+} from '@/lib/maps/arnold';
+
 const ITERATIONS = 50000;
 
 describe('exported Lyapunov entry points satisfy the conservation identity', () => {
@@ -110,5 +115,19 @@ describe('exported Lyapunov entry points satisfy the conservation identity', () 
     // Pre-fix this returned 0.2436 -- 22% high, from a QR that normalised the
     // two columns independently instead of orthogonalising them.
     expect(lambda1).toBeCloseTo(0.2001, 2);
+  });
+
+  it('arnold: Lyapunov exponent equals log of the larger eigenvalue', () => {
+    const lyapunov = calculateArnoldLyapunov();
+    const expected = Math.log((3 + Math.sqrt(5)) / 2);
+
+    expect(lyapunov).toBeCloseTo(expected, 10);
+  });
+
+  it('arnold: eigenvalue product equals 1, ensuring area preservation (det M = 1)', () => {
+    const { lambda1, lambda2 } = calculateArnoldEigenvalues();
+    const product = lambda1 * lambda2;
+
+    expect(product).toBeCloseTo(1, 10);
   });
 });
