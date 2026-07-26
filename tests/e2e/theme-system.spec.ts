@@ -206,4 +206,36 @@ test.describe('Simple Theme System - E2E Tests', () => {
     const backButton = page.locator('a:has-text("← Back to Home")');
     await expect(backButton).toBeVisible();
   });
+
+  test('map page h1 follows theme primary under Black & White (not salmon)', async ({ page }) => {
+    // Map pages use MapPageLayout h1 with color: var(--text-accent).
+    // Under Black & White, primary is #ffffff — never the legacy salmon #ff6b6b.
+    await page.goto('/maps/logistic');
+    await page.waitForLoadState('networkidle');
+
+    const blackWhiteButton = page.locator('button:has-text("Black & White")');
+    await blackWhiteButton.click();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'black-white');
+
+    const result = await page.evaluate(() => {
+      const h1 = document.querySelector('h1');
+      if (!h1) return null;
+      const computed = getComputedStyle(h1).color;
+      const textAccent = getComputedStyle(document.documentElement)
+        .getPropertyValue('--text-accent')
+        .trim();
+      const themePrimary = getComputedStyle(document.documentElement)
+        .getPropertyValue('--tron-primary')
+        .trim();
+      return { computed, textAccent, themePrimary };
+    });
+
+    expect(result).not.toBeNull();
+    // Bridged accent equals the theme primary (from ThemeColors, not a literal copy)
+    expect(result!.textAccent.toLowerCase()).toBe(result!.themePrimary.toLowerCase());
+    // Not the pre-bridge salmon default
+    expect(result!.computed).not.toBe('rgb(255, 107, 107)');
+    // Black & White primary is white
+    expect(result!.computed).toBe('rgb(255, 255, 255)');
+  });
 });

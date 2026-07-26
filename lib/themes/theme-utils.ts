@@ -222,6 +222,179 @@ export function getHighContrastPreference(): boolean {
 }
 
 // CSS custom property utilities
+
+/**
+ * Solid hex (`#rgb` / `#rrggbb`) + alpha in [0, 1] → `rgba(r, g, b, a)`.
+ * Used so legacy slots that carried transparency (--bg-card, --viz-grid,
+ * --viz-area, --border-*) keep the SAME alpha they had in :root when the
+ * solid ThemeColors value is bridged in. No silent drop of transparency.
+ */
+export function hexWithAlpha(hex: string, alpha: number): string {
+  const [r, g, b] = parseHexRgb(hex);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/** Expand `#rgb` / `#rrggbb` to integer RGB channels in [0, 255]. */
+export function parseHexRgb(hex: string): [number, number, number] {
+  const raw = hex.replace('#', '');
+  const full =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw;
+  return [
+    parseInt(full.slice(0, 2), 16),
+    parseInt(full.slice(2, 4), 16),
+    parseInt(full.slice(4, 6), 16),
+  ];
+}
+
+/**
+ * Blend `from` toward `toward` by `fraction` in sRGB (0 = from, 1 = toward).
+ * Returns `#rrggbb`. Used for surface slots so they stay visibly distinct from
+ * the page background without inventing colours outside ThemeColors.
+ */
+export function blendHexToward(from: string, toward: string, fraction: number): string {
+  const [fr, fg, fb] = parseHexRgb(from);
+  const [tr, tg, tb] = parseHexRgb(toward);
+  const t = Math.min(1, Math.max(0, fraction));
+  const r = Math.round(fr + (tr - fr) * t);
+  const g = Math.round(fg + (tg - fg) * t);
+  const b = Math.round(fb + (tb - fb) * t);
+  const toHex = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+/**
+ * Composite an `rgba(r,g,b,a)` colour over a solid hex background → opaque RGB.
+ * Used by tests to compare painted surface colours after alpha compositing.
+ */
+export function resolveRgbaOverBackground(
+  rgba: string,
+  backgroundHex: string
+): [number, number, number] {
+  const m = rgba.match(
+    /^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([0-9.]+)\s*)?\)$/i
+  );
+  if (!m) {
+    throw new Error(`resolveRgbaOverBackground: not rgba: ${rgba}`);
+  }
+  const fr = parseInt(m[1], 10);
+  const fg = parseInt(m[2], 10);
+  const fb = parseInt(m[3], 10);
+  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+  const [br, bg, bb] = parseHexRgb(backgroundHex);
+  return [
+    Math.round(fr * a + br * (1 - a)),
+    Math.round(fg * a + bg * (1 - a)),
+    Math.round(fb * a + bb * (1 - a)),
+  ];
+}
+
+/** Euclidean distance in RGB space (0 = identical). */
+export function rgbChannelDistance(
+  a: [number, number, number],
+  b: [number, number, number]
+): number {
+  const dr = a[0] - b[0];
+  const dg = a[1] - b[1];
+  const db = a[2] - b[2];
+  return Math.sqrt(dr * dr + dg * dg + db * db);
+}
+
+/**
+ * Fraction of the path from `background` toward `border` used for surface
+ * slots (--bg-secondary, --bg-card, --bg-header, --bg-footer). Chosen so every
+ * default theme paints a measurable edge against --bg-primary while staying
+ * inside ThemeColors (no freestanding literals). 0.18 is enough that even
+ * Black & White (border #333 over #000) stays visibly lifted after alpha
+ * compositing. Independent pin tests lock the 0.18 product; a zero blend
+ * would fail those pins.
+ */
+export const LEGACY_SURFACE_BLEND = 0.18;
+
+/**
+ * Fraction of the path from `textSecondary` toward `background` used for
+ * `--text-muted`. Tertiary is often a saturated accent (Blue Tron `#0040ff`),
+ * not a muted label colour — so muted is derived, not mapped from tertiary.
+ */
+export const LEGACY_MUTED_BLEND = 0.4;
+
+/**
+ * Single source of truth for the legacy :root bridge (globals.css).
+ * Every key is both applied by `applyThemeCSSProperties` and cleared by
+ * `removeThemeCSSProperties` — one map, not two hand-maintained lists.
+ *
+ * Surface slots (card/header/footer/secondary) are NOT plain `background` +
+ * alpha: that made them identical to the page under every theme. Instead they
+ * blend `background` toward `border` by LEGACY_SURFACE_BLEND (0.18), then keep
+ * the legacy alphas (card 0.7, header/footer 0.8; secondary is solid).
+ *
+ * Mapping (ThemeColors → CSS var):
+ *   background                          → --bg-primary
+ *   blend(bg→border, 0.18)              → --bg-secondary
+ *   blend(bg→border, 0.18) + α 0.7      → --bg-card
+ *   blend(bg→border, 0.18) + α 0.8      → --bg-header, --bg-footer
+ *   text                                → --text-primary, --viz-accent
+ *   textSecondary                       → --text-secondary
+ *   blend(textSecondary→bg, 0.4)        → --text-muted
+ *   primary                             → --text-accent, --viz-secondary, --viz-point,
+ *                                         --border-secondary (α0.3), --viz-area (α0.3),
+ *                                         --accent-cyan
+ *   secondary                           → --border-focus, --viz-primary, --viz-line,
+ *                                         --viz-grid (α0.2), --accent-magenta
+ *   tertiary                            → --viz-tertiary, --accent-orange
+ *   border + α 0.3                      → --border-primary
+ *   warning                             → --accent-red
+ */
+export function getLegacyThemeCSSProperties(colors: ThemeColors): Record<string, string> {
+  // Surface tint: background → border by LEGACY_SURFACE_BLEND, then legacy alphas.
+  const surface = blendHexToward(
+    colors.background,
+    colors.border,
+    LEGACY_SURFACE_BLEND
+  );
+  // Muted text: textSecondary → background (never tertiary — often a saturated accent).
+  const muted = blendHexToward(
+    colors.textSecondary,
+    colors.background,
+    LEGACY_MUTED_BLEND
+  );
+
+  return {
+    '--bg-primary': colors.background,
+    '--bg-secondary': surface,
+    '--bg-card': hexWithAlpha(surface, 0.7),
+    '--bg-header': hexWithAlpha(surface, 0.8),
+    '--bg-footer': hexWithAlpha(surface, 0.8),
+
+    '--text-primary': colors.text,
+    '--text-secondary': colors.textSecondary,
+    '--text-accent': colors.primary,
+    '--text-muted': muted,
+
+    '--border-primary': hexWithAlpha(colors.border, 0.3),
+    '--border-secondary': hexWithAlpha(colors.primary, 0.3),
+    '--border-focus': colors.secondary,
+
+    '--viz-primary': colors.secondary,
+    '--viz-secondary': colors.primary,
+    '--viz-tertiary': colors.tertiary,
+    '--viz-accent': colors.text,
+    '--viz-grid': hexWithAlpha(colors.secondary, 0.2),
+    '--viz-point': colors.primary,
+    '--viz-line': colors.secondary,
+    '--viz-area': hexWithAlpha(colors.primary, 0.3),
+
+    '--accent-cyan': colors.primary,
+    '--accent-orange': colors.tertiary,
+    '--accent-magenta': colors.secondary,
+    '--accent-red': colors.warning,
+  };
+}
+
 export function applyThemeCSSProperties(theme: ThemeConfiguration, element: HTMLElement = document.documentElement): void {
   if (!element || !theme) return;
 
@@ -263,19 +436,11 @@ export function applyThemeCSSProperties(theme: ThemeConfiguration, element: HTML
   safeSetProperty('--tron-high-contrast', theme.accessibility.highContrast ? 'high' : 'normal');
   safeSetProperty('--tron-reduced-glow', theme.accessibility.reducedGlow ? 'true' : 'false');
 
-  // Bridge --bg-* variables used by globals.css and page components
-  safeSetProperty('--bg-primary', theme.colors.background);
-  // Derive a subtle secondary background by tinting background toward the border color
-  safeSetProperty('--bg-secondary', theme.colors.background);
-  safeSetProperty('--text-primary', theme.colors.text);
-  safeSetProperty('--text-secondary', theme.colors.textSecondary);
-  safeSetProperty('--border-primary', `${theme.colors.border}4d`);
-
-  // Bridge --accent-* variables used by D3 visualizations
-  safeSetProperty('--accent-cyan', theme.colors.primary);
-  safeSetProperty('--accent-orange', theme.colors.tertiary || '#ff7f00');
-  safeSetProperty('--accent-magenta', theme.colors.secondary || '#ff00ff');
-  safeSetProperty('--accent-red', theme.colors.warning || '#ff4444');
+  // Bridge every legacy :root var from the shared map (one loop — keys come
+  // from the map; do not hand-maintain a second list for apply).
+  Object.entries(getLegacyThemeCSSProperties(theme.colors)).forEach(([k, v]) =>
+    safeSetProperty(k, v)
+  );
 }
 
 export function removeThemeCSSProperties(element: HTMLElement = document.documentElement): void {
@@ -284,12 +449,19 @@ export function removeThemeCSSProperties(element: HTMLElement = document.documen
   try {
     element.removeAttribute('data-theme');
 
-    // Remove only our custom properties
+    // Remove --tron-* properties written as dynamic keys
     const computedStyle = window.getComputedStyle(element);
     Array.from(computedStyle).forEach(property => {
       if (property.startsWith('--tron-')) {
         element.style.removeProperty(property);
       }
+    });
+
+    // Remove the legacy bridge from the same map apply uses (keys only;
+    // values are irrelevant for teardown).
+    const legacyKeys = Object.keys(getLegacyThemeCSSProperties(defaultThemes[0].colors));
+    legacyKeys.forEach((property) => {
+      element.style.removeProperty(property);
     });
   } catch (error) {
     console.error('Error removing theme CSS properties:', error);

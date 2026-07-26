@@ -32,22 +32,27 @@
 }
 
 :root {
-  /* Theme variables will be set by ThemeContext */
+  /*
+   * Legacy custom properties — defaults only. At runtime every var below is
+   * overwritten by applyThemeCSSProperties (lib/themes/theme-utils.ts) from
+   * the active ThemeColors. Alphas on rgba slots are preserved via hexWithAlpha.
+   * None of these are deliberately theme-independent.
+   */
   --bg-primary: #1a1a2e;
   --bg-secondary: #16213e;
   --bg-card: rgba(22, 33, 62, 0.7);
   --bg-header: rgba(26, 26, 46, 0.8);
   --bg-footer: rgba(26, 26, 46, 0.8);
-  
+
   --text-primary: #e6f1ff;
   --text-secondary: #a2d2ff;
   --text-accent: #ff6b6b;
   --text-muted: #4a5568;
-  
+
   --border-primary: rgba(162, 210, 255, 0.3);
   --border-secondary: rgba(255, 107, 107, 0.3);
   --border-focus: #a2d2ff;
-  
+
   --viz-primary: #a2d2ff;
   --viz-secondary: #ff6b6b;
   --viz-tertiary: #ffd166;
