@@ -71,3 +71,7 @@ blob-report/
 
 # OS generated files
 Thumbs.db
+# Supervised-relay scratch (kept out of a public repo)
+docs/goals.md
+docs/goals-ledger.md
+.sc/
