@@ -14,7 +14,7 @@ import {
 } from '@/lib/maps/ikeda';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
-import { useAnimationLoop } from '@/hooks/useAnimationLoop';
+import { useSteppedAnimation } from '@/hooks/useSteppedAnimation';
 import {
   initChartBase,
   equalAspectScales,
@@ -24,9 +24,6 @@ import {
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
-
-/** Fixed step period for time-evolution playback (ms). Integer avoids float drift. */
-const IKEDA_STEP_PERIOD_MS = 50;
 
 const IkedaMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
@@ -39,7 +36,6 @@ const IkedaMapVisualization: React.FC = () => {
   const [attractorIterations, setAttractorIterations] = useState(200_000);
   const [visualizationType, setVisualizationType] = useState('attractor');
   const [bifurcationParam, setBifurcationParam] = useState<'a' | 'b' | 'c' | 'd'>('b');
-  const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -47,7 +43,6 @@ const IkedaMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
-  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
@@ -64,31 +59,15 @@ const IkedaMapVisualization: React.FC = () => {
 
   const animationPlaying = isAnimating && visualizationType === 'time';
 
-  useEffect(() => {
-    if (!animationPlaying) stepAccumRef.current = 0;
-  }, [animationPlaying]);
-
-  useAnimationLoop({
+  const { step: animationStep, reset: resetAnimation } = useSteppedAnimation({
     playing: animationPlaying,
-    onFrame: (deltaSeconds) => {
-      if (deltaSeconds <= 0) return;
-      stepAccumRef.current += deltaSeconds * 1000;
-      // `iterations` is read from this render's closure: useAnimationLoop keeps
-      // the latest onFrame in a ref, so a mid-play change is never stale — the
-      // bug the old setInterval had, since its deps omitted iterations.
-      while (stepAccumRef.current >= IKEDA_STEP_PERIOD_MS) {
-        stepAccumRef.current -= IKEDA_STEP_PERIOD_MS;
-        setAnimationStep((prev) => (prev + 1) % iterations);
-      }
-    },
+    periodMs: 50,
+    modulus: iterations,
   });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
-    if (!isAnimating) {
-      setAnimationStep(0);
-      stepAccumRef.current = 0;
-    }
+    if (!isAnimating) resetAnimation();
   };
 
   // On a chaotic attractor, successive iterates jump all over the set, so

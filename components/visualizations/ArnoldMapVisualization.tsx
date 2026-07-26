@@ -15,7 +15,7 @@ import {
 } from '@/lib/maps/arnold';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
-import { useAnimationLoop } from '@/hooks/useAnimationLoop';
+import { useSteppedAnimation } from '@/hooks/useSteppedAnimation';
 import {
   initChartBase,
   equalAspectScales,
@@ -25,10 +25,6 @@ import {
   renderChartTitle,
 } from './chartHelpers';
 
-/** Fixed step period for scrambling/grid playback (ms). Integer avoids float drift. */
-const ARNOLD_STEP_PERIOD_MS = 800;
-const ARNOLD_STEP_MODULUS = 12;
-
 const ArnoldMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
   const [initialY, setInitialY] = useState(0.3);
@@ -36,10 +32,8 @@ const ArnoldMapVisualization: React.FC = () => {
   const [gridSize, setGridSize] = useState(16);
   const [gridIterations, setGridIterations] = useState(1);
   const [visualizationType, setVisualizationType] = useState('trajectory');
-  const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
@@ -48,30 +42,15 @@ const ArnoldMapVisualization: React.FC = () => {
     isAnimating &&
     (visualizationType === 'scrambling' || visualizationType === 'grid');
 
-  // Drop residual time when the loop stops so a resume waits a full period
-  // (matches setInterval restart behaviour).
-  useEffect(() => {
-    if (!animationPlaying) stepAccumRef.current = 0;
-  }, [animationPlaying]);
-
-  useAnimationLoop({
+  const { step: animationStep, reset: resetAnimation } = useSteppedAnimation({
     playing: animationPlaying,
-    onFrame: (deltaSeconds) => {
-      if (deltaSeconds <= 0) return;
-      stepAccumRef.current += deltaSeconds * 1000;
-      while (stepAccumRef.current >= ARNOLD_STEP_PERIOD_MS) {
-        stepAccumRef.current -= ARNOLD_STEP_PERIOD_MS;
-        setAnimationStep((prev) => (prev + 1) % ARNOLD_STEP_MODULUS);
-      }
-    },
+    periodMs: 800,
+    modulus: 12,
   });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
-    if (!isAnimating) {
-      setAnimationStep(0);
-      stepAccumRef.current = 0;
-    }
+    if (!isAnimating) resetAnimation();
   };
 
   useEffect(() => {

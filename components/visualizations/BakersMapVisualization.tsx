@@ -14,7 +14,7 @@ import {
 } from '@/lib/maps/bakers';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
-import { useAnimationLoop } from '@/hooks/useAnimationLoop';
+import { useSteppedAnimation } from '@/hooks/useSteppedAnimation';
 import {
   initChartBase,
   equalAspectScales,
@@ -24,20 +24,14 @@ import {
   renderChartTitle,
 } from './chartHelpers';
 
-/** Fixed step period for scrambling playback (ms). Integer avoids float drift. */
-const BAKERS_STEP_PERIOD_MS = 500;
-const BAKERS_STEP_MODULUS = 10;
-
 const BakersMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
   const [initialY, setInitialY] = useState(0.3);
   const [iterations, setIterations] = useState(50);
   const [visualizationType, setVisualizationType] = useState('trajectory');
   const [mixingPoints, setMixingPoints] = useState(20);
-  const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
@@ -45,28 +39,15 @@ const BakersMapVisualization: React.FC = () => {
   const animationPlaying =
     isAnimating && visualizationType === 'scrambling';
 
-  useEffect(() => {
-    if (!animationPlaying) stepAccumRef.current = 0;
-  }, [animationPlaying]);
-
-  useAnimationLoop({
+  const { step: animationStep, reset: resetAnimation } = useSteppedAnimation({
     playing: animationPlaying,
-    onFrame: (deltaSeconds) => {
-      if (deltaSeconds <= 0) return;
-      stepAccumRef.current += deltaSeconds * 1000;
-      while (stepAccumRef.current >= BAKERS_STEP_PERIOD_MS) {
-        stepAccumRef.current -= BAKERS_STEP_PERIOD_MS;
-        setAnimationStep((prev) => (prev + 1) % BAKERS_STEP_MODULUS);
-      }
-    },
+    periodMs: 500,
+    modulus: 10,
   });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
-    if (!isAnimating) {
-      setAnimationStep(0);
-      stepAccumRef.current = 0;
-    }
+    if (!isAnimating) resetAnimation();
   };
 
   useEffect(() => {
