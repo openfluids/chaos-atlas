@@ -33,78 +33,113 @@ export default function AboutPage() {
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Welcome to the Grid</h2>
             <p className="text-gray-300 leading-relaxed mb-4">
               Chaos Atlas is an interactive exploration platform for chaotic dynamical systems,
-              combining mathematical beauty with vintage Tron aesthetics. Built with Test-Driven Development
-              and modern web standards, it brings complex dynamical systems to life through stunning visualizations.
+              combining mathematical rigor with vintage Tron aesthetics. It brings complex dynamical systems
+              to life through real-time visualizations, built with Test-Driven Development and modern web standards.
+            </p>
+            <p className="text-gray-300 leading-relaxed mb-4">
+              Available both as a <strong>live web application</strong> and as a <strong>Python package</strong>,
+              Chaos Atlas provides tools for studying bifurcations, attractors, and chaos across dozens of canonical
+              systems and spatiotemporal coupled dynamics.
             </p>
             <p className="text-gray-300 leading-relaxed">
-              Step into a digital world where chaos meets order, where simple mathematical rules create
-              breathtaking patterns, and where the legacy of Tron meets modern accessibility standards.
+              Source code is freely available on <Link href="https://github.com/openfluids/chaos-atlas" className="text-cyan-400 hover:text-cyan-300 transition-colors">GitHub</Link>.
             </p>
           </section>
 
-          {/* Key Features */}
+          {/* Python Package */}
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
+            <h2 className="text-2xl font-bold neon-text-cyan mb-4">Python Package</h2>
+            <p className="text-gray-300 mb-4">
+              The same numerical kernels powering the web visualizations are available as a NumPy-vectorised library.
+              Install from PyPI:
+            </p>
+            <div className="bg-black/50 rounded-lg p-4 border border-cyan-500/10 font-mono text-sm mb-4">
+              <p className="text-cyan-400">
+                pip install chaos-atlas
+              </p>
+            </div>
+            <p className="text-gray-300">
+              See the <Link href="https://pypi.org/project/chaos-atlas/" className="text-cyan-400 hover:text-cyan-300 transition-colors">PyPI page</Link> for documentation
+              and usage examples.
+            </p>
+          </section>
+
+          {/* Core Features */}
           <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Core Features</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-lg font-semibold neon-text-orange mb-3">🌊 Diffusive CML</h3>
                 <p className="text-gray-300 mb-2">
-                  Experience spatiotemporal pattern formation through diffusive coupling.
-                  Watch as Turing patterns, spiral waves, and chaotic synchronization emerge.
+                  Explore spatiotemporal pattern formation through diffusive coupling.
+                  Watch Turing patterns, spiral waves, and chaotic synchronization emerge in real time.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-magenta mb-3">🔄 Global CML</h3>
+                <h3 className="text-lg font-semibold neon-text-magenta mb-3">🗺️ Ten Map Pages</h3>
                 <p className="text-gray-300 mb-2">
-                  Explore synchronization phenomena in globally coupled systems.
-                  From independent chaos to complete synchronization, discover collective dynamics.
+                  Interactive visualizations of Logistic, Tent, Hénon, Standard, Ikeda, Arnold Cat,
+                  Baker&apos;s, Tinkerbell, Duffing, and Complex Quadratic maps.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-yellow mb-3">🗺️ Classic Maps</h3>
+                <h3 className="text-lg font-semibold neon-text-yellow mb-3">📊 Comparative Analysis</h3>
                 <p className="text-gray-300 mb-2">
-                  Interactive visualizations of Logistic, Hénon, and Standard maps.
-                  Experience period-doubling bifurcations and strange attractors.
+                  Side-by-side comparison of chaotic systems with synchronized parameters.
+                  Bifurcation and Lyapunov comparison views are still in progress.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-cyan mb-3">🎨 Tron Theme System</h3>
+                <h3 className="text-lg font-semibold neon-text-cyan mb-3">🎨 Tron Aesthetic</h3>
                 <p className="text-gray-300 mb-2">
-                  Vintage Tron aesthetic with neon glow effects and modern accessibility.
-                  WCAG AA compliant with full keyboard navigation and screen reader support.
+                  Vintage Tron-inspired visual design with neon glow effects and a dark, immersive interface.
                 </p>
               </div>
             </div>
           </section>
 
-          {/* Technical Architecture */}
+          {/* Numerical Methods */}
           <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
-            <h2 className="text-2xl font-bold neon-text-cyan mb-4">Technical Excellence</h2>
+            <h2 className="text-2xl font-bold neon-text-cyan mb-4">Numerical Methods</h2>
+            <p className="text-gray-300 mb-4">
+              Chaos Atlas computes Lyapunov spectra using Benettin&apos;s algorithm with Gram-Schmidt
+              reorthonormalisation. Every spectrum is validated against the conservation identity
+              sum(λ_i) = ⟨ln|det J|⟩. All analytic Jacobians are verified against central finite differences.
+            </p>
+            <p className="text-gray-300">
+              This rigorous approach ensures that visual patterns reflect genuine dynamical properties,
+              not numerical artifacts.
+            </p>
+          </section>
+
+          {/* Technical Excellence */}
+          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
+            <h2 className="text-2xl font-bold neon-text-cyan mb-4">Testing & Quality</h2>
             <div className="grid md:grid-cols-3 gap-6">
               <div>
-                <h3 className="text-lg font-semibold neon-text-orange mb-3">🧪 Test-Driven Development</h3>
+                <h3 className="text-lg font-semibold neon-text-orange mb-3">🧪 Comprehensive Testing</h3>
                 <p className="text-gray-300 text-sm">
-                  140+ comprehensive tests covering unit, integration, accessibility,
-                  performance, and error handling scenarios.
+                  322 tests covering unit, integration, and end-to-end scenarios:
+                  283 Jest unit tests and 39 Playwright E2E tests.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-magenta mb-3">⚡ Performance Optimized</h3>
+                <h3 className="text-lg font-semibold neon-text-magenta mb-3">🔍 Numerical Validation</h3>
                 <p className="text-gray-300 text-sm">
-                  60fps animations, React.memo optimization, efficient re-renders,
-                  and minimal bundle size for lightning-fast performance.
+                  Jacobian verification, conservation law checks, and stability tests
+                  ensure correctness of dynamical computations.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-yellow mb-3">♿ Accessibility First</h3>
+                <h3 className="text-lg font-semibold neon-text-yellow mb-3">📦 Modern Stack</h3>
                 <p className="text-gray-300 text-sm">
-                  WCAG AA compliant, keyboard navigation, screen reader support,
-                  reduced motion, and high contrast mode compatibility.
+                  Next.js 16, React 19, TypeScript, Tailwind CSS, and D3.js,
+                  with GitHub Actions CI/CD.
                 </p>
               </div>
             </div>
@@ -138,88 +173,50 @@ export default function AboutPage() {
                 </div>
 
                 <div>
-                  <h4 className="font-semibold neon-text-yellow mb-2">Global Coupling</h4>
+                  <h4 className="font-semibold neon-text-yellow mb-2">Lyapunov Exponents</h4>
                   <p className="text-gray-300 text-sm">
-                    Each site couples to the global average of all sites,
-                    leading to synchronization phenomena.
+                    Measure of sensitivity to initial conditions. Positive values indicate chaos;
+                    zero indicates bifurcation points.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Visualizations */}
+          {/* Visualization Techniques */}
           <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Visualization Techniques</h2>
             <div className="grid md:grid-cols-2 gap-6">
               <div>
                 <h3 className="text-lg font-semibold neon-text-orange mb-3">🎨 Color Mapping</h3>
                 <p className="text-gray-300 mb-2">
-                  Advanced color gradients map system states to visual properties,
-                  making chaos patterns instantly recognizable and beautiful.
+                  Color gradients encode system dynamics: escape times, Lyapunov exponents,
+                  or density of orbits.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-magenta mb-3">⚡ Real-time Updates</h3>
+                <h3 className="text-lg font-semibold neon-text-magenta mb-3">⚡ Real-time Rendering</h3>
                 <p className="text-gray-300 mb-2">
-                  Optimized rendering pipeline ensures smooth 60fps animations
-                  even with large lattice sizes and complex dynamics.
+                  Canvas-based rendering with optimized pixel updates enables parameter sweeps
+                  and interactive exploration at reasonable frame rates.
                 </p>
               </div>
 
               <div>
                 <h3 className="text-lg font-semibold neon-text-yellow mb-3">🔬 Parameter Control</h3>
                 <p className="text-gray-300 mb-2">
-                  Interactive controls allow real-time parameter adjustment,
+                  Interactive sliders allow real-time parameter adjustment,
                   enabling exploration of bifurcations and phase transitions.
                 </p>
               </div>
 
               <div>
-                <h3 className="text-lg font-semibold neon-text-cyan mb-3">📊 Data Analysis</h3>
+                <h3 className="text-lg font-semibold neon-text-cyan mb-3">📊 Lyapunov Spectra</h3>
                 <p className="text-gray-300 mb-2">
-                  Built-in tools for measuring synchronization, calculating Lyapunov
-                  exponents, and analyzing spatial correlations.
+                  Built-in tools compute and visualize the full spectrum of Lyapunov exponents
+                  to quantify multidimensional chaos.
                 </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Development Team */}
-          <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs">
-            <h2 className="text-2xl font-bold neon-text-cyan mb-4">Built With Excellence</h2>
-            <div className="space-y-4">
-              <p className="text-gray-300">
-                This project demonstrates modern web development practices combined with
-                deep understanding of complex systems and chaos theory.
-              </p>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-lg font-semibold neon-text-orange mb-3">🛠️ Technology Stack</h3>
-                  <ul className="text-gray-300 text-sm space-y-1">
-                    <li>• Next.js 14 with React 18</li>
-                    <li>• TypeScript for type safety</li>
-                    <li>• Tailwind CSS for styling</li>
-                    <li>• Three.js for 3D visualizations</li>
-                    <li>• D3.js for data visualization</li>
-                    <li>• Playwright for E2E testing</li>
-                    <li>• Jest for unit testing</li>
-                  </ul>
-                </div>
-
-                <div>
-                  <h3 className="text-lg font-semibold neon-text-magenta mb-3">🎯 Development Methodology</h3>
-                  <ul className="text-gray-300 text-sm space-y-1">
-                    <li>• Test-Driven Development (TDD)</li>
-                    <li>• GitHub Spec Kit specification</li>
-                    <li>• GitHub Actions CI/CD</li>
-                    <li>• Accessibility-first design</li>
-                    <li>• Performance optimization</li>
-                    <li>• Semantic HTML and ARIA</li>
-                  </ul>
-                </div>
               </div>
             </div>
           </section>
@@ -228,7 +225,7 @@ export default function AboutPage() {
           <section className="p-6 rounded-lg border border-cyan-500/20 bg-black/30 backdrop-blur-xs text-center">
             <h2 className="text-2xl font-bold neon-text-cyan mb-4">Start Exploring Chaos</h2>
             <p className="text-gray-300 mb-6">
-              Ready to dive into the fascinating world of coupled map lattices?
+              Ready to explore coupled map lattices and discrete dynamics?
               Experience the beauty of chaos with our interactive visualizations.
             </p>
             <div className="flex flex-wrap justify-center gap-4">
