@@ -1,4 +1,7 @@
-import React from 'react';
+'use client';
+
+import React, { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { usePlaybackRegistryOptional } from '@/components/ui/PlaybackContext';
 
 /**
  * Default className shared by the majority of map visualizations' sliders.
@@ -34,7 +37,26 @@ interface ParamSliderProps {
   labelClassName?: string;
   labelStyle?: React.CSSProperties;
   disabled?: boolean;
+  /**
+   * When true (default), self-register with the nearest `PlaybackProvider` so
+   * playback can drive this axis. Set `false` to opt a control out (view-mode
+   * indices, cosmetic settings). No-ops when no provider is mounted.
+   *
+   * Convention: map pages declare the primary control parameter first — the
+   * default "animate the first registered slider" behaviour then does the
+   * right thing on nearly every page with no per-page configuration.
+   */
+  animate?: boolean;
 }
+
+type LiveFields = {
+  value: number;
+  onChange: (value: number) => void;
+  label: React.ReactNode;
+  min: number;
+  max: number;
+  step: number;
+};
 
 export function ParamSlider({
   label,
@@ -48,7 +70,66 @@ export function ParamSlider({
   labelClassName = PARAM_SLIDER_LABEL_CLASS,
   labelStyle,
   disabled,
+  animate = true,
 }: ParamSliderProps): React.ReactElement {
+  const registry = usePlaybackRegistryOptional();
+  // Stable per-instance key; no new required prop, additive to existing call sites.
+  const autoName = useId();
+
+  // Live fields for the registry: updated in layout effect so we never write
+  // refs during render (react-hooks/refs). Animation reads these between
+  // frames, after layout has committed.
+  const liveRef = useRef<LiveFields>({
+    value,
+    onChange,
+    label,
+    min,
+    max,
+    step,
+  });
+  useLayoutEffect(() => {
+    liveRef.current.value = value;
+    liveRef.current.onChange = onChange;
+    liveRef.current.label = label;
+    liveRef.current.min = min;
+    liveRef.current.max = max;
+    liveRef.current.step = step;
+  });
+
+  useEffect(() => {
+    if (!animate || !registry) return;
+
+    // Flip to false on cleanup so a caller holding a cached AnimatableParam
+    // cannot setState on an unmounted owner after deregistration.
+    let mounted = true;
+
+    registry.register({
+      name: autoName,
+      get label() {
+        return liveRef.current.label;
+      },
+      get min() {
+        return liveRef.current.min;
+      },
+      get max() {
+        return liveRef.current.max;
+      },
+      get step() {
+        return liveRef.current.step;
+      },
+      getValue: () => liveRef.current.value,
+      setValue: (next: number) => {
+        if (!mounted) return;
+        liveRef.current.onChange(next);
+      },
+    });
+
+    return () => {
+      mounted = false;
+      registry.deregister(autoName);
+    };
+  }, [animate, registry, autoName]);
+
   // Combine default classes with any additional className
   const computedClassName = className
     ? `${PARAM_SLIDER_INPUT_CLASS} ${className}`
