@@ -9,6 +9,7 @@ import {
   calculateBakersImageScrambling,
   calculateBakersInvariantMeasure,
   calculateBakersTopologicalEntropy,
+  calculateBakersKSEntropy,
   calculateBakersPhaseSpacePartition
 } from '@/lib/maps/bakers';
 import { ParamSlider } from '@/components/ui/ParamSlider';
@@ -367,6 +368,22 @@ const BakersMapVisualization: React.FC = () => {
               {isAnimating ? 'Stop Animation' : 'Start Animation'}
             </button>
           )}
+
+          {/* Lyapunov Exponents Display */}
+          <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
+            <p className="text-sm font-medium text-cyan-400 mb-1">Lyapunov Exponents:</p>
+            <p className="text-xs text-gray-300 font-mono">
+              λ₁ = +{calculateBakersKSEntropy().toFixed(6)}
+            </p>
+            <p className="text-xs text-gray-300 font-mono">
+              λ₂ = -{calculateBakersKSEntropy().toFixed(6)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Analytic, not measured: the map stretches x by 2 and contracts y by
+              1/2 at every point, so λ = ±ln 2 everywhere. They sum to zero
+              because the map preserves area.
+            </p>
+          </div>
 
           {/* Topological Entropy Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
