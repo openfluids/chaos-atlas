@@ -14,6 +14,7 @@ import {
 } from '@/lib/maps/ikeda';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import { useAnimationLoop } from '@/hooks/useAnimationLoop';
 import {
   initChartBase,
   equalAspectScales,
@@ -23,6 +24,9 @@ import {
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+
+/** Fixed step period for time-evolution playback (ms). Integer avoids float drift. */
+const IKEDA_STEP_PERIOD_MS = 50;
 
 const IkedaMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
@@ -43,7 +47,7 @@ const IkedaMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
+  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
@@ -58,30 +62,32 @@ const IkedaMapVisualization: React.FC = () => {
     [currentParams]
   );
 
-  // Animation control
+  const animationPlaying = isAnimating && visualizationType === 'time';
+
   useEffect(() => {
-    if (isAnimating && visualizationType === 'time') {
-      animationRef.current = setInterval(() => {
-        setAnimationStep(prev => (prev + 1) % iterations);
-      }, 50);
-    } else {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-      }
-    }
+    if (!animationPlaying) stepAccumRef.current = 0;
+  }, [animationPlaying]);
 
-    return () => {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
+  useAnimationLoop({
+    playing: animationPlaying,
+    onFrame: (deltaSeconds) => {
+      if (deltaSeconds <= 0) return;
+      stepAccumRef.current += deltaSeconds * 1000;
+      // `iterations` is read from this render's closure: useAnimationLoop keeps
+      // the latest onFrame in a ref, so a mid-play change is never stale — the
+      // bug the old setInterval had, since its deps omitted iterations.
+      while (stepAccumRef.current >= IKEDA_STEP_PERIOD_MS) {
+        stepAccumRef.current -= IKEDA_STEP_PERIOD_MS;
+        setAnimationStep((prev) => (prev + 1) % iterations);
       }
-    };
-  }, [isAnimating, visualizationType, iterations]);
-
+    },
+  });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
     if (!isAnimating) {
       setAnimationStep(0);
+      stepAccumRef.current = 0;
     }
   };
 
@@ -462,6 +468,8 @@ const IkedaMapVisualization: React.FC = () => {
           {visualizationType === 'time' && (
             <button
               onClick={toggleAnimation}
+              data-testid="animation-step"
+              data-step={animationStep}
               className="w-full p-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
             >
               {isAnimating ? 'Stop Animation' : 'Start Animation'}

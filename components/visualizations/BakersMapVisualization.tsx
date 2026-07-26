@@ -14,6 +14,7 @@ import {
 } from '@/lib/maps/bakers';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import { useAnimationLoop } from '@/hooks/useAnimationLoop';
 import {
   initChartBase,
   equalAspectScales,
@@ -22,6 +23,10 @@ import {
   renderAxisLabelsRotated,
   renderChartTitle,
 } from './chartHelpers';
+
+/** Fixed step period for scrambling playback (ms). Integer avoids float drift. */
+const BAKERS_STEP_PERIOD_MS = 500;
+const BAKERS_STEP_MODULUS = 10;
 
 const BakersMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
@@ -32,34 +37,35 @@ const BakersMapVisualization: React.FC = () => {
   const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
+  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
 
-  // Animation control
-  useEffect(() => {
-    if (isAnimating && visualizationType === 'scrambling') {
-      animationRef.current = setInterval(() => {
-        setAnimationStep(prev => (prev + 1) % 10);
-      }, 500);
-    } else {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-      }
-    }
+  const animationPlaying =
+    isAnimating && visualizationType === 'scrambling';
 
-    return () => {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
+  useEffect(() => {
+    if (!animationPlaying) stepAccumRef.current = 0;
+  }, [animationPlaying]);
+
+  useAnimationLoop({
+    playing: animationPlaying,
+    onFrame: (deltaSeconds) => {
+      if (deltaSeconds <= 0) return;
+      stepAccumRef.current += deltaSeconds * 1000;
+      while (stepAccumRef.current >= BAKERS_STEP_PERIOD_MS) {
+        stepAccumRef.current -= BAKERS_STEP_PERIOD_MS;
+        setAnimationStep((prev) => (prev + 1) % BAKERS_STEP_MODULUS);
       }
-    };
-  }, [isAnimating, visualizationType]);
+    },
+  });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
     if (!isAnimating) {
       setAnimationStep(0);
+      stepAccumRef.current = 0;
     }
   };
 
@@ -363,6 +369,8 @@ const BakersMapVisualization: React.FC = () => {
           {visualizationType === 'scrambling' && (
             <button
               onClick={toggleAnimation}
+              data-testid="animation-step"
+              data-step={animationStep}
               className="w-full p-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
             >
               {isAnimating ? 'Stop Animation' : 'Start Animation'}

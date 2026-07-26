@@ -15,6 +15,7 @@ import {
 } from '@/lib/maps/arnold';
 import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
+import { useAnimationLoop } from '@/hooks/useAnimationLoop';
 import {
   initChartBase,
   equalAspectScales,
@@ -23,6 +24,10 @@ import {
   renderAxisLabelsRotated,
   renderChartTitle,
 } from './chartHelpers';
+
+/** Fixed step period for scrambling/grid playback (ms). Integer avoids float drift. */
+const ARNOLD_STEP_PERIOD_MS = 800;
+const ARNOLD_STEP_MODULUS = 12;
 
 const ArnoldMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
@@ -34,34 +39,38 @@ const ArnoldMapVisualization: React.FC = () => {
   const [animationStep, setAnimationStep] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
-  const animationRef = useRef<NodeJS.Timeout | null>(null);
+  const stepAccumRef = useRef(0);
 
   const width = 600;
   const height = 400;
 
-  // Animation control
-  useEffect(() => {
-    if (isAnimating && (visualizationType === 'scrambling' || visualizationType === 'grid')) {
-      animationRef.current = setInterval(() => {
-        setAnimationStep(prev => (prev + 1) % 12);
-      }, 800);
-    } else {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
-      }
-    }
+  const animationPlaying =
+    isAnimating &&
+    (visualizationType === 'scrambling' || visualizationType === 'grid');
 
-    return () => {
-      if (animationRef.current) {
-        clearInterval(animationRef.current);
+  // Drop residual time when the loop stops so a resume waits a full period
+  // (matches setInterval restart behaviour).
+  useEffect(() => {
+    if (!animationPlaying) stepAccumRef.current = 0;
+  }, [animationPlaying]);
+
+  useAnimationLoop({
+    playing: animationPlaying,
+    onFrame: (deltaSeconds) => {
+      if (deltaSeconds <= 0) return;
+      stepAccumRef.current += deltaSeconds * 1000;
+      while (stepAccumRef.current >= ARNOLD_STEP_PERIOD_MS) {
+        stepAccumRef.current -= ARNOLD_STEP_PERIOD_MS;
+        setAnimationStep((prev) => (prev + 1) % ARNOLD_STEP_MODULUS);
       }
-    };
-  }, [isAnimating, visualizationType]);
+    },
+  });
 
   const toggleAnimation = () => {
     setIsAnimating(!isAnimating);
     if (!isAnimating) {
       setAnimationStep(0);
+      stepAccumRef.current = 0;
     }
   };
 
@@ -453,6 +462,8 @@ const ArnoldMapVisualization: React.FC = () => {
           {(visualizationType === 'scrambling' || visualizationType === 'grid') && (
             <button
               onClick={toggleAnimation}
+              data-testid="animation-step"
+              data-step={animationStep}
               className="w-full p-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors"
             >
               {isAnimating ? 'Stop Animation' : 'Start Animation'}
