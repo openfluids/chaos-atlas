@@ -113,6 +113,32 @@ export function calculateHenonLyapunovExponent(
   y0: number = 0.1,
   iterations: number = 1000
 ): number {
+  return calculateHenonLyapunovSpectrum(a, b, x0, y0, iterations).lambda1;
+}
+
+/**
+ * Both Lyapunov exponents of the Hénon map.
+ *
+ * Callers that need λ₂ -- or the pair's sum -- must come through here rather
+ * than rebuilding the map and its Jacobian at the call site. det J = -b for
+ * this map, so the measured λ₁ + λ₂ has to reproduce ln|b|; that identity is
+ * only a check while both exponents are measured independently. Deriving λ₂
+ * as ln|b| - λ₁ would make it true by construction and test nothing.
+ *
+ * @param a Parameter a (default: 1.4)
+ * @param b Parameter b (default: 0.3)
+ * @param x0 Initial x value (default: 0.1)
+ * @param y0 Initial y value (default: 0.1)
+ * @param iterations Number of iterations (default: 1000)
+ * @returns Both exponents, largest first
+ */
+export function calculateHenonLyapunovSpectrum(
+  a: number = 1.4,
+  b: number = 0.3,
+  x0: number = 0.1,
+  y0: number = 0.1,
+  iterations: number = 1000
+): { lambda1: number; lambda2: number } {
   // Jacobian J = [[-2ax, 1], [b, 0]]
   const iterateFn = (x: number, y: number): [number, number] => {
     const p = calculateHenonIteration(x, y, a, b);
@@ -124,7 +150,7 @@ export function calculateHenonLyapunovExponent(
     [b, 0]
   ];
 
-  const { lambda1 } = lyapunovSpectrum2D(
+  return lyapunovSpectrum2D(
     iterateFn,
     (x, _y) => jacobianFn(x),
     x0,
@@ -132,6 +158,4 @@ export function calculateHenonLyapunovExponent(
     iterations,
     100
   );
-
-  return lambda1;
 }

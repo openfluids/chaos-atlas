@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ParamSlider } from '@/components/ui/ParamSlider';
@@ -9,11 +9,11 @@ import {
   equalAspectScales,
   createClippedDataGroup,
   renderChartAxes,
-  renderAxisLabelsPlain,
   renderChartTitleAccent,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+import { calculateHenonLyapunovSpectrum } from '@/lib/maps/henon';
 
 // Density views are cheap per-point (no DOM node per iterate), so the
 // ceiling is raised well past the old 5,000-point DOM limit. 200k iterations
@@ -24,6 +24,7 @@ import { renderDensityCanvas } from './densityCanvas';
 // wants to hold still and look closer.
 const DEFAULT_ITERATIONS = 200_000;
 const MAX_ITERATIONS = 1_000_000;
+const LYAPUNOV_ITERATIONS = 10_000; // Fixed count for exponent calculation
 
 const HenonMapVisualization: React.FC = () => {
   const [a, setA] = useState(1.4);
@@ -41,6 +42,17 @@ const HenonMapVisualization: React.FC = () => {
 
   const width = 600;
   const height = 400;
+
+  // Memoize Lyapunov exponent calculation to avoid recalculating on every
+  // render, especially when the on-screen iterations slider changes. The
+  // exponent depends only on a and b (not the rendering iterations), so we
+  // use a fixed LYAPUNOV_ITERATIONS for responsiveness.
+  const lyapunovSpectrum = useMemo(() => {
+    if (!hydrated) {
+      return { lambda1: 0, lambda2: 0 };
+    }
+    return calculateHenonLyapunovSpectrum(a, b, 0.1, 0.1, LYAPUNOV_ITERATIONS);
+  }, [a, b, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -114,11 +126,28 @@ const HenonMapVisualization: React.FC = () => {
       'henon-plot-clip'
     );
 
-    // Add axes
-    renderChartAxes(g, xScale, yScale, innerHeight);
+    // Add axes with letterbox offsets so they align with the plot rectangle.
+    renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
 
-    // Add axis labels
-    renderAxisLabelsPlain(g, innerWidth, innerHeight, 'x', 'y');
+    // Add axis labels manually (cannot use renderAxisLabelsPlain as it doesn't
+    // account for offsetY, and renderAxisLabelsPlain in chartHelpers.ts cannot
+    // be edited to accept offsetY). When the plot is letterboxed with offsetY,
+    // the axis labels must move with it so the x-label stays below the axis
+    // and the y-label stays to the left of the axis.
+    g.append('text')
+      .attr('x', innerWidth / 2)
+      .attr('y', innerHeight - offsetY + 45)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-secondary)')
+      .text('x');
+
+    g.append('text')
+      .attr('transform', 'rotate(-90)')
+      .attr('x', -(innerHeight / 2))
+      .attr('y', -40)
+      .attr('text-anchor', 'middle')
+      .style('fill', 'var(--text-secondary)')
+      .text('y');
 
     // Add title
     renderChartTitleAccent(g, innerWidth, `Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
@@ -210,6 +239,25 @@ const HenonMapVisualization: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Lyapunov Exponents */}
+      {hydrated && (
+        <div className="mt-4 p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
+          <p className="text-sm font-medium text-cyan-400 mb-1">Lyapunov Spectrum:</p>
+          <p className="text-xs text-gray-300 font-mono">
+            λ₁ = {lyapunovSpectrum.lambda1.toFixed(6)}
+          </p>
+          <p className="text-xs text-gray-300 font-mono">
+            λ₂ = {lyapunovSpectrum.lambda2.toFixed(6)}
+          </p>
+          <p className="text-xs text-gray-300 font-mono">
+            λ₁ + λ₂ = {(lyapunovSpectrum.lambda1 + lyapunovSpectrum.lambda2).toFixed(6)}
+          </p>
+          <p className="text-xs text-gray-300 font-mono">
+            ln|b| = {Math.log(Math.abs(b)).toFixed(6)}
+          </p>
+        </div>
+      )}
 
       {/* Info */}
       <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
