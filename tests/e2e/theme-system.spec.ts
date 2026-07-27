@@ -238,4 +238,121 @@ test.describe('Simple Theme System - E2E Tests', () => {
     // Black & White primary is white
     expect(result!.computed).toBe('rgb(255, 255, 255)');
   });
+
+  /**
+   * Palette remap: Tailwind colour utilities must resolve through bridged theme
+   * vars (app/globals.css @theme inline), not stock Tailwind palette values.
+   * Asserted under two themes so a single-theme coincidence cannot pass.
+   */
+  for (const { path, label } of [
+    { path: '/', label: 'home' },
+    { path: '/about', label: 'about' },
+  ]) {
+    for (const { name, id } of [
+      { name: 'Black & White', id: 'black-white' },
+      { name: 'Blue Tron', id: 'blue-tron' },
+    ]) {
+      test(`palette tokens follow theme on ${label} under ${name}`, async ({ page }) => {
+        await page.goto(path);
+        await page.waitForLoadState('networkidle');
+
+        await page.locator(`button:has-text("${name}")`).click();
+        await expect(page.locator('html')).toHaveAttribute('data-theme', id);
+        // ThemeProvider injects a 300ms color transition on * during switches;
+        // wait for it so getComputedStyle is not mid-interpolation.
+        await page.waitForTimeout(350);
+
+        const result = await page.evaluate(() => {
+          const byClass = (token: string) =>
+            Array.from(document.querySelectorAll<HTMLElement>('*')).find((el) =>
+              el.classList.contains(token)
+            );
+
+          const grayEl = byClass('text-gray-300');
+          const cyanEl = byClass('text-cyan-400');
+          const borderEl = byClass('border-cyan-500/20');
+          if (!grayEl || !cyanEl || !borderEl) {
+            return {
+              ok: false as const,
+              missing: {
+                gray: !grayEl,
+                cyan: !cyanEl,
+                border: !borderEl,
+              },
+            };
+          }
+
+          const grayColor = getComputedStyle(grayEl).color;
+          const cyanColor = getComputedStyle(cyanEl).color;
+          const borderColor = getComputedStyle(borderEl).borderTopColor;
+
+          // Theme-derived expectations via probe elements (runtime var resolution).
+          const probeGray = document.createElement('span');
+          probeGray.style.color = 'var(--text-secondary)';
+          document.body.appendChild(probeGray);
+          const expectedGray = getComputedStyle(probeGray).color;
+          probeGray.remove();
+
+          const probeCyan = document.createElement('span');
+          probeCyan.style.color = 'var(--accent-cyan)';
+          document.body.appendChild(probeCyan);
+          const expectedCyan = getComputedStyle(probeCyan).color;
+          probeCyan.remove();
+
+          const probeBorder = document.createElement('div');
+          probeBorder.style.borderTopWidth = '1px';
+          probeBorder.style.borderTopStyle = 'solid';
+          // Match Tailwind v4 /20: color-mix with the opaque palette source.
+          probeBorder.style.borderTopColor =
+            'color-mix(in oklab, var(--accent-cyan) 20%, transparent)';
+          document.body.appendChild(probeBorder);
+          const expectedBorder = getComputedStyle(probeBorder).borderTopColor;
+          probeBorder.remove();
+
+          const parseAlpha = (color: string): number => {
+            // rgba(r, g, b, a) or rgb(r g b / a) or color(srgb r g b / a)
+            const slash = color.match(/\/\s*([0-9.]+)\s*\)/);
+            if (slash) return parseFloat(slash[1]);
+            const legacy = color.match(
+              /rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*,\s*([0-9.]+)\s*\)/
+            );
+            if (legacy) return parseFloat(legacy[1]);
+            // Fully opaque rgb(...) has alpha 1
+            if (/^rgb\(/.test(color)) return 1;
+            return NaN;
+          };
+
+          return {
+            ok: true as const,
+            grayColor,
+            cyanColor,
+            borderColor,
+            expectedGray,
+            expectedCyan,
+            expectedBorder,
+            borderAlpha: parseAlpha(borderColor),
+          };
+        });
+
+        expect(result.ok, `missing tokens on ${path}: ${JSON.stringify(result)}`).toBe(
+          true
+        );
+        if (!result.ok) return;
+
+        // Stock Tailwind defaults that must NOT survive a theme remap.
+        expect(result.grayColor).not.toBe('rgb(209, 213, 219)'); // gray-300
+        expect(result.cyanColor).not.toBe('rgb(34, 211, 238)'); // cyan-400
+
+        // Opacity modifier must not compound into invisibility, and must stay
+        // a real alpha (opaque rgb → alpha 1.0 would also pass a lower bound alone).
+        expect(result.borderAlpha).toBeGreaterThan(0.1);
+        expect(result.borderAlpha).toBeLessThan(0.5);
+
+        // Theme-derived equality.
+        expect(result.grayColor).toBe(result.expectedGray);
+        expect(result.cyanColor).toBe(result.expectedCyan);
+        expect(result.borderColor).toBe(result.expectedBorder);
+      });
+    }
+  }
 });

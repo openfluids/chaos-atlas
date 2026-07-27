@@ -235,7 +235,7 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
         <button
           onClick={handleExportPNG}
           disabled={isExporting || !svgElement}
-          className="w-full bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-sm transition-colors flex items-center justify-center gap-2"
+          className="w-full bg-cyan-600 hover:opacity-90 disabled:bg-gray-700 disabled:text-gray-500 text-white px-4 py-2 rounded-sm transition flex items-center justify-center gap-2"
         >
           {isExporting ? (
             <>
@@ -256,14 +256,14 @@ export const ExportControls: React.FC<ExportControlsProps> = ({
           <button
             onClick={handleExportSVG}
             disabled={isExporting || !svgElement}
-            className="bg-purple-600 hover:bg-purple-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
+            className="bg-purple-600 hover:opacity-90 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition text-sm"
           >
             Export SVG
           </button>
           <button
             onClick={handleExportCSV}
             disabled={isExporting || data.length === 0}
-            className="bg-green-600 hover:bg-green-500 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition-colors text-sm"
+            className="bg-green-600 hover:opacity-90 disabled:bg-gray-700 disabled:text-gray-500 text-white px-3 py-2 rounded-sm transition text-sm"
           >
             Export CSV
           </button>

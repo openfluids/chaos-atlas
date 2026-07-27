@@ -14,6 +14,63 @@
 }
 
 /*
+ * Theme-aware Tailwind palette overrides.
+ *
+ * Use `@theme inline` (not plain `@theme`) so utilities emit the runtime var
+ * reference directly — e.g. color: var(--accent-cyan) — instead of an intermediate
+ * --color-* that would be resolved at build time and ignore applyThemeCSSProperties.
+ * All sources are OPAQUE bridged vars so opacity modifiers (/20, /30, …) apply
+ * via color-mix once, not on an already-transparent value.
+ *
+ * Deliberately NOT mapped this cycle (solid accent button BGs → white-on-white
+ * under Black & White next to text-white): cyan-600, cyan-700, purple-600, green-600.
+ */
+@theme inline {
+  /* --accent-cyan (theme primary) */
+  --color-cyan-300: var(--accent-cyan);
+  --color-cyan-400: var(--accent-cyan);
+  --color-cyan-500: var(--accent-cyan);
+
+  /* --text-secondary */
+  --color-gray-300: var(--text-secondary);
+
+  /* --text-muted */
+  --color-gray-400: var(--text-muted);
+  --color-gray-500: var(--text-muted);
+
+  /*
+   * gray-600/700/800/900 deliberately NOT mapped.
+   * --bg-secondary is blend(background → border, 0.18), tuned for card FILLS,
+   * and has nowhere near the separation an affordance needs (slider track,
+   * inactive border). A themed surface ladder is a separate cycle.
+   */
+
+  /* surfaces / labels */
+  --color-black: var(--bg-primary);
+  --color-white: var(--text-primary);
+
+  /* --accent-magenta (theme secondary) */
+  --color-purple-400: var(--accent-magenta);
+  --color-purple-500: var(--accent-magenta);
+  --color-pink-400: var(--accent-magenta);
+  --color-pink-500: var(--accent-magenta);
+
+  /* --accent-orange (theme tertiary) */
+  --color-orange-400: var(--accent-orange);
+  --color-orange-500: var(--accent-orange);
+  --color-yellow-400: var(--accent-orange);
+  --color-yellow-500: var(--accent-orange);
+  --color-yellow-900: var(--accent-orange);
+
+  /* --viz-tertiary */
+  --color-green-500: var(--viz-tertiary);
+
+  /* --accent-red (theme warning) — used if/when red-* appears in source */
+  --color-red-400: var(--accent-red);
+  --color-red-500: var(--accent-red);
+}
+
+/*
   The default border color has changed to `currentcolor` in Tailwind CSS v4,
   so we've added these compatibility styles to make sure everything still
   looks the same as it did with Tailwind CSS v3.
