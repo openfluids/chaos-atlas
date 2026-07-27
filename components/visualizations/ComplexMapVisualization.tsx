@@ -12,6 +12,24 @@ import {
   type FractalColorScheme,
   type FractalEscapeResult
 } from '@/lib/maps/complexQuadratic';
+import { ParamSlider } from '@/components/ui/ParamSlider';
+
+/** Slider domain for Julia c. Every preset from getInterestingJuliaParameters()
+ *  fits in [-2, 2]. Values with |c| > 2 escape the critical orbit immediately
+ *  (Cantor-dust Julia sets), so clamping click-to-set into this box loses no
+ *  picture worth showing — and without a clamp, zoomLevel=0.1 can land near c≈±20. */
+export const JULIA_C_REAL_MIN = -2;
+export const JULIA_C_REAL_MAX = 2;
+export const JULIA_C_IMAG_MIN = -2;
+export const JULIA_C_IMAG_MAX = 2;
+export const JULIA_C_STEP = 0.001;
+
+function clampJuliaC(real: number, imag: number): { real: number; imag: number } {
+  return {
+    real: Math.min(JULIA_C_REAL_MAX, Math.max(JULIA_C_REAL_MIN, real)),
+    imag: Math.min(JULIA_C_IMAG_MAX, Math.max(JULIA_C_IMAG_MIN, imag)),
+  };
+}
 
 const ComplexMapVisualization: React.FC = () => {
   const [visualizationType, setVisualizationType] = useState<'julia' | 'mandelbrot'>('julia');
@@ -113,8 +131,11 @@ const ComplexMapVisualization: React.FC = () => {
       const complexY = location.y - range / 2 + (y / height) * range;
 
       // Clicking a point in the Mandelbrot set shows the corresponding
-      // Julia set for c = (complexX, complexY).
-      setCustomJuliaC(new ComplexNumber(complexX, complexY));
+      // Julia set for c = (complexX, complexY). Clamp into the slider domain:
+      // zoom can map a click far outside [-2, 2], and |c| > 2 is Cantor dust
+      // (critical orbit escapes), so no clamped-away value was worth showing.
+      const clamped = clampJuliaC(complexX, complexY);
+      setCustomJuliaC(new ComplexNumber(clamped.real, clamped.imag));
       setVisualizationType('julia');
     }
   };
@@ -125,7 +146,9 @@ const ComplexMapVisualization: React.FC = () => {
 
   const getCurrentInfo = () => {
     if (visualizationType === 'julia') {
-      const name = customJuliaC ? 'Custom (from Mandelbrot click)' : juliaParameters[selectedJuliaParam].name;
+      // customJuliaC is set by slider drag or Mandelbrot click — do not
+      // attribute it to a click that may never have happened.
+      const name = customJuliaC ? 'Custom' : juliaParameters[selectedJuliaParam].name;
       return {
         title: `Julia Set: ${name}`,
         equation: `z_{n+1} = z_n² + ${currentJuliaC.real.toFixed(3)} + ${currentJuliaC.imag.toFixed(3)}i`,
@@ -253,13 +276,20 @@ const ComplexMapVisualization: React.FC = () => {
                 Julia Set Parameter
               </label>
               <select
-                value={selectedJuliaParam}
+                value={customJuliaC !== null ? 'custom' : String(selectedJuliaParam)}
                 onChange={(e) => {
-                  setSelectedJuliaParam(parseInt(e.target.value));
+                  const v = e.target.value;
+                  if (v === 'custom') return;
+                  setSelectedJuliaParam(parseInt(v, 10));
                   setCustomJuliaC(null);
                 }}
                 className="w-full p-2 bg-gray-800 text-gray-300 border border-cyan-500/20 rounded-lg focus:outline-hidden focus:border-cyan-400/40"
               >
+                {customJuliaC !== null && (
+                  <option value="custom">
+                    Custom (c = {customJuliaC.real.toFixed(3)} + {customJuliaC.imag.toFixed(3)}i)
+                  </option>
+                )}
                 {juliaParameters.map((param, index) => (
                   <option key={index} value={index}>
                     {param.name} (c = {param.c.real.toFixed(3)} + {param.c.imag.toFixed(3)}i)
@@ -288,34 +318,52 @@ const ComplexMapVisualization: React.FC = () => {
             </div>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
-              Max Iterations: {maxIterations}
-            </label>
-            <input
-              type="range"
-              min="50"
-              max="1000"
-              step="50"
-              value={maxIterations}
-              onChange={(e) => setMaxIterations(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-            />
-          </div>
+          {/* Julia c sliders register first so play animates Re(c). They write
+              customJuliaC and read currentJuliaC — one source of truth shared
+              with the preset dropdown (clears customJuliaC) and Mandelbrot
+              click-to-set. */}
+          {visualizationType === 'julia' && (
+            <>
+              <ParamSlider
+                label={`Re(c): ${currentJuliaC.real.toFixed(3)}`}
+                min={JULIA_C_REAL_MIN}
+                max={JULIA_C_REAL_MAX}
+                step={JULIA_C_STEP}
+                value={currentJuliaC.real}
+                onChange={(real) =>
+                  setCustomJuliaC((prev) => {
+                    const imag = prev?.imag ?? juliaParameters[selectedJuliaParam].c.imag;
+                    return new ComplexNumber(real, imag);
+                  })
+                }
+              />
+              <ParamSlider
+                label={`Im(c): ${currentJuliaC.imag.toFixed(3)}`}
+                min={JULIA_C_IMAG_MIN}
+                max={JULIA_C_IMAG_MAX}
+                step={JULIA_C_STEP}
+                value={currentJuliaC.imag}
+                onChange={(imag) =>
+                  setCustomJuliaC((prev) => {
+                    const real = prev?.real ?? juliaParameters[selectedJuliaParam].c.real;
+                    return new ComplexNumber(real, imag);
+                  })
+                }
+              />
+            </>
+          )}
 
+          {/* Zoom first among Mandelbrot continuous controls so it is the
+              default playback axis when Max Iterations is opted out. */}
           {visualizationType === 'mandelbrot' && (
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Zoom Level: {zoomLevel}x
-              </label>
-              <input
-                type="range"
-                min="0.1"
-                max="10"
-                step="0.1"
+              <ParamSlider
+                label={`Zoom Level: ${zoomLevel}x`}
+                min={0.1}
+                max={10}
+                step={0.1}
                 value={zoomLevel}
-                onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
-                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                onChange={setZoomLevel}
               />
               <button
                 onClick={resetZoom}
@@ -325,6 +373,17 @@ const ComplexMapVisualization: React.FC = () => {
               </button>
             </div>
           )}
+
+          <ParamSlider
+            label={`Max Iterations: ${maxIterations}`}
+            min={50}
+            max={1000}
+            step={50}
+            value={maxIterations}
+            onChange={setMaxIterations}
+            parse={parseInt}
+            animate={false}
+          />
 
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
