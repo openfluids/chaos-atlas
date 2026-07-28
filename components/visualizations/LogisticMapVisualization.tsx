@@ -3,6 +3,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import {
+  initChartBase,
+  ensureChartDataGroup,
+  renderChartAxes,
+  renderAxisLabelsPlain,
+  renderChartTitleAccent,
+  upsertMark,
+  joinByIndex,
+} from './chartHelpers';
 
 const LogisticMapVisualization: React.FC = () => {
   const [r, setR] = useState(3.5);
@@ -26,305 +35,254 @@ const LogisticMapVisualization: React.FC = () => {
   const theme = themes[currentTheme as keyof typeof themes];
 
   useEffect(() => {
-    if (!svgRef.current) return;
+    const chart = initChartBase(svgRef, width, height, { background: theme.background });
+    if (!chart) return;
+    const { g, innerWidth, innerHeight } = chart;
 
-    // Clear previous visualization
-    d3.select(svgRef.current).selectAll('*').remove();
+    // Structural data group: survives clearEphemeralChildren; mode wipe on type change.
+    const dataG = ensureChartDataGroup(g, visualizationType);
 
-    const svg = d3.select(svgRef.current);
-
-    // Set margins
-    const margin = { top: 40, right: 20, bottom: 60, left: 60 };
-    const innerWidth = width - margin.left - margin.right;
-    const innerHeight = height - margin.top - margin.bottom;
-
-    // Create main group for the visualization
-    const mainGroup = svg.append('g')
-      .attr('data-data', 'true')
-      .attr('transform', `translate(${margin.left},${margin.top})`);
-
-    // Add background
-    mainGroup.append('rect')
-      .attr('width', innerWidth)
-      .attr('height', innerHeight)
-      .attr('fill', theme.background)
-      .attr('rx', 5)
-      .attr('data-background', 'true');
-    
-    // Create scales
     let xScale = d3.scaleLinear()
       .domain([0, 1])
       .range([0, innerWidth]);
-    
+
     let yScale = d3.scaleLinear()
       .domain([0, 1])
       .range([innerHeight, 0]);
-    
-    // Render based on visualization type
+
     if (visualizationType === 'cobweb') {
-      renderCobweb(mainGroup, innerWidth, innerHeight, xScale, yScale);
+      renderCobweb(dataG, xScale, yScale);
     } else if (visualizationType === 'time') {
       const timeScale = d3.scaleLinear()
         .domain([0, iterations])
         .range([0, innerWidth]);
-      renderTimeSeries(mainGroup, innerWidth, innerHeight, timeScale, yScale);
+      renderTimeSeries(dataG, timeScale, yScale);
       xScale = timeScale;
     } else if (visualizationType === 'bifurcation') {
       const rScale = d3.scaleLinear()
         .domain([2.5, 4.0])
         .range([0, innerWidth]);
-      renderBifurcation(mainGroup, innerWidth, innerHeight, rScale, yScale);
-      xScale = rScale; // Update for axis
+      renderBifurcation(dataG, rScale, yScale, innerHeight);
+      xScale = rScale;
     }
-    
-    // Add grid
-    mainGroup.append('g')
-      .attr('class', 'grid')
-      .selectAll('grid-line-x')
-      .data(xScale.ticks(10))
-      .enter()
-      .append('line')
-      .attr('data-grid', 'true')
-      .attr('x1', d => xScale(d))
-      .attr('y1', 0)
-      .attr('x2', d => xScale(d))
-      .attr('y2', innerHeight)
-      .attr('stroke', theme.grid)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '2,2');
 
-    mainGroup.append('g')
-      .attr('class', 'grid')
-      .selectAll('grid-line-y')
-      .data(yScale.ticks(10))
-      .enter()
-      .append('line')
-      .attr('data-grid', 'true')
-      .attr('x1', 0)
-      .attr('y1', d => yScale(d))
-      .attr('x2', innerWidth)
-      .attr('y2', d => yScale(d))
-      .attr('stroke', theme.grid)
-      .attr('stroke-width', 1)
-      .attr('stroke-dasharray', '2,2');
+    // Grid (index-keyed so tick count changes exit/enter minimally)
+    joinByIndex<number, SVGLineElement>(
+      dataG,
+      'line.grid-x',
+      'line',
+      xScale.ticks(10),
+      'grid-x',
+      (sel) => {
+        sel
+          .attr('data-grid', 'true')
+          .attr('x1', (d) => xScale(d))
+          .attr('y1', 0)
+          .attr('x2', (d) => xScale(d))
+          .attr('y2', innerHeight)
+          .attr('stroke', theme.grid)
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '2,2');
+      }
+    );
+    joinByIndex<number, SVGLineElement>(
+      dataG,
+      'line.grid-y',
+      'line',
+      yScale.ticks(10),
+      'grid-y',
+      (sel) => {
+        sel
+          .attr('data-grid', 'true')
+          .attr('x1', 0)
+          .attr('y1', (d) => yScale(d))
+          .attr('x2', innerWidth)
+          .attr('y2', (d) => yScale(d))
+          .attr('stroke', theme.grid)
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', '2,2');
+      }
+    );
 
-    // Add axes
-    mainGroup.append('g')
-      .attr('data-axis', 'x')
-      .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text, line, path')
+    // Axes (idempotent structural ticks)
+    renderChartAxes(g, xScale, yScale, innerHeight);
+    g.selectAll('g.x-axis text, g.x-axis line, g.x-axis path, g.y-axis text, g.y-axis line, g.y-axis path')
       .style('color', theme.axis);
 
-    mainGroup.append('g')
-      .attr('data-axis', 'y')
-      .call(d3.axisLeft(yScale))
-      .selectAll('text, line, path')
-      .style('color', theme.axis);
-    
-    // Add axis labels
     const xLabel = visualizationType === 'time' ? 'Iteration' :
                    visualizationType === 'bifurcation' ? 'Parameter r' : 'x';
-
-    mainGroup.append('text')
-      .attr('data-label', 'x-axis')
-      .attr('x', innerWidth / 2)
-      .attr('y', innerHeight + 45)
-      .attr('text-anchor', 'middle')
-      .style('fill', theme.text)
-      .style('font-size', '14px')
-      .text(xLabel);
-
-    mainGroup.append('text')
-      .attr('data-label', 'y-axis')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -innerHeight / 2)
-      .attr('y', -40)
-      .attr('text-anchor', 'middle')
-      .style('fill', theme.text)
-      .style('font-size', '14px')
-      .text(visualizationType === 'bifurcation' ? 'x' : 'f(x)');
-
-    // Add title
-    mainGroup.append('text')
-      .attr('data-label', 'title')
-      .attr('x', innerWidth / 2)
-      .attr('y', -15)
-      .attr('text-anchor', 'middle')
+    const yLabel = visualizationType === 'bifurcation' ? 'x' : 'f(x)';
+    renderAxisLabelsPlain(g, innerWidth, innerHeight, xLabel, yLabel);
+    g.selectAll('text.x-axis-label, text.y-axis-label').style('fill', theme.text);
+    renderChartTitleAccent(g, innerWidth, `Logistic Map (r = ${r.toFixed(2)})`);
+    g.select('text.chart-title')
       .style('fill', theme.primary)
-      .style('font-weight', 'bold')
-      .style('font-size', '18px')
-      .text(`Logistic Map (r = ${r.toFixed(2)})`);
-    
+      .style('font-size', '18px');
+
     function renderCobweb(
-      g: d3.Selection<SVGGElement, unknown, null, undefined>, 
-      width: number, 
-      height: number,
-      xScale: d3.ScaleLinear<number, number>,
-      yScale: d3.ScaleLinear<number, number>
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
     ) {
-      // Logistic function
       const logistic = (x: number) => r * x * (1 - x);
-      
-      // Draw the logistic curve
       const curve = d3.line<number>()
-        .x(d => xScale(d))
-        .y(d => yScale(logistic(d)));
-      
+        .x((d) => xs(d))
+        .y((d) => ys(logistic(d)));
       const points = d3.range(0, 1.001, 0.01);
-      
-      g.append('path')
+
+      upsertMark<SVGPathElement>(parent, 'path', 'logistic-curve')
         .datum(points)
         .attr('fill', 'none')
         .attr('stroke', theme.primary)
         .attr('stroke-width', 2)
         .attr('d', curve);
 
-      // Draw the diagonal line (y = x)
-      g.append('line')
-        .attr('x1', xScale(0))
-        .attr('y1', yScale(0))
-        .attr('x2', xScale(1))
-        .attr('y2', yScale(1))
+      upsertMark<SVGLineElement>(parent, 'line', 'diagonal')
+        .attr('x1', xs(0))
+        .attr('y1', ys(0))
+        .attr('x2', xs(1))
+        .attr('y2', ys(1))
         .attr('stroke', theme.secondary)
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '5,5');
-      
-      // Calculate and draw the cobweb
-      const cobwebPoints = [];
+
+      const cobwebPoints: { x: number; y: number }[] = [];
       let x = x0;
-      
       for (let i = 0; i < Math.min(iterations, 20); i++) {
         const y = logistic(x);
         cobwebPoints.push({ x, y });
         x = y;
       }
-      
-      // Draw cobweb lines
-      for (let i = 0; i < cobwebPoints.length - 1; i++) {
-        // Vertical line
-        g.append('line')
-          .attr('x1', xScale(cobwebPoints[i].x))
-          .attr('y1', yScale(cobwebPoints[i].y))
-          .attr('x2', xScale(cobwebPoints[i].y))
-          .attr('y2', yScale(cobwebPoints[i].y))
-          .attr('stroke', theme.tertiary)
-          .attr('stroke-width', 1.5);
 
-        // Horizontal line
-        if (i < cobwebPoints.length - 1) {
-          g.append('line')
-            .attr('x1', xScale(cobwebPoints[i].y))
-            .attr('y1', yScale(cobwebPoints[i].y))
-            .attr('x2', xScale(cobwebPoints[i].y))
-            .attr('y2', yScale(cobwebPoints[i + 1] ? logistic(cobwebPoints[i].y) : cobwebPoints[i].y))
+      // Each cobweb step = vertical then horizontal segment.
+      type Seg = { x1: number; y1: number; x2: number; y2: number };
+      const segs: Seg[] = [];
+      for (let i = 0; i < cobwebPoints.length - 1; i++) {
+        const p = cobwebPoints[i];
+        const nextY = logistic(p.y);
+        segs.push({
+          x1: p.x,
+          y1: p.y,
+          x2: p.y,
+          y2: p.y,
+        });
+        segs.push({
+          x1: p.y,
+          y1: p.y,
+          x2: p.y,
+          y2: nextY,
+        });
+      }
+
+      joinByIndex<Seg, SVGLineElement>(
+        parent,
+        'line.cobweb-seg',
+        'line',
+        segs,
+        'cobweb-seg',
+        (sel) => {
+          sel
+            .attr('x1', (d) => xs(d.x1))
+            .attr('y1', (d) => ys(d.y1))
+            .attr('x2', (d) => xs(d.x2))
+            .attr('y2', (d) => ys(d.y2))
             .attr('stroke', theme.tertiary)
             .attr('stroke-width', 1.5);
         }
-      }
+      );
     }
-    
+
     function renderTimeSeries(
-      g: d3.Selection<SVGGElement, unknown, null, undefined>, 
-      width: number, 
-      height: number,
-      xScale: d3.ScaleLinear<number, number>,
-      yScale: d3.ScaleLinear<number, number>
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
     ) {
-      // Logistic function
       const logistic = (x: number) => r * x * (1 - x);
-      
-      // Calculate time series
-      const timeSeriesPoints = [];
+      const timeSeriesPoints: { i: number; x: number }[] = [];
       let x = x0;
-      
       for (let i = 0; i < iterations; i++) {
         timeSeriesPoints.push({ i, x });
         x = logistic(x);
       }
-      
-      // Create line generator
+
       const line = d3.line<{ i: number; x: number }>()
-        .x(d => xScale(d.i))
-        .y(d => yScale(d.x));
-      
-      // Add the line path
-      g.append('path')
+        .x((d) => xs(d.i))
+        .y((d) => ys(d.x));
+
+      upsertMark<SVGPathElement>(parent, 'path', 'time-series')
         .datum(timeSeriesPoints)
         .attr('fill', 'none')
         .attr('stroke', theme.primary)
         .attr('stroke-width', 2)
         .attr('d', line);
 
-      // Add points
-      g.selectAll('.time-point')
-        .data(timeSeriesPoints)
-        .enter()
-        .append('circle')
-        .attr('class', 'time-point')
-        .attr('cx', d => xScale(d.i))
-        .attr('cy', d => yScale(d.x))
-        .attr('r', 2)
-        .attr('fill', theme.primary);
+      joinByIndex<{ i: number; x: number }, SVGCircleElement>(
+        parent,
+        'circle.time-point',
+        'circle',
+        timeSeriesPoints,
+        'time-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xs(d.i))
+            .attr('cy', (d) => ys(d.x))
+            .attr('r', 2)
+            .attr('fill', theme.primary);
+        }
+      );
     }
-    
+
     function renderBifurcation(
-      g: d3.Selection<SVGGElement, unknown, null, undefined>, 
-      width: number, 
-      height: number,
-      xScale: d3.ScaleLinear<number, number>,
-      yScale: d3.ScaleLinear<number, number>
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>,
+      chartHeight: number
     ) {
-      // For each r value, calculate the attractor
       const rValues = d3.range(2.5, 4.001, 0.01);
-      const bifurcationPoints = [];
-      
+      const bifurcationPoints: { r: number; x: number }[] = [];
+
       for (const rVal of rValues) {
-        // Logistic function for this r value
         const logistic = (x: number) => rVal * x * (1 - x);
-        
-        // Calculate the attractor
         let x = 0.5;
-        
-        // Discard transient
         for (let i = 0; i < 100; i++) {
           x = logistic(x);
         }
-        
-        // Collect attractor points
         for (let i = 0; i < 20; i++) {
           x = logistic(x);
           bifurcationPoints.push({ r: rVal, x });
         }
       }
-      
-      // Add points
-      g.selectAll('.bifurcation-point')
-        .data(bifurcationPoints)
-        .enter()
-        .append('circle')
-        .attr('class', 'bifurcation-point')
-        .attr('cx', d => xScale(d.r))
-        .attr('cy', d => yScale(d.x))
-        .attr('r', 0.5)
-        .attr('fill', theme.primary)
-        .attr('opacity', 0.7);
 
-      // Add current r value line
-      g.append('line')
-        .attr('x1', xScale(r))
+      joinByIndex<{ r: number; x: number }, SVGCircleElement>(
+        parent,
+        'circle.bifurcation-point',
+        'circle',
+        bifurcationPoints,
+        'bifurcation-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xs(d.r))
+            .attr('cy', (d) => ys(d.x))
+            .attr('r', 0.5)
+            .attr('fill', theme.primary)
+            .attr('opacity', 0.7);
+        }
+      );
+
+      upsertMark<SVGLineElement>(parent, 'line', 'current-r')
+        .attr('x1', xs(r))
         .attr('y1', 0)
-        .attr('x2', xScale(r))
-        .attr('y2', height)
+        .attr('x2', xs(r))
+        .attr('y2', chartHeight)
         .attr('stroke', theme.secondary)
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5');
     }
-    
-  }, [r, x0, iterations, visualizationType, theme]);
+
+  }, [r, x0, iterations, visualizationType, currentTheme]);
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
+    <div className="logistic-map-visualization min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
       <div className="container mx-auto px-4 py-8">
         {/* Header with Theme Switcher */}
         <div className="flex justify-between items-center mb-6">

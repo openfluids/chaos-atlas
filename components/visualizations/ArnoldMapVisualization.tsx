@@ -23,7 +23,11 @@ import {
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  upsertMark,
+  joinByIndex,
 } from './chartHelpers';
+
+type Pt = { x: number; y: number };
 
 const ArnoldMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
@@ -54,19 +58,19 @@ const ArnoldMapVisualization: React.FC = () => {
   };
 
   useEffect(() => {
-    const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                             innerWidth: number, innerHeight: number,
-                             xScale: d3.ScaleLinear<number, number>,
-                             yScale: d3.ScaleLinear<number, number>) => {
+    const renderTrajectory = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const data = calculateArnoldMap({ x: initialX, y: initialY }, iterations);
 
-      // Draw trajectory line
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
+      const line = d3.line<Pt>()
+        .x((d) => xScale(d.x))
+        .y((d) => yScale(d.y))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(parent, 'path', 'traj-line')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -74,116 +78,199 @@ const ArnoldMapVisualization: React.FC = () => {
         .attr('opacity', 0.8)
         .attr('d', line);
 
-      // Draw points
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 2)
-        .attr('fill', 'var(--accent-cyan)')
-        .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length));
+      joinByIndex<Pt, SVGCircleElement>(
+        parent,
+        'circle.traj-point',
+        'circle',
+        data,
+        'traj-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xScale(d.x))
+            .attr('cy', (d) => yScale(d.y))
+            .attr('r', 2)
+            .attr('fill', 'var(--accent-cyan)')
+            .attr('opacity', (_d, i) => 0.3 + (0.7 * i) / Math.max(data.length, 1));
+        }
+      );
     };
 
-    const renderGridTransform = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                plotWidth: number, plotHeight: number,
-                                offsetX: number, offsetY: number) => {
-      const data = calculateArnoldGridTransform(gridSize, isAnimating ? animationStep + 1 : gridIterations);
-      // The cat map's grid is a discretized unit square: square cells,
-      // not cells stretched to a 520x300 box.
+    const renderGridTransform = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      plotWidth: number,
+      plotHeight: number,
+      offsetX: number,
+      offsetY: number
+    ) => {
+      const data = calculateArnoldGridTransform(
+        gridSize,
+        isAnimating ? animationStep + 1 : gridIterations
+      );
       const cellWidth = plotWidth / gridSize;
       const cellHeight = plotHeight / gridSize;
-
-      // Create color scale
       const colorScale = d3.scaleSequential(d3.interpolateViridis)
         .domain([0, gridSize * gridSize]);
 
+      const cells: { x: number; y: number; value: number }[] = [];
       data.forEach((row, y) => {
         row.forEach((value, x) => {
-          g.append('rect')
-            .attr('x', offsetX + x * cellWidth)
-            .attr('y', offsetY + y * cellHeight)
+          cells.push({ x, y, value });
+        });
+      });
+
+      joinByIndex<{ x: number; y: number; value: number }, SVGRectElement>(
+        parent,
+        'rect.grid-cell',
+        'rect',
+        cells,
+        'grid-cell',
+        (sel) => {
+          sel
+            .attr('x', (d) => offsetX + d.x * cellWidth)
+            .attr('y', (d) => offsetY + d.y * cellHeight)
             .attr('width', cellWidth)
             .attr('height', cellHeight)
-            .attr('fill', colorScale(value))
+            .attr('fill', (d) => colorScale(d.value))
             .attr('stroke', 'var(--text-secondary)')
             .attr('stroke-width', 0.5)
             .attr('opacity', 0.9);
-        });
-      });
+        }
+      );
     };
 
-    const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>,
-                                 plotWidth: number, plotHeight: number) => {
+    const renderImageScrambling = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>,
+      plotWidth: number,
+      plotHeight: number
+    ) => {
       const frames = calculateArnoldImageScrambling(24, 24, 12);
       const currentFrame = frames[animationStep];
-
-      currentFrame.forEach(row => {
-        row.forEach(point => {
-          g.append('rect')
-            .attr('x', xScale(point.x) - plotWidth / 48)
-            .attr('y', yScale(point.y) - plotHeight / 48)
-            .attr('width', plotWidth / 24)
-            .attr('height', plotHeight / 24)
-            .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
-            .attr('stroke', 'none')
-            .attr('opacity', 0.9);
+      const cells: {
+        x: number;
+        y: number;
+        r: number;
+        g: number;
+        b: number;
+      }[] = [];
+      currentFrame.forEach((row) => {
+        row.forEach((point) => {
+          cells.push({
+            x: point.x,
+            y: point.y,
+            r: point.color.r,
+            g: point.color.g,
+            b: point.color.b,
+          });
         });
       });
+
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        parent,
+        'rect.scramble-cell',
+        'rect',
+        cells,
+        'scramble-cell',
+        (sel) => {
+          sel
+            .attr('x', (d) => xScale(d.x) - plotWidth / 48)
+            .attr('y', (d) => yScale(d.y) - plotHeight / 48)
+            .attr('width', plotWidth / 24)
+            .attr('height', plotHeight / 24)
+            .attr('fill', (d) => `rgb(${d.r}, ${d.g}, ${d.b})`)
+            .attr('stroke', 'none')
+            .attr('opacity', 0.9);
+        }
+      );
     };
 
-    const renderPeriodicOrbits = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 innerWidth: number, innerHeight: number,
-                                 xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>) => {
+    const renderPeriodicOrbits = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const orbits = calculateArnoldPeriodicOrbits(5);
       const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-      orbits.forEach((orbit, orbitIndex) => {
-        const line = d3.line<{x: number, y: number}>()
-          .x(d => xScale(d.x))
-          .y(d => yScale(d.y))
-          .curve(d3.curveLinear);
+      // One path per orbit (keyed by orbit index).
+      joinByIndex<{ orbit: Pt[]; period: number }, SVGPathElement>(
+        parent,
+        'path.orbit-line',
+        'path',
+        orbits,
+        'orbit-line',
+        (sel) => {
+          const line = d3.line<Pt>()
+            .x((d) => xScale(d.x))
+            .y((d) => yScale(d.y))
+            .curve(d3.curveLinear);
+          sel
+            .attr('fill', 'none')
+            .attr('stroke', (_d, i) => colorScale(String(i)) as string)
+            .attr('stroke-width', 2)
+            .attr('opacity', 0.8)
+            .attr('d', (d) => line(d.orbit));
+        }
+      );
 
-        g.append('path')
-          .datum(orbit.orbit)
-          .attr('fill', 'none')
-          .attr('stroke', colorScale(orbitIndex.toString()) as string)
-          .attr('stroke-width', 2)
-          .attr('opacity', 0.8)
-          .attr('d', line);
+      const points = orbits.flatMap((orbit, orbitIndex) =>
+        orbit.orbit.map((p) => ({ ...p, orbitIndex }))
+      );
+      joinByIndex<{ x: number; y: number; orbitIndex: number }, SVGCircleElement>(
+        parent,
+        'circle.orbit-point',
+        'circle',
+        points,
+        'orbit-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xScale(d.x))
+            .attr('cy', (d) => yScale(d.y))
+            .attr('r', 3)
+            .attr('fill', (d) => colorScale(String(d.orbitIndex)) as string);
+        }
+      );
 
-        // Add points
-        g.selectAll(`circle.orbit-${orbitIndex}`)
-          .data(orbit.orbit)
-          .enter()
-          .append('circle')
-          .attr('class', `orbit-${orbitIndex}`)
-          .attr('cx', d => xScale(d.x))
-          .attr('cy', d => yScale(d.y))
-          .attr('r', 3)
-          .attr('fill', colorScale(orbitIndex.toString()) as string);
-
-        // Add period label
-        if (orbit.orbit.length > 0) {
-          g.append('text')
-            .attr('x', xScale(orbit.orbit[0].x))
-            .attr('y', yScale(orbit.orbit[0].y) - 10)
+      const labels = orbits
+        .filter((o) => o.orbit.length > 0)
+        .map((o, i) => ({
+          x: o.orbit[0].x,
+          y: o.orbit[0].y,
+          period: o.period,
+          i,
+        }));
+      joinByIndex<typeof labels[number], SVGTextElement>(
+        parent,
+        'text.orbit-label',
+        'text',
+        labels,
+        'orbit-label',
+        (sel) => {
+          sel
+            .attr('x', (d) => xScale(d.x))
+            .attr('y', (d) => yScale(d.y) - 10)
             .attr('text-anchor', 'middle')
             .style('fill', 'var(--text-primary)')
             .style('font-size', '10px')
-            .text(`P=${orbit.period}`);
+            .each(function (d) {
+              const el = this as SVGTextElement;
+              const next = `P=${d.period}`;
+              if (el.firstChild && el.firstChild.nodeType === Node.TEXT_NODE) {
+                if (el.firstChild.nodeValue !== next) el.firstChild.nodeValue = next;
+              } else {
+                el.textContent = next;
+              }
+            });
         }
-      });
+      );
     };
 
-    const renderFibonacciRelation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                    innerWidth: number, innerHeight: number,
-                                    _xScale: d3.ScaleLinear<number, number>,
-                                    _yScale: d3.ScaleLinear<number, number>) => {
+    const renderFibonacciRelation = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      innerWidth: number,
+      innerHeight: number
+    ) => {
       const data = calculateArnoldFibonacciRelation(15);
       const { lambda1 } = calculateArnoldEigenvalues();
 
@@ -192,11 +279,10 @@ const ArnoldMapVisualization: React.FC = () => {
         .range([0, innerWidth]);
 
       const yScaleFib = d3.scaleLinear()
-        .domain([0, Math.max(...data.map(d => d.fibonacci))])
+        .domain([0, Math.max(...data.map((d) => d.fibonacci))])
         .range([innerHeight, 0]);
 
-      // Draw eigenvalue line
-      g.append('line')
+      upsertMark<SVGLineElement>(parent, 'line', 'eigen-line')
         .attr('x1', 0)
         .attr('y1', yScaleFib(lambda1))
         .attr('x2', innerWidth)
@@ -205,40 +291,54 @@ const ArnoldMapVisualization: React.FC = () => {
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5');
 
-      // Draw Fibonacci ratios
-      const line = d3.line<{n: number, ratio: number}>()
-        .x(d => xScaleFib(d.n))
-        .y(d => yScaleFib(d.ratio))
+      const ratioData = data.filter((d) => d.ratio > 0);
+      const line = d3.line<{ n: number; ratio: number }>()
+        .x((d) => xScaleFib(d.n))
+        .y((d) => yScaleFib(d.ratio))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
-        .datum(data.filter(d => d.ratio > 0))
+      upsertMark<SVGPathElement>(parent, 'path', 'fib-line')
+        .datum(ratioData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 2)
         .attr('d', line);
 
-      // Add points
-      g.selectAll('circle')
-        .data(data.filter(d => d.ratio > 0))
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScaleFib(d.n))
-        .attr('cy', d => yScaleFib(d.ratio))
-        .attr('r', 3)
-        .attr('fill', 'var(--accent-orange)');
+      joinByIndex<{ n: number; ratio: number }, SVGCircleElement>(
+        parent,
+        'circle.fib-point',
+        'circle',
+        ratioData,
+        'fib-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xScaleFib(d.n))
+            .attr('cy', (d) => yScaleFib(d.ratio))
+            .attr('r', 3)
+            .attr('fill', 'var(--accent-orange)');
+        }
+      );
 
-      // Add eigenvalue label
-      g.append('text')
+      upsertMark<SVGTextElement>(parent, 'text', 'eigen-label')
         .attr('x', innerWidth - 50)
         .attr('y', yScaleFib(lambda1) - 10)
         .style('fill', 'var(--text-primary)')
         .style('font-size', '12px')
-        .text(`λ₁ = ${lambda1.toFixed(3)}`);
+        .each(function () {
+          const next = `λ₁ = ${lambda1.toFixed(3)}`;
+          if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+            if (this.firstChild.nodeValue !== next) this.firstChild.nodeValue = next;
+          } else {
+            this.textContent = next;
+          }
+        });
     };
 
-    const renderMatrixProperties = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   innerWidth: number, innerHeight: number) => {
+    const renderMatrixProperties = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      innerWidth: number,
+      innerHeight: number
+    ) => {
       const { trace, determinant } = calculateArnoldMatrixProperties();
       const { lambda1, lambda2 } = calculateArnoldEigenvalues();
 
@@ -248,32 +348,60 @@ const ArnoldMapVisualization: React.FC = () => {
         { label: 'Determinant', value: determinant.toString() },
         { label: 'λ₁ = φ²', value: lambda1.toFixed(6) },
         { label: 'λ₂', value: lambda2.toFixed(6) },
-        { label: 'Area Preserving', value: 'Yes (det = 1)' }
+        { label: 'Area Preserving', value: 'Yes (det = 1)' },
       ];
 
-      properties.forEach((prop, i) => {
-        g.append('text')
-          .attr('x', 20)
-          .attr('y', 40 + i * 35)
-          .style('fill', 'var(--text-primary)')
-          .style('font-size', '16px')
-          .style('font-weight', 'bold')
-          .text(`${prop.label}:`);
+      joinByIndex<typeof properties[number], SVGTextElement>(
+        parent,
+        'text.prop-label',
+        'text',
+        properties,
+        'prop-label',
+        (sel) => {
+          sel
+            .attr('x', 20)
+            .attr('y', (_d, i) => 40 + i * 35)
+            .style('fill', 'var(--text-primary)')
+            .style('font-size', '16px')
+            .style('font-weight', 'bold')
+            .each(function (d) {
+              const next = `${d.label}:`;
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== next) this.firstChild.nodeValue = next;
+              } else {
+                this.textContent = next;
+              }
+            });
+        }
+      );
 
-        g.append('text')
-          .attr('x', 200)
-          .attr('y', 40 + i * 35)
-          .style('fill', 'var(--accent-cyan)')
-          .style('font-size', '16px')
-          .text(prop.value);
-      });
+      joinByIndex<typeof properties[number], SVGTextElement>(
+        parent,
+        'text.prop-value',
+        'text',
+        properties,
+        'prop-value',
+        (sel) => {
+          sel
+            .attr('x', 200)
+            .attr('y', (_d, i) => 40 + i * 35)
+            .style('fill', 'var(--accent-cyan)')
+            .style('font-size', '16px')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.value) this.firstChild.nodeValue = d.value;
+              } else {
+                this.textContent = d.value;
+              }
+            });
+        }
+      );
 
-      // Draw unit square
       const squareSize = Math.min(innerWidth, innerHeight) * 0.3;
       const squareX = (innerWidth - squareSize) / 2;
       const squareY = innerHeight - squareSize - 50;
 
-      g.append('rect')
+      upsertMark<SVGRectElement>(parent, 'rect', 'unit-square')
         .attr('x', squareX)
         .attr('y', squareY)
         .attr('width', squareSize)
@@ -282,22 +410,19 @@ const ArnoldMapVisualization: React.FC = () => {
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 2);
 
-      // Draw transformed square corners
       const corners = [
         { x: 0, y: 0 },
         { x: 1, y: 0 },
         { x: 1, y: 1 },
-        { x: 0, y: 1 }
+        { x: 0, y: 1 },
       ];
-
-      const transformedCorners = corners.map(c => calculateArnoldIteration(c));
-
-      const transformLine = d3.line<{x: number, y: number}>()
-        .x(d => squareX + d.x * squareSize)
-        .y(d => squareY + (1 - d.y) * squareSize)
+      const transformedCorners = corners.map((c) => calculateArnoldIteration(c));
+      const transformLine = d3.line<Pt>()
+        .x((d) => squareX + d.x * squareSize)
+        .y((d) => squareY + (1 - d.y) * squareSize)
         .curve(d3.curveLinearClosed);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(parent, 'path', 'transformed-square')
         .datum(transformedCorners)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
@@ -321,56 +446,51 @@ const ArnoldMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // The Arnold cat map is *defined* by area preservation on the unit
-    // torus [0,1]^2 -- drawing it at the chart's native 520x300 aspect
-    // visibly shears its eigendirections. equalAspectScales letterboxes to
-    // a square plot rect instead of fitting x and y independently.
     const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
       equalAspectScales([0, 1], [0, 1], innerWidth, innerHeight);
 
     const squareViews = visualizationType === 'trajectory' || visualizationType === 'grid' ||
       visualizationType === 'scrambling' || visualizationType === 'periodic';
-    const dataGroup = squareViews
-      ? createClippedDataGroup(
-          svg,
-          g,
-          { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight },
-          'arnold-plot-clip'
-        )
-      : g;
 
-    // Render based on visualization type
+    // Structural data group; mode wipe when the mark identity set changes.
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      squareViews
+        ? { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight }
+        : { x: 0, y: 0, width: innerWidth, height: innerHeight },
+      'arnold-plot-clip',
+      visualizationType
+    );
+
     if (visualizationType === 'trajectory') {
-      renderTrajectory(dataGroup, innerWidth, innerHeight, xScale, yScale);
+      renderTrajectory(dataGroup, xScale, yScale);
     } else if (visualizationType === 'grid') {
       renderGridTransform(dataGroup, plotWidth, plotHeight, offsetX, offsetY);
     } else if (visualizationType === 'scrambling') {
       renderImageScrambling(dataGroup, xScale, yScale, plotWidth, plotHeight);
     } else if (visualizationType === 'periodic') {
-      renderPeriodicOrbits(dataGroup, innerWidth, innerHeight, xScale, yScale);
+      renderPeriodicOrbits(dataGroup, xScale, yScale);
     } else if (visualizationType === 'fibonacci') {
-      renderFibonacciRelation(g, innerWidth, innerHeight, xScale, yScale);
+      renderFibonacciRelation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'properties') {
-      renderMatrixProperties(g, innerWidth, innerHeight);
+      renderMatrixProperties(dataGroup, innerWidth, innerHeight);
     }
 
-    // Add axes for appropriate visualizations
     if (visualizationType !== 'properties' && visualizationType !== 'fibonacci') {
       renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
       renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, 'x', 'y');
     }
 
-    // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
   }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep, isAnimating]);
 
   return (
-    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
+    <div className="arnold-map-visualization p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Arnold Cat Map Visualization</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Controls */}
         <div className="space-y-4">
           <ParamSlider
             label={<>Initial x₀: {initialX.toFixed(2)}</>}
@@ -449,7 +569,6 @@ const ArnoldMapVisualization: React.FC = () => {
             </button>
           )}
 
-          {/* Eigenvalues Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm font-medium text-cyan-400 mb-1">Eigenvalues:</p>
             <p className="text-xs text-gray-300 font-mono">
@@ -463,7 +582,6 @@ const ArnoldMapVisualization: React.FC = () => {
             </p>
           </div>
 
-          {/* Equation Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm font-medium text-cyan-400 mb-1">Equations:</p>
             <p className="text-xs text-gray-300 font-mono">
@@ -475,7 +593,6 @@ const ArnoldMapVisualization: React.FC = () => {
           </div>
         </div>
 
-        {/* Visualization */}
         <div className="flex justify-center">
           <svg
             ref={svgRef}

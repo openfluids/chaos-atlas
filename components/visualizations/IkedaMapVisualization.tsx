@@ -19,8 +19,11 @@ import {
   initChartBase,
   equalAspectScales,
   createClippedDataGroup,
+  renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  upsertMark,
+  joinByIndex,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -98,7 +101,7 @@ const IkedaMapVisualization: React.FC = () => {
         .y(d => yScale(d.x))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'x-evol')
         .datum(displayData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
@@ -111,29 +114,31 @@ const IkedaMapVisualization: React.FC = () => {
         .y(d => yScale(d.y))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'y-evol')
         .datum(displayData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 1.5)
         .attr('d', yLine);
 
-      // Add current point indicator if animating
-      if (isAnimating && displayData.length > 0) {
-        const currentPoint = displayData[displayData.length - 1];
-
-        g.append('circle')
-          .attr('cx', xScale(currentPoint.time))
-          .attr('cy', yScale(currentPoint.x))
-          .attr('r', 4)
-          .attr('fill', 'var(--accent-cyan)');
-
-        g.append('circle')
-          .attr('cx', xScale(currentPoint.time))
-          .attr('cy', yScale(currentPoint.y))
-          .attr('r', 4)
-          .attr('fill', 'var(--accent-orange)');
-      }
+      // Current-point indicators: always join 0 or 1 element so nodes exit cleanly.
+      const cur = (isAnimating && displayData.length > 0)
+        ? [displayData[displayData.length - 1]]
+        : [];
+      joinByIndex<typeof displayData[number], SVGCircleElement>(
+        g, 'circle.cur-x', 'circle', cur, 'cur-x',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.time)).attr('cy', d => yScale(d.x))
+            .attr('r', 4).attr('fill', 'var(--accent-cyan)');
+        }
+      );
+      joinByIndex<typeof displayData[number], SVGCircleElement>(
+        g, 'circle.cur-y', 'circle', cur, 'cur-y',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.time)).attr('cy', d => yScale(d.y))
+            .attr('r', 4).attr('fill', 'var(--accent-orange)');
+        }
+      );
     };
 
     const renderBifurcation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -157,15 +162,13 @@ const IkedaMapVisualization: React.FC = () => {
         .domain([-2, 2])
         .range([innerHeight, 0]);
 
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.paramValue))
-        .attr('cy', d => yScale(d.x))
-        .attr('r', 0.5)
-        .attr('fill', 'var(--accent-cyan)')
-        .attr('opacity', 0.6);
+      joinByIndex<typeof data[number], SVGCircleElement>(
+        g, 'circle.bif-point', 'circle', data, 'bif-point',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.paramValue)).attr('cy', d => yScale(d.x))
+            .attr('r', 0.5).attr('fill', 'var(--accent-cyan)').attr('opacity', 0.6);
+        }
+      );
     };
 
     const renderPhasePortrait = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -179,7 +182,7 @@ const IkedaMapVisualization: React.FC = () => {
         .y(d => yScale(d.y))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'phase-line')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -187,18 +190,17 @@ const IkedaMapVisualization: React.FC = () => {
         .attr('opacity', 0.8)
         .attr('d', line);
 
-      // Add phase color coding
       const colorScale = d3.scaleSequential(d3.interpolateViridis)
         .domain([0, data.length]);
+      const sampled = data.filter((_d, i) => i % 10 === 0);
 
-      g.selectAll('circle')
-        .data(data.filter((d, i) => i % 10 === 0)) // Sample every 10th point
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 2)
-        .attr('fill', (d, i) => colorScale(i * 10));
+      joinByIndex<typeof data[number], SVGCircleElement>(
+        g, 'circle.phase-point', 'circle', sampled, 'phase-point',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.x)).attr('cy', d => yScale(d.y))
+            .attr('r', 2).attr('fill', (_d, i) => colorScale(i * 10));
+        }
+      );
     };
 
     const renderPowerSpectrum = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -220,20 +222,19 @@ const IkedaMapVisualization: React.FC = () => {
         .y(d => yScale(d.powerX))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'spec-x')
         .datum(spectrum)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
         .attr('stroke-width', 2)
         .attr('d', xLine);
 
-      // Y component spectrum
       const yLine = d3.line<{frequency: number; powerX: number; powerY: number}>()
         .x(d => xScale(d.frequency))
         .y(d => yScale(d.powerY))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'spec-y')
         .datum(spectrum)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -248,18 +249,15 @@ const IkedaMapVisualization: React.FC = () => {
       const trajectory = calculateIkedaAttractor(currentParams.params, iterations);
       const returnPoints = calculateIkedaReturnMap(trajectory, 0);
 
-      g.selectAll('circle')
-        .data(returnPoints)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 3)
-        .attr('fill', 'var(--accent-magenta)')
-        .attr('opacity', 0.8);
+      joinByIndex<typeof returnPoints[number], SVGCircleElement>(
+        g, 'circle.return-point', 'circle', returnPoints, 'return-point',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.x)).attr('cy', d => yScale(d.y))
+            .attr('r', 3).attr('fill', 'var(--accent-magenta)').attr('opacity', 0.8);
+        }
+      );
 
-      // Add section line
-      g.append('line')
+      upsertMark<SVGLineElement>(g, 'line', 'section-line')
         .attr('x1', xScale(0))
         .attr('y1', offsetY)
         .attr('x2', xScale(0))
@@ -323,48 +321,38 @@ const IkedaMapVisualization: React.FC = () => {
       });
     }
 
-    const dataGroup = squareViews && layout
-      ? createClippedDataGroup(
-          svg,
-          g,
-          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
-          'ikeda-plot-clip'
-        )
-      : g;
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      squareViews && layout
+        ? { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight }
+        : { x: 0, y: 0, width: innerWidth, height: innerHeight },
+      'ikeda-plot-clip',
+      visualizationType
+    );
 
     // Render based on visualization type
     if (visualizationType === 'time') {
-      renderTimeEvolution(g, innerWidth, innerHeight);
+      renderTimeEvolution(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'bifurcation') {
-      renderBifurcation(g, innerWidth, innerHeight);
+      renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'phase' && layout) {
       renderPhasePortrait(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'spectrum') {
-      renderPowerSpectrum(g, innerWidth, innerHeight);
+      renderPowerSpectrum(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'return' && layout) {
       renderReturnMap(dataGroup, layout.xScale, layout.yScale, layout.offsetY, layout.plotHeight);
     }
 
-    // Add axes for appropriate visualizations
+    // Axes (idempotent structural ticks)
     if (visualizationType !== 'spectrum') {
       const axisXScale = layout?.xScale ?? d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
       const axisYScale = layout?.yScale ?? d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
       const axisOffsetX = layout?.offsetX ?? 0;
       const axisOffsetY = layout?.offsetY ?? 0;
 
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight - axisOffsetY})`)
-        .call(d3.axisBottom(axisXScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
+      renderChartAxes(g, axisXScale, axisYScale, innerHeight, axisOffsetX, axisOffsetY);
 
-      g.append('g')
-        .attr('transform', `translate(${axisOffsetX},0)`)
-        .call(d3.axisLeft(axisYScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      // Add axis labels
       const xLabel = visualizationType === 'time' ? 'Time' :
                      visualizationType === 'bifurcation' ? 'Parameter Value' :
                      visualizationType === 'spectrum' ? 'Frequency' : 'x';

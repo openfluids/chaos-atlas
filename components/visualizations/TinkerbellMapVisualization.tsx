@@ -22,6 +22,8 @@ import {
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  joinByIndex,
+  upsertMark,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -77,15 +79,14 @@ const TinkerbellMapVisualization: React.FC = () => {
     const renderFixedPointMarkers = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                             xScale: d3.ScaleLinear<number, number>,
                             yScale: d3.ScaleLinear<number, number>) => {
-      fixedPoints.forEach(fp => {
-        g.append('circle')
-          .attr('cx', xScale(fp.x))
-          .attr('cy', yScale(fp.y))
-          .attr('r', 4)
-          .attr('fill', 'var(--accent-cyan)')
-          .attr('stroke', 'white')
-          .attr('stroke-width', 1);
-      });
+      joinByIndex<typeof fixedPoints[number], SVGCircleElement>(
+        g, 'circle.fp-marker', 'circle', fixedPoints, 'fp-marker',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.x)).attr('cy', d => yScale(d.y))
+            .attr('r', 4).attr('fill', 'var(--accent-cyan)')
+            .attr('stroke', 'white').attr('stroke-width', 1);
+        }
+      );
     };
 
     const renderBasinOfAttraction = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -97,45 +98,47 @@ const TinkerbellMapVisualization: React.FC = () => {
       const cellWidth = plotWidth / 80;
       const cellHeight = plotHeight / 80;
 
+      const cells: { x: number; y: number; value: number }[] = [];
       basinData.forEach((row, y) => {
-        row.forEach((value, x) => {
-          const color = value === -1 ? 'var(--accent-red)' :
-                       value === 0 ? 'rgba(50, 50, 50, 0.5)' :
-                       'var(--accent-cyan)';
-
-          g.append('rect')
-            .attr('x', offsetX + x * cellWidth)
-            .attr('y', offsetY + y * cellHeight)
-            .attr('width', cellWidth)
-            .attr('height', cellHeight)
-            .attr('fill', color)
-            .attr('opacity', 0.8)
-            .attr('stroke', 'none');
-        });
+        row.forEach((value, x) => cells.push({ x, y, value }));
       });
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        g, 'rect.basin-cell', 'rect', cells, 'basin-cell',
+        (sel) => {
+          sel.attr('x', d => offsetX + d.x * cellWidth)
+            .attr('y', d => offsetY + d.y * cellHeight)
+            .attr('width', cellWidth).attr('height', cellHeight)
+            .attr('fill', d => d.value === -1 ? 'var(--accent-red)' :
+                              d.value === 0 ? 'rgba(50, 50, 50, 0.5)' :
+                              'var(--accent-cyan)')
+            .attr('opacity', 0.8).attr('stroke', 'none');
+        }
+      );
 
-      // Add legend
       const legendData = [
         { color: 'var(--accent-cyan)', label: 'Attracts to origin' },
         { color: 'rgba(50, 50, 50, 0.5)', label: 'Other attractor' },
         { color: 'var(--accent-red)', label: 'Escapes to infinity' }
       ];
-
-      legendData.forEach((item, i) => {
-        g.append('rect')
-          .attr('x', 10)
-          .attr('y', 10 + i * 20)
-          .attr('width', 15)
-          .attr('height', 15)
-          .attr('fill', item.color);
-
-        g.append('text')
-          .attr('x', 30)
-          .attr('y', 22 + i * 20)
-          .style('fill', 'var(--text-primary)')
-          .style('font-size', '12px')
-          .text(item.label);
-      });
+      joinByIndex<typeof legendData[number], SVGRectElement>(
+        g, 'rect.legend-swatch', 'rect', legendData, 'legend-swatch',
+        (sel) => {
+          sel.attr('x', 10).attr('y', (_d, i) => 10 + i * 20)
+            .attr('width', 15).attr('height', 15).attr('fill', d => d.color);
+        }
+      );
+      joinByIndex<typeof legendData[number], SVGTextElement>(
+        g, 'text.legend-label', 'text', legendData, 'legend-label',
+        (sel) => {
+          sel.attr('x', 30).attr('y', (_d, i) => 22 + i * 20)
+            .style('fill', 'var(--text-primary)').style('font-size', '12px')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.label) this.firstChild.nodeValue = d.label;
+              } else { this.textContent = d.label; }
+            });
+        }
+      );
     };
 
     const renderBifurcation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -159,15 +162,13 @@ const TinkerbellMapVisualization: React.FC = () => {
         .domain([-2, 2])
         .range([innerHeight, 0]);
 
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.paramValue))
-        .attr('cy', d => yScale(d.x))
-        .attr('r', 0.5)
-        .attr('fill', 'var(--accent-magenta)')
-        .attr('opacity', 0.6);
+      joinByIndex<typeof data[number], SVGCircleElement>(
+        g, 'circle.bif-point', 'circle', data, 'bif-point',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.paramValue)).attr('cy', d => yScale(d.x))
+            .attr('r', 0.5).attr('fill', 'var(--accent-magenta)').attr('opacity', 0.6);
+        }
+      );
     };
 
     const renderCrisisBehavior = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -195,34 +196,31 @@ const TinkerbellMapVisualization: React.FC = () => {
         .domain([d3.min(data, d => d.lyapunov) || -1, d3.max(data, d => d.lyapunov) || 1])
         .range([innerHeight * 0.8, innerHeight * 0.2]);
 
-      // Attractor size line
       const sizeLine = d3.line<{paramValue: number; attractorSize: number; lyapunov: number}>()
         .x(d => xScale(d.paramValue))
         .y(d => yScale1(d.attractorSize))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'crisis-size')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
         .attr('stroke-width', 2)
         .attr('d', sizeLine);
 
-      // Lyapunov exponent line
       const lyapunovLine = d3.line<{paramValue: number; attractorSize: number; lyapunov: number}>()
         .x(d => xScale(d.paramValue))
         .y(d => yScale2(d.lyapunov))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'crisis-lyap')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 2)
         .attr('d', lyapunovLine);
 
-      // Add zero line for Lyapunov
-      g.append('line')
+      upsertMark<SVGLineElement>(g, 'line', 'lyap-zero')
         .attr('x1', 0)
         .attr('y1', yScale2(0))
         .attr('x2', innerWidth)
@@ -231,57 +229,47 @@ const TinkerbellMapVisualization: React.FC = () => {
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '5,5');
 
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight * 0.9})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
+      const legend = [
+        { y: 20, color: 'var(--accent-cyan)', label: 'Attractor Size' },
+        { y: 40, color: 'var(--accent-orange)', label: 'Lyapunov Sum' },
+      ];
+      joinByIndex<typeof legend[number], SVGTextElement>(
+        g, 'text.crisis-legend', 'text', legend, 'crisis-legend',
+        (sel) => {
+          sel.attr('x', 10).attr('y', (d) => d.y)
+            .style('fill', (d) => d.color).style('font-size', '12px')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.label) this.firstChild.nodeValue = d.label;
+              } else { this.textContent = d.label; }
+            });
+        }
+      );
 
-      // Add labels
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(`Parameter ${bifurcationParam}`);
-
-      // Legend
-      g.append('text')
-        .attr('x', 10)
-        .attr('y', 20)
-        .style('fill', 'var(--accent-cyan)')
-        .style('font-size', '12px')
-        .text('Attractor Size');
-
-      g.append('text')
-        .attr('x', 10)
-        .attr('y', 40)
-        .style('fill', 'var(--accent-orange)')
-        .style('font-size', '12px')
-        .text('Lyapunov Sum');
+      return {
+        xScale,
+        yScale: yScale2,
+        xLabel: `Parameter ${bifurcationParam}`,
+      };
     };
 
-    const renderReturnMap = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                            innerWidth: number, innerHeight: number,
-                            xScale: d3.ScaleLinear<number, number>,
-                            yScale: d3.ScaleLinear<number, number>,
-                            offsetX: number, offsetY: number) => {
+    const renderReturnMap = (
+      g: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const trajectory = calculateTinkerbellAttractor(currentParams.params, 1000);
       const returnData = calculateTinkerbellReturnMap(trajectory, 'x', 1);
 
-      g.selectAll('circle')
-        .data(returnData)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.current))
-        .attr('cy', d => yScale(d.next))
-        .attr('r', 1)
-        .attr('fill', 'var(--accent-magenta)')
-        .attr('opacity', 0.6);
+      joinByIndex<typeof returnData[number], SVGCircleElement>(
+        g, 'circle.return-point', 'circle', returnData, 'return-point',
+        (sel) => {
+          sel.attr('cx', (d) => xScale(d.current)).attr('cy', (d) => yScale(d.next))
+            .attr('r', 1).attr('fill', 'var(--accent-magenta)').attr('opacity', 0.6);
+        }
+      );
 
-      // Add diagonal line
-      g.append('line')
+      upsertMark<SVGLineElement>(g, 'line', 'return-diag')
         .attr('x1', xScale(-2))
         .attr('y1', yScale(-2))
         .attr('x2', xScale(2))
@@ -289,47 +277,16 @@ const TinkerbellMapVisualization: React.FC = () => {
         .attr('stroke', 'var(--text-secondary)')
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '5,5');
-
-      // Update axes for return map
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight - offsetY})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .attr('transform', `translate(${offsetX},0)`)
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('xₙ');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('xₙ₊₁');
     };
 
-    const renderFixedPoints = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                              innerWidth: number, innerHeight: number,
-                              xScale: d3.ScaleLinear<number, number>,
-                              yScale: d3.ScaleLinear<number, number>,
-                              offsetX: number, offsetY: number) => {
-      // Draw attractor as background
+    const renderFixedPoints = (
+      g: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const attractorData = calculateTinkerbellAttractor(currentParams.params, 1000);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'fp-attractor')
         .datum(attractorData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -340,61 +297,41 @@ const TinkerbellMapVisualization: React.FC = () => {
           .y(d => yScale(d.y))
           .curve(d3.curveLinear));
 
-      // Highlight fixed points
-      fixedPoints.forEach((fp, i) => {
-        g.append('circle')
-          .attr('cx', xScale(fp.x))
-          .attr('cy', yScale(fp.y))
-          .attr('r', 6)
-          .attr('fill', 'var(--accent-cyan)')
-          .attr('stroke', 'white')
-          .attr('stroke-width', 2);
-
-        g.append('text')
-          .attr('x', xScale(fp.x) + 10)
-          .attr('y', yScale(fp.y) - 10)
-          .style('fill', 'var(--text-primary)')
-          .style('font-size', '12px')
-          .style('font-weight', 'bold')
-          .text(`FP${i + 1}`);
-
-        g.append('text')
-          .attr('x', xScale(fp.x) + 10)
-          .attr('y', yScale(fp.y) + 5)
-          .style('fill', 'var(--text-secondary)')
-          .style('font-size', '10px')
-          .text(`(${fp.x.toFixed(3)}, ${fp.y.toFixed(3)})`);
-      });
-
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight - offsetY})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .attr('transform', `translate(${offsetX},0)`)
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('y');
+      joinByIndex<typeof fixedPoints[number], SVGCircleElement>(
+        g, 'circle.fp-hl', 'circle', fixedPoints, 'fp-hl',
+        (sel) => {
+          sel.attr('cx', (d) => xScale(d.x)).attr('cy', (d) => yScale(d.y))
+            .attr('r', 6).attr('fill', 'var(--accent-cyan)')
+            .attr('stroke', 'white').attr('stroke-width', 2);
+        }
+      );
+      joinByIndex<typeof fixedPoints[number], SVGTextElement>(
+        g, 'text.fp-name', 'text', fixedPoints, 'fp-name',
+        (sel) => {
+          sel.attr('x', (d) => xScale(d.x) + 10).attr('y', (d) => yScale(d.y) - 10)
+            .style('fill', 'var(--text-primary)').style('font-size', '12px')
+            .style('font-weight', 'bold')
+            .each(function (_d, i) {
+              const label = `FP${i + 1}`;
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== label) this.firstChild.nodeValue = label;
+              } else { this.textContent = label; }
+            });
+        }
+      );
+      joinByIndex<typeof fixedPoints[number], SVGTextElement>(
+        g, 'text.fp-coord', 'text', fixedPoints, 'fp-coord',
+        (sel) => {
+          sel.attr('x', (d) => xScale(d.x) + 10).attr('y', (d) => yScale(d.y) + 5)
+            .style('fill', 'var(--text-secondary)').style('font-size', '10px')
+            .each(function (d) {
+              const label = `(${d.x.toFixed(3)}, ${d.y.toFixed(3)})`;
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== label) this.firstChild.nodeValue = label;
+              } else { this.textContent = label; }
+            });
+        }
+      );
     };
 
     const getVisualizationTitle = () => {
@@ -450,32 +387,44 @@ const TinkerbellMapVisualization: React.FC = () => {
       });
     }
 
-    const dataGroup = squareViews && layout
-      ? createClippedDataGroup(
-          svg,
-          g,
-          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
-          'tinkerbell-plot-clip'
-        )
-      : g;
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      squareViews && layout
+        ? { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight }
+        : { x: 0, y: 0, width: innerWidth, height: innerHeight },
+      'tinkerbell-plot-clip',
+      visualizationType
+    );
 
     // Render based on visualization type
+    let crisisAxes: {
+      xScale: d3.ScaleLinear<number, number>;
+      yScale: d3.ScaleLinear<number, number>;
+      xLabel: string;
+    } | null = null;
+
     if (visualizationType === 'attractor' && layout) {
       renderFixedPointMarkers(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'basin' && layout) {
       renderBasinOfAttraction(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
     } else if (visualizationType === 'bifurcation') {
-      renderBifurcation(g, innerWidth, innerHeight);
+      renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'crisis') {
-      renderCrisisBehavior(g, innerWidth, innerHeight);
+      crisisAxes = renderCrisisBehavior(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'return' && layout) {
-      renderReturnMap(dataGroup, innerWidth, innerHeight, layout.xScale, layout.yScale, layout.offsetX, layout.offsetY);
+      renderReturnMap(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'fixed' && layout) {
-      renderFixedPoints(dataGroup, innerWidth, innerHeight, layout.xScale, layout.yScale, layout.offsetX, layout.offsetY);
+      renderFixedPoints(dataGroup, layout.xScale, layout.yScale);
     }
 
-    // Add axes for appropriate visualizations
-    if (visualizationType !== 'crisis') {
+    // Idempotent axes on the chart root (not inside the clipped data group).
+    if (crisisAxes) {
+      renderChartAxes(g, crisisAxes.xScale, crisisAxes.yScale, innerHeight);
+      renderAxisLabelsRotated(
+        g, innerWidth, innerHeight, margin.left, crisisAxes.xLabel, undefined
+      );
+    } else {
       const xDomain: [number, number] = visualizationType === 'bifurcation' ?
         [bifurcationParam === 'a' ? 0.3 : bifurcationParam === 'b' ? -1.0 : 1.5,
          bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : [-2, 2];
@@ -488,9 +437,9 @@ const TinkerbellMapVisualization: React.FC = () => {
 
       renderChartAxes(g, xScale, yScale, innerHeight, axisOffsetX, axisOffsetY);
 
-      // Add axis labels
-      const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}` : 'x';
-      const yLabel = visualizationType === 'bifurcation' ? 'y' : 'y';
+      const xLabel = visualizationType === 'bifurcation' ? `Parameter ${bifurcationParam}`
+        : visualizationType === 'return' ? 'xₙ' : 'x';
+      const yLabel = visualizationType === 'return' ? 'xₙ₊₁' : 'y';
 
       renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, xLabel, yLabel);
     }

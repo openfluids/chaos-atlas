@@ -15,9 +15,12 @@ import { ParamSlider } from '@/components/ui/ParamSlider';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
+  ensureChartDataGroup,
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  upsertMark,
+  joinByIndex,
 } from './chartHelpers';
 
 const TentMapVisualization: React.FC = () => {
@@ -42,184 +45,11 @@ const TentMapVisualization: React.FC = () => {
   const height = 400;
 
   useEffect(() => {
-    const renderCobweb = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                         innerWidth: number, innerHeight: number,
-                         xScale: d3.ScaleLinear<number, number>,
-                         yScale: d3.ScaleLinear<number, number>) => {
-      // Draw the tent map function
-      const tentData = [];
-      for (let x = 0; x <= 1; x += 0.01) {
-        tentData.push({
-          x: x,
-          y: x < 0.5 ? alpha * x : alpha * (1 - x)
-        });
-      }
-
-      // Draw tent map
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(tentData)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-cyan)')
-        .attr('stroke-width', 2)
-        .attr('d', line);
-
-      // Draw diagonal line
-      g.append('line')
-        .attr('x1', xScale(0))
-        .attr('y1', yScale(0))
-        .attr('x2', xScale(1))
-        .attr('y2', yScale(1))
-        .attr('stroke', 'var(--text-secondary)')
-        .attr('stroke-width', 1)
-        .attr('stroke-dasharray', '5,5');
-
-      // Draw cobweb
-      const cobwebData = calculateTentCobweb(alpha, x0, iterations);
-
-      g.append('path')
-        .datum(cobwebData)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-orange)')
-        .attr('stroke-width', 1.5)
-        .attr('d', line);
-    };
-
-    const renderTimeSeries = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                             innerWidth: number, innerHeight: number,
-                             xScale: d3.ScaleLinear<number, number>,
-                             yScale: d3.ScaleLinear<number, number>) => {
-      const data = calculateTentMap(alpha, x0, iterations);
-
-      const line = d3.line<number>()
-        .x((d, i) => xScale(i))
-        .y(d => yScale(d))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-orange)')
-        .attr('stroke-width', 2)
-        .attr('d', line);
-
-      // Add points
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', (d, i) => xScale(i))
-        .attr('cy', d => yScale(d))
-        .attr('r', 2)
-        .attr('fill', 'var(--accent-cyan)');
-    };
-
-    const renderBifurcation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                              innerWidth: number, innerHeight: number,
-                              xScale: d3.ScaleLinear<number, number>,
-                              yScale: d3.ScaleLinear<number, number>) => {
-      const data = calculateTentBifurcation(
-        { min: 0.5, max: 2.0 },
-        0.01,
-        0.4,
-        500,
-        50
-      );
-
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 0.5)
-        .attr('fill', 'var(--accent-cyan)')
-        .attr('opacity', 0.6);
-    };
-
-    const renderInvariantDensity = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   innerWidth: number, innerHeight: number,
-                                   xScale: d3.ScaleLinear<number, number>,
-                                   yScale: d3.ScaleLinear<number, number>) => {
-      const data = calculateTentInvariantDensity(alpha, 100, 10000);
-
-      const line = d3.line<{x: number, density: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.density))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(data)
-        .attr('fill', 'none')
-        .attr('stroke', 'var(--accent-orange)')
-        .attr('stroke-width', 2)
-        .attr('d', line);
-
-      // Add area under curve
-      const area = d3.area<{x: number, density: number}>()
-        .x(d => xScale(d.x))
-        .y0(innerHeight)
-        .y1(d => yScale(d.density))
-        .curve(d3.curveLinear);
-
-      g.append('path')
-        .datum(data)
-        .attr('fill', 'var(--accent-cyan)')
-        .attr('opacity', 0.3)
-        .attr('d', area);
-    };
-
-    const renderSymbolicDynamics = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   innerWidth: number, innerHeight: number,
-                                   xScale: d3.ScaleLinear<number, number>) => {
-      const symbols = calculateTentSymbolicDynamics(alpha, x0, iterations);
-      const symbolWidth = innerWidth / iterations;
-
-      g.selectAll('rect')
-        .data(symbols)
-        .enter()
-        .append('rect')
-        .attr('x', (d, i) => xScale(i / iterations))
-        .attr('y', innerHeight / 3)
-        .attr('width', symbolWidth * 0.8)
-        .attr('height', innerHeight / 3)
-        .attr('fill', d => d === 'L' ? 'var(--accent-cyan)' : 'var(--accent-orange)')
-        .attr('opacity', 0.8);
-
-      // Add symbols text
-      g.selectAll('text')
-        .data(symbols.slice(0, Math.min(50, symbols.length))) // Limit text display
-        .enter()
-        .append('text')
-        .attr('x', (d, i) => xScale(i / iterations) + symbolWidth / 2)
-        .attr('y', innerHeight / 2)
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '10px')
-        .text(d => d);
-    };
-
-    const getVisualizationTitle = () => {
-      switch (visualizationType) {
-        case 'cobweb': return 'Tent Map Cobweb Plot';
-        case 'time': return 'Tent Map Time Series';
-        case 'bifurcation': return 'Tent Map Bifurcation Diagram';
-        case 'density': return 'Invariant Density';
-        case 'symbolic': return 'Symbolic Dynamics';
-        default: return 'Tent Map Visualization';
-      }
-    };
-
     const chart = initChartBase(svgRef, width, height, { background: 'rgba(0, 0, 0, 0.1)' });
     if (!chart) return;
     const { g, margin, innerWidth, innerHeight } = chart;
+    const dataG = ensureChartDataGroup(g, visualizationType);
 
-    // Create scales
     let xScale = d3.scaleLinear()
       .domain([0, 1])
       .range([0, innerWidth]);
@@ -228,32 +58,30 @@ const TentMapVisualization: React.FC = () => {
       .domain([0, 1])
       .range([innerHeight, 0]);
 
-    // Render based on visualization type
     if (visualizationType === 'cobweb') {
-      renderCobweb(g, innerWidth, innerHeight, xScale, yScale);
+      renderCobweb(dataG, xScale, yScale);
     } else if (visualizationType === 'time') {
       const timeScale = d3.scaleLinear()
         .domain([0, iterations])
         .range([0, innerWidth]);
-      renderTimeSeries(g, innerWidth, innerHeight, timeScale, yScale);
+      renderTimeSeries(dataG, timeScale, yScale);
+      xScale = timeScale;
     } else if (visualizationType === 'bifurcation') {
       const alphaScale = d3.scaleLinear()
         .domain([0.5, 2.0])
         .range([0, innerWidth]);
-      renderBifurcation(g, innerWidth, innerHeight, alphaScale, yScale);
-      xScale = alphaScale; // Update for axis
+      renderBifurcation(dataG, alphaScale, yScale);
+      xScale = alphaScale;
     } else if (visualizationType === 'density') {
-      renderInvariantDensity(g, innerWidth, innerHeight, xScale, yScale);
+      renderInvariantDensity(dataG, innerHeight, xScale, yScale);
     } else if (visualizationType === 'symbolic') {
-      renderSymbolicDynamics(g, innerWidth, innerHeight, xScale);
+      renderSymbolicDynamics(dataG, innerHeight, xScale);
     }
 
-    // Add axes
     if (visualizationType !== 'symbolic') {
       renderChartAxes(g, xScale, yScale, innerHeight);
     }
 
-    // Add axis labels
     const xLabel = visualizationType === 'time' ? 'Iteration' :
                    visualizationType === 'bifurcation' ? 'Parameter α' : 'x';
     const yLabel = visualizationType === 'density' ? 'Density' : 'y';
@@ -267,13 +95,209 @@ const TentMapVisualization: React.FC = () => {
       visualizationType !== 'symbolic' ? yLabel : undefined
     );
 
-    // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
+
+    function getVisualizationTitle() {
+      switch (visualizationType) {
+        case 'cobweb': return 'Tent Map Cobweb Plot';
+        case 'time': return 'Tent Map Time Series';
+        case 'bifurcation': return 'Tent Map Bifurcation Diagram';
+        case 'density': return 'Invariant Density';
+        case 'symbolic': return 'Symbolic Dynamics';
+        default: return 'Tent Map Visualization';
+      }
+    }
+
+    function renderCobweb(
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
+    ) {
+      const tentData: { x: number; y: number }[] = [];
+      for (let x = 0; x <= 1; x += 0.01) {
+        tentData.push({
+          x,
+          y: x < 0.5 ? alpha * x : alpha * (1 - x),
+        });
+      }
+
+      const line = d3.line<{ x: number; y: number }>()
+        .x((d) => xs(d.x))
+        .y((d) => ys(d.y))
+        .curve(d3.curveLinear);
+
+      upsertMark<SVGPathElement>(parent, 'path', 'tent-fn')
+        .datum(tentData)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-cyan)')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+
+      upsertMark<SVGLineElement>(parent, 'line', 'diagonal')
+        .attr('x1', xs(0))
+        .attr('y1', ys(0))
+        .attr('x2', xs(1))
+        .attr('y2', ys(1))
+        .attr('stroke', 'var(--text-secondary)')
+        .attr('stroke-width', 1)
+        .attr('stroke-dasharray', '5,5');
+
+      const cobwebData = calculateTentCobweb(alpha, x0, iterations);
+      upsertMark<SVGPathElement>(parent, 'path', 'cobweb')
+        .datum(cobwebData)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 1.5)
+        .attr('d', line);
+    }
+
+    function renderTimeSeries(
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
+    ) {
+      const data = calculateTentMap(alpha, x0, iterations);
+
+      const line = d3.line<number>()
+        .x((_d, i) => xs(i))
+        .y((d) => ys(d))
+        .curve(d3.curveLinear);
+
+      upsertMark<SVGPathElement>(parent, 'path', 'time-series')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+
+      joinByIndex<number, SVGCircleElement>(
+        parent,
+        'circle.time-point',
+        'circle',
+        data,
+        'time-point',
+        (sel) => {
+          sel
+            .attr('cx', (_d, i) => xs(i))
+            .attr('cy', (d) => ys(d))
+            .attr('r', 2)
+            .attr('fill', 'var(--accent-cyan)');
+        }
+      );
+    }
+
+    function renderBifurcation(
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
+    ) {
+      const data = calculateTentBifurcation(
+        { min: 0.5, max: 2.0 },
+        0.01,
+        0.4,
+        500,
+        50
+      );
+
+      joinByIndex<{ x: number; y: number }, SVGCircleElement>(
+        parent,
+        'circle.bif-point',
+        'circle',
+        data,
+        'bif-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xs(d.x))
+            .attr('cy', (d) => ys(d.y))
+            .attr('r', 0.5)
+            .attr('fill', 'var(--accent-cyan)')
+            .attr('opacity', 0.6);
+        }
+      );
+    }
+
+    function renderInvariantDensity(
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      h: number,
+      xs: d3.ScaleLinear<number, number>,
+      ys: d3.ScaleLinear<number, number>
+    ) {
+      const data = calculateTentInvariantDensity(alpha, 100, 10000);
+
+      const line = d3.line<{ x: number; density: number }>()
+        .x((d) => xs(d.x))
+        .y((d) => ys(d.density))
+        .curve(d3.curveLinear);
+
+      upsertMark<SVGPathElement>(parent, 'path', 'density-line')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--accent-orange)')
+        .attr('stroke-width', 2)
+        .attr('d', line);
+
+      const area = d3.area<{ x: number; density: number }>()
+        .x((d) => xs(d.x))
+        .y0(h)
+        .y1((d) => ys(d.density))
+        .curve(d3.curveLinear);
+
+      upsertMark<SVGPathElement>(parent, 'path', 'density-area')
+        .datum(data)
+        .attr('fill', 'var(--accent-cyan)')
+        .attr('opacity', 0.3)
+        .attr('d', area);
+    }
+
+    function renderSymbolicDynamics(
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      h: number,
+      xs: d3.ScaleLinear<number, number>
+    ) {
+      const symbols = calculateTentSymbolicDynamics(alpha, x0, iterations);
+      const symbolWidth = innerWidth / iterations;
+
+      joinByIndex<string, SVGRectElement>(
+        parent,
+        'rect.symbol',
+        'rect',
+        symbols,
+        'symbol',
+        (sel) => {
+          sel
+            .attr('x', (_d, i) => xs(i / iterations))
+            .attr('y', h / 3)
+            .attr('width', symbolWidth * 0.8)
+            .attr('height', h / 3)
+            .attr('fill', (d) => (d === 'L' ? 'var(--accent-cyan)' : 'var(--accent-orange)'))
+            .attr('opacity', 0.8);
+        }
+      );
+
+      const textSymbols = symbols.slice(0, Math.min(50, symbols.length));
+      joinByIndex<string, SVGTextElement>(
+        parent,
+        'text.symbol-label',
+        'text',
+        textSymbols,
+        'symbol-label',
+        (sel) => {
+          sel
+            .attr('x', (_d, i) => xs(i / iterations) + symbolWidth / 2)
+            .attr('y', h / 2)
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'middle')
+            .style('fill', 'var(--text-primary)')
+            .style('font-size', '10px')
+            .text((d) => d);
+        }
+      );
+    }
 
   }, [alpha, x0, iterations, visualizationType]);
 
   return (
-    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
+    <div className="tent-map-visualization p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Tent Map Visualization</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

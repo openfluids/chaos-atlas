@@ -81,6 +81,20 @@ export const chartHelpersMock = {
   renderChartTitle: () => undefined,
   renderChartTitleAccent: () => undefined,
   padDomain: (d: [number, number]) => d,
+  // Keyed-join helpers. `joinByIndex` still INVOKES its update callback so the
+  // per-mark attribute code stays covered under the stub rather than being
+  // silently skipped — a no-op mock here would hide a throwing update fn.
+  upsertMark: () => paintStub,
+  joinByIndex: (
+    _parent: unknown,
+    _selector: string,
+    _tagName: string,
+    _data: unknown[],
+    _className: string,
+    update?: (sel: unknown) => void
+  ) => {
+    update?.(paintStub);
+  },
 };
 
 export const densityCanvasMock = {

@@ -529,10 +529,49 @@ export function equalAspectScales(
 }
 
 /**
+ * When `mode` is set and differs from the group's last mode, wipe its
+ * children once. Same-mode re-renders keep marks so keyed joins can update
+ * them in place. Mode is the visualization type (or any caller-chosen
+ * string that changes when the mark set identity changes).
+ */
+function applyDataGroupMode(
+  dataG: d3.Selection<SVGGElement, unknown, null, undefined>,
+  mode?: string
+): void {
+  if (mode === undefined) return;
+  const prev = dataG.attr('data-mode');
+  if (prev !== mode) {
+    dataG.selectAll('*').remove();
+    dataG.attr('data-mode', mode);
+  }
+}
+
+/**
+ * Structural `g.chart-data` without a clip path. Survives `clearEphemeralChildren`
+ * on the chart root; callers put keyed-joined data marks inside.
+ */
+export function ensureChartDataGroup(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  mode?: string
+): d3.Selection<SVGGElement, unknown, null, undefined> {
+  let dataG = g.select<SVGGElement>('g.chart-data');
+  if (dataG.empty()) {
+    dataG = g
+      .append('g')
+      .attr('class', `chart-data ${CHART_STRUCTURAL_CLASS}`);
+  }
+  applyDataGroupMode(dataG, mode);
+  return dataG;
+}
+
+/**
  * Appends (or reuses) a `<clipPath>` in the chart's `<defs>` and returns a
- * `<g>` clipped to the given rectangle. Idempotent: the same `clipId` and
- * `g.chart-data` are updated in place; previous data marks inside the data
- * group are cleared so re-appends do not accumulate.
+ * structural `g.chart-data` clipped to the given rectangle. Idempotent: the
+ * same `clipId` and group are updated in place.
+ *
+ * Data marks are NOT cleared every call — use keyed `.data(..., key).join`
+ * (or `joinByIndex` / `upsertMark`) so marks update in place. Pass `mode`
+ * (e.g. visualization type) to wipe once when the mark identity set changes.
  *
  * `svg` (not just `g`) is needed because `<clipPath>` must live in `<defs>`
  * at the svg root, not nested under the translated chart group.
@@ -541,7 +580,8 @@ export function createClippedDataGroup(
   svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
   g: d3.Selection<SVGGElement, unknown, null, undefined>,
   rect: { x?: number; y?: number; width: number; height: number },
-  clipId: string
+  clipId: string,
+  mode?: string
 ): d3.Selection<SVGGElement, unknown, null, undefined> {
   let defs = svg.select<SVGDefsElement>('defs');
   if (defs.empty()) {
@@ -571,9 +611,68 @@ export function createClippedDataGroup(
       .attr('clip-path', `url(#${clipId})`);
   } else {
     dataG.attr('clip-path', `url(#${clipId})`);
-    // Clear previous data marks; structural shell stays.
-    dataG.selectAll('*').remove();
   }
+  applyDataGroupMode(dataG, mode);
 
   return dataG;
+}
+
+/**
+ * Select-or-append a single mark node (`path`, `line`, `circle`, …) by class
+ * under `parent`. Reused across frames so attributes can be updated without
+ * a remove+append cycle.
+ */
+export function upsertMark<GElement extends SVGElement>(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  tagName: string,
+  className: string
+): d3.Selection<GElement, unknown, null, undefined> {
+  let sel = parent.select<GElement>(`${tagName}.${className}`);
+  if (sel.empty()) {
+    sel = parent
+      .append(tagName as keyof SVGElementTagNameMap)
+      .attr('class', className) as unknown as d3.Selection<
+      GElement,
+      unknown,
+      null,
+      undefined
+    >;
+  }
+  return sel;
+}
+
+/**
+ * Index-keyed data join: enter/update/exit with a stable key of `String(i)`.
+ * Prefer this over enter-only `.data(...).enter().append(...)` so playback
+ * re-renders update attributes instead of tearing down nodes.
+ */
+export function joinByIndex<Datum, GElement extends d3.BaseType>(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  selector: string,
+  tagName: string,
+  data: Datum[],
+  className: string,
+  update: (
+    sel: d3.Selection<GElement, Datum, SVGGElement, unknown>
+  ) => void
+): void {
+  const joined = parent
+    .selectAll<GElement, Datum>(selector)
+    .data(data, (_d, i) => String(i));
+
+  const enter = joined
+    .enter()
+    .append(tagName as keyof SVGElementTagNameMap) as unknown as d3.Selection<
+    GElement,
+    Datum,
+    SVGGElement,
+    unknown
+  >;
+  if (className) {
+    enter.attr('class', className);
+  }
+  joined.exit().remove();
+  update(
+    enter.merge(joined as unknown as d3.Selection<GElement, Datum, SVGGElement, unknown>)
+  );
 }

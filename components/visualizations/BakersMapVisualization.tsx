@@ -22,7 +22,11 @@ import {
   renderChartAxes,
   renderAxisLabelsRotated,
   renderChartTitle,
+  upsertMark,
+  joinByIndex,
 } from './chartHelpers';
+
+type Pt = { x: number; y: number };
 
 const BakersMapVisualization: React.FC = () => {
   const [initialX, setInitialX] = useState(0.3);
@@ -51,19 +55,19 @@ const BakersMapVisualization: React.FC = () => {
   };
 
   useEffect(() => {
-    const renderTrajectory = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                             innerWidth: number, innerHeight: number,
-                             xScale: d3.ScaleLinear<number, number>,
-                             yScale: d3.ScaleLinear<number, number>) => {
+    const renderTrajectory = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const data = calculateBakersMap({ x: initialX, y: initialY }, iterations);
 
-      // Draw trajectory line
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
+      const line = d3.line<Pt>()
+        .x((d) => xScale(d.x))
+        .y((d) => yScale(d.y))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(parent, 'path', 'traj-line')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -71,121 +75,195 @@ const BakersMapVisualization: React.FC = () => {
         .attr('opacity', 0.8)
         .attr('d', line);
 
-      // Draw points
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.x))
-        .attr('cy', d => yScale(d.y))
-        .attr('r', 2)
-        .attr('fill', 'var(--accent-cyan)')
-        .attr('opacity', (d, i) => 0.3 + (0.7 * i / data.length)); // Fade in
-    };
-
-    const renderMixing = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                         innerWidth: number, innerHeight: number,
-                         xScale: d3.ScaleLinear<number, number>,
-                         yScale: d3.ScaleLinear<number, number>) => {
-      const trajectories = calculateBakersMixing(mixingPoints, iterations);
-
-      // Color scale for different trajectories
-      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-
-      trajectories.forEach((trajectory, trajIndex) => {
-        const line = d3.line<{x: number, y: number}>()
-          .x(d => xScale(d.x))
-          .y(d => yScale(d.y))
-          .curve(d3.curveLinear);
-
-        g.append('path')
-          .datum(trajectory)
-          .attr('fill', 'none')
-          .attr('stroke', colorScale(trajIndex.toString()) as string)
-          .attr('stroke-width', 1)
-          .attr('opacity', 0.6)
-          .attr('d', line);
-
-        // Add initial points
-        if (trajectory.length > 0) {
-          g.append('circle')
-            .attr('cx', xScale(trajectory[0].x))
-            .attr('cy', yScale(trajectory[0].y))
-            .attr('r', 3)
-            .attr('fill', colorScale(trajIndex.toString()) as string);
+      joinByIndex<Pt, SVGCircleElement>(
+        parent,
+        'circle.traj-point',
+        'circle',
+        data,
+        'traj-point',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xScale(d.x))
+            .attr('cy', (d) => yScale(d.y))
+            .attr('r', 2)
+            .attr('fill', 'var(--accent-cyan)')
+            .attr('opacity', (_d, i) => 0.3 + (0.7 * i) / Math.max(data.length, 1));
         }
-      });
+      );
     };
 
-    const renderImageScrambling = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                 xScale: d3.ScaleLinear<number, number>,
-                                 yScale: d3.ScaleLinear<number, number>,
-                                 plotWidth: number, plotHeight: number) => {
+    const renderMixing = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
+      const trajectories = calculateBakersMixing(mixingPoints, iterations);
+      const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+      const line = d3.line<Pt>()
+        .x((d) => xScale(d.x))
+        .y((d) => yScale(d.y))
+        .curve(d3.curveLinear);
+
+      joinByIndex<Pt[], SVGPathElement>(
+        parent,
+        'path.mix-traj',
+        'path',
+        trajectories,
+        'mix-traj',
+        (sel) => {
+          sel
+            .attr('fill', 'none')
+            .attr('stroke', (_d, i) => colorScale(String(i)) as string)
+            .attr('stroke-width', 1)
+            .attr('opacity', 0.6)
+            .attr('d', (d) => line(d));
+        }
+      );
+
+      const starts = trajectories
+        .map((t, i) => (t.length > 0 ? { ...t[0], i } : null))
+        .filter((p): p is Pt & { i: number } => p != null);
+
+      joinByIndex<Pt & { i: number }, SVGCircleElement>(
+        parent,
+        'circle.mix-start',
+        'circle',
+        starts,
+        'mix-start',
+        (sel) => {
+          sel
+            .attr('cx', (d) => xScale(d.x))
+            .attr('cy', (d) => yScale(d.y))
+            .attr('r', 3)
+            .attr('fill', (d) => colorScale(String(d.i)) as string);
+        }
+      );
+    };
+
+    const renderImageScrambling = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>,
+      plotWidth: number,
+      plotHeight: number
+    ) => {
       const frames = calculateBakersImageScrambling(16, 16, 10);
       const currentFrame = frames[animationStep];
-
-      currentFrame.forEach(row => {
-        row.forEach(point => {
-          g.append('rect')
-            .attr('x', xScale(point.x) - plotWidth / 32)
-            .attr('y', yScale(point.y) - plotHeight / 32)
-            .attr('width', plotWidth / 16)
-            .attr('height', plotHeight / 16)
-            .attr('fill', `rgb(${point.color.r}, ${point.color.g}, ${point.color.b})`)
-            .attr('stroke', 'none')
-            .attr('opacity', 0.8);
+      const cells: {
+        x: number;
+        y: number;
+        r: number;
+        g: number;
+        b: number;
+      }[] = [];
+      currentFrame.forEach((row) => {
+        row.forEach((point) => {
+          cells.push({
+            x: point.x,
+            y: point.y,
+            r: point.color.r,
+            g: point.color.g,
+            b: point.color.b,
+          });
         });
       });
+
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        parent,
+        'rect.scramble-cell',
+        'rect',
+        cells,
+        'scramble-cell',
+        (sel) => {
+          sel
+            .attr('x', (d) => xScale(d.x) - plotWidth / 32)
+            .attr('y', (d) => yScale(d.y) - plotHeight / 32)
+            .attr('width', plotWidth / 16)
+            .attr('height', plotHeight / 16)
+            .attr('fill', (d) => `rgb(${d.r}, ${d.g}, ${d.b})`)
+            .attr('stroke', 'none')
+            .attr('opacity', 0.8);
+        }
+      );
     };
 
-    const renderInvariantMeasure = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   plotWidth: number, plotHeight: number,
-                                   offsetX: number, offsetY: number) => {
+    const renderInvariantMeasure = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      plotWidth: number,
+      plotHeight: number,
+      offsetX: number,
+      offsetY: number
+    ) => {
       const data = calculateBakersInvariantMeasure(5000, 20);
-      // Baker's map is measure-preserving on the unit square: bins are
-      // square cells of a square grid, not cells stretched to a 520x300 box.
       const binWidth = plotWidth / 20;
       const binHeight = plotHeight / 20;
-
+      const cells: { x: number; y: number; value: number }[] = [];
       data.forEach((row, y) => {
         row.forEach((value, x) => {
-          g.append('rect')
-            .attr('x', offsetX + x * binWidth)
-            .attr('y', offsetY + y * binHeight)
+          cells.push({ x, y, value });
+        });
+      });
+
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        parent,
+        'rect.measure-cell',
+        'rect',
+        cells,
+        'measure-cell',
+        (sel) => {
+          sel
+            .attr('x', (d) => offsetX + d.x * binWidth)
+            .attr('y', (d) => offsetY + d.y * binHeight)
             .attr('width', binWidth)
             .attr('height', binHeight)
             .attr('fill', 'var(--accent-cyan)')
-            .attr('opacity', value)
+            .attr('opacity', (d) => d.value)
             .attr('stroke', 'var(--text-secondary)')
             .attr('stroke-width', 0.5);
-        });
-      });
+        }
+      );
     };
 
-    const renderPhaseSpacePartition = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                      xScale: d3.ScaleLinear<number, number>,
-                                      plotWidth: number, plotHeight: number,
-                                      offsetX: number, offsetY: number) => {
+    const renderPhaseSpacePartition = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      plotWidth: number,
+      plotHeight: number,
+      offsetX: number,
+      offsetY: number
+    ) => {
       const { grid } = calculateBakersPhaseSpacePartition(16);
       const binWidth = plotWidth / 16;
       const binHeight = plotHeight / 16;
-
+      const cells: { x: number; y: number; value: number }[] = [];
       grid.forEach((row, y) => {
         row.forEach((value, x) => {
-          g.append('rect')
-            .attr('x', offsetX + x * binWidth)
-            .attr('y', offsetY + y * binHeight)
-            .attr('width', binWidth)
-            .attr('height', binHeight)
-            .attr('fill', value === 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)')
-            .attr('opacity', 0.6)
-            .attr('stroke', 'var(--text-secondary)')
-            .attr('stroke-width', 0.5);
+          cells.push({ x, y, value });
         });
       });
 
-      // Add partition boundary
-      g.append('line')
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        parent,
+        'rect.partition-cell',
+        'rect',
+        cells,
+        'partition-cell',
+        (sel) => {
+          sel
+            .attr('x', (d) => offsetX + d.x * binWidth)
+            .attr('y', (d) => offsetY + d.y * binHeight)
+            .attr('width', binWidth)
+            .attr('height', binHeight)
+            .attr('fill', (d) =>
+              d.value === 0 ? 'var(--accent-cyan)' : 'var(--accent-orange)'
+            )
+            .attr('opacity', 0.6)
+            .attr('stroke', 'var(--text-secondary)')
+            .attr('stroke-width', 0.5);
+        }
+      );
+
+      upsertMark<SVGLineElement>(parent, 'line', 'partition-boundary')
         .attr('x1', xScale(0.5))
         .attr('y1', offsetY)
         .attr('x2', xScale(0.5))
@@ -195,20 +273,20 @@ const BakersMapVisualization: React.FC = () => {
         .attr('stroke-dasharray', '5,5');
     };
 
-    const renderSymbolicDynamics = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
-                                   innerWidth: number, innerHeight: number,
-                                   xScale: d3.ScaleLinear<number, number>,
-                                   yScale: d3.ScaleLinear<number, number>) => {
+    const renderSymbolicDynamics = (
+      parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+      xScale: d3.ScaleLinear<number, number>,
+      yScale: d3.ScaleLinear<number, number>
+    ) => {
       const symbols = calculateBakersSymbolicDynamics({ x: initialX, y: initialY }, 50);
       const data = calculateBakersMap({ x: initialX, y: initialY }, 50);
 
-      // Draw trajectory
-      const line = d3.line<{x: number, y: number}>()
-        .x(d => xScale(d.x))
-        .y(d => yScale(d.y))
+      const line = d3.line<Pt>()
+        .x((d) => xScale(d.x))
+        .y((d) => yScale(d.y))
         .curve(d3.curveLinear);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(parent, 'path', 'traj-line')
         .datum(data)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
@@ -216,19 +294,37 @@ const BakersMapVisualization: React.FC = () => {
         .attr('opacity', 0.5)
         .attr('d', line);
 
-      // Add symbols at points
-      g.selectAll('text')
-        .data(data.slice(0, Math.min(20, data.length))) // Limit text display
-        .enter()
-        .append('text')
-        .attr('x', d => xScale(d.x))
-        .attr('y', d => yScale(d.y))
-        .attr('text-anchor', 'middle')
-        .attr('dominant-baseline', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '10px')
-        .style('font-weight', 'bold')
-        .text((d, i) => symbols[i]);
+      const labeled = data.slice(0, Math.min(20, data.length)).map((p, i) => ({
+        ...p,
+        symbol: symbols[i],
+      }));
+
+      joinByIndex<typeof labeled[number], SVGTextElement>(
+        parent,
+        'text.symbol-label',
+        'text',
+        labeled,
+        'symbol-label',
+        (sel) => {
+          sel
+            .attr('x', (d) => xScale(d.x))
+            .attr('y', (d) => yScale(d.y))
+            .attr('text-anchor', 'middle')
+            .attr('dominant-baseline', 'middle')
+            .style('fill', 'var(--text-primary)')
+            .style('font-size', '10px')
+            .style('font-weight', 'bold')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.symbol) {
+                  this.firstChild.nodeValue = d.symbol;
+                }
+              } else {
+                this.textContent = d.symbol;
+              }
+            });
+        }
+      );
     };
 
     const getVisualizationTitle = () => {
@@ -247,9 +343,6 @@ const BakersMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // Baker's map is measure-preserving on the unit square [0,1]^2 --
-    // fitting x and y independently to a 520x300 box distorts that square
-    // into a rectangle. equalAspectScales letterboxes to a square plot rect.
     const { xScale, yScale, plotWidth, plotHeight, offsetX, offsetY } =
       equalAspectScales([0, 1], [0, 1], innerWidth, innerHeight);
 
@@ -257,14 +350,14 @@ const BakersMapVisualization: React.FC = () => {
       svg,
       g,
       { x: offsetX, y: offsetY, width: plotWidth, height: plotHeight },
-      'bakers-plot-clip'
+      'bakers-plot-clip',
+      visualizationType
     );
 
-    // Render based on visualization type
     if (visualizationType === 'trajectory') {
-      renderTrajectory(dataGroup, innerWidth, innerHeight, xScale, yScale);
+      renderTrajectory(dataGroup, xScale, yScale);
     } else if (visualizationType === 'mixing') {
-      renderMixing(dataGroup, innerWidth, innerHeight, xScale, yScale);
+      renderMixing(dataGroup, xScale, yScale);
     } else if (visualizationType === 'scrambling') {
       renderImageScrambling(dataGroup, xScale, yScale, plotWidth, plotHeight);
     } else if (visualizationType === 'invariant') {
@@ -272,26 +365,20 @@ const BakersMapVisualization: React.FC = () => {
     } else if (visualizationType === 'partition') {
       renderPhaseSpacePartition(dataGroup, xScale, plotWidth, plotHeight, offsetX, offsetY);
     } else if (visualizationType === 'symbolic') {
-      renderSymbolicDynamics(dataGroup, innerWidth, innerHeight, xScale, yScale);
+      renderSymbolicDynamics(dataGroup, xScale, yScale);
     }
 
-    // Add axes
     renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
-
-    // Add axis labels
     renderAxisLabelsRotated(g, innerWidth, innerHeight, margin.left, 'x', 'y');
-
-    // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
   }, [initialX, initialY, iterations, visualizationType, mixingPoints, animationStep]);
 
   return (
-    <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
+    <div className="bakers-map-visualization p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
       <h3 className="text-2xl font-bold mb-4 neon-text-cyan">Baker&apos;s Map Visualization</h3>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Controls */}
         <div className="space-y-4">
           <ParamSlider
             label={<>Initial x₀: {initialX.toFixed(2)}</>}
@@ -358,7 +445,6 @@ const BakersMapVisualization: React.FC = () => {
             </button>
           )}
 
-          {/* Lyapunov Exponents Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm font-medium text-cyan-400 mb-1">Lyapunov Exponents:</p>
             <p className="text-xs text-gray-300 font-mono">
@@ -374,7 +460,6 @@ const BakersMapVisualization: React.FC = () => {
             </p>
           </div>
 
-          {/* Topological Entropy Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm text-gray-300">
               <span className="font-medium text-cyan-400">Topological Entropy:</span> {calculateBakersTopologicalEntropy().toFixed(4)}
@@ -384,7 +469,6 @@ const BakersMapVisualization: React.FC = () => {
             </p>
           </div>
 
-          {/* Equation Display */}
           <div className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20">
             <p className="text-sm font-medium text-cyan-400 mb-1">Equations:</p>
             <p className="text-xs text-gray-300 font-mono">
@@ -396,7 +480,6 @@ const BakersMapVisualization: React.FC = () => {
           </div>
         </div>
 
-        {/* Visualization */}
         <div className="flex justify-center">
           <svg
             ref={svgRef}

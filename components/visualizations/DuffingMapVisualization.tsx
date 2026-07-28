@@ -19,7 +19,11 @@ import {
   initChartBase,
   equalAspectScales,
   createClippedDataGroup,
+  renderChartAxes,
+  renderAxisLabelsRotated,
   renderChartTitle,
+  joinByIndex,
+  upsertMark,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -76,16 +80,14 @@ const DuffingMapVisualization: React.FC = () => {
     const renderAttractorOverlay = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                             xScale: d3.ScaleLinear<number, number>,
                             yScale: d3.ScaleLinear<number, number>) => {
-      // Draw fixed points on top of the density canvas.
-      fixedPoints.forEach((fp) => {
-        g.append('circle')
-          .attr('cx', xScale(fp.x))
-          .attr('cy', yScale(fp.y))
-          .attr('r', 4)
-          .attr('fill', 'var(--accent-cyan)')
-          .attr('stroke', 'white')
-          .attr('stroke-width', 1);
-      });
+      joinByIndex<typeof fixedPoints[number], SVGCircleElement>(
+        g, 'circle.fp-marker', 'circle', fixedPoints, 'fp-marker',
+        (sel) => {
+          sel.attr('cx', d => xScale(d.x)).attr('cy', d => yScale(d.y))
+            .attr('r', 4).attr('fill', 'var(--accent-cyan)')
+            .attr('stroke', 'white').attr('stroke-width', 1);
+        }
+      );
     };
 
     const renderPotential = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -101,84 +103,56 @@ const DuffingMapVisualization: React.FC = () => {
                  d3.max(potentialData, d => d.potential) || 2])
         .range([innerHeight, 0]);
 
-      // Draw potential curve
       const potentialLine = d3.line<{x: number; potential: number}>()
         .x(d => xScale(d.x))
         .y(d => yScale(d.potential))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'potential-curve')
         .datum(potentialData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
         .attr('stroke-width', 3)
         .attr('d', potentialLine);
 
-      // Fill area under curve
       const area = d3.area<{x: number; potential: number}>()
         .x(d => xScale(d.x))
         .y0(innerHeight)
         .y1(d => yScale(d.potential))
         .curve(d3.curveMonotoneX);
 
-      g.append('path')
+      upsertMark<SVGPathElement>(g, 'path', 'potential-area')
         .datum(potentialData)
         .attr('fill', 'var(--accent-cyan)')
         .attr('opacity', 0.2)
         .attr('d', area);
 
-      // Mark well positions
-      const wellPositions = [-Math.sqrt(currentParams.params.a), Math.sqrt(currentParams.params.a)];
-      wellPositions.forEach(x => {
-        if (Math.abs(x) <= 2) {
-          g.append('line')
-            .attr('x1', xScale(x))
-            .attr('y1', 0)
-            .attr('x2', xScale(x))
-            .attr('y2', innerHeight)
-            .attr('stroke', 'var(--accent-orange)')
-            .attr('stroke-width', 2)
-            .attr('stroke-dasharray', '5,5')
-            .attr('opacity', 0.6);
-
-          g.append('text')
-            .attr('x', xScale(x))
-            .attr('y', 20)
-            .style('text-anchor', 'middle')
-            .style('fill', 'var(--accent-orange)')
-            .style('font-size', '12px')
-            .text('Well');
+      const wells = [-Math.sqrt(currentParams.params.a), Math.sqrt(currentParams.params.a)]
+        .filter((x) => Math.abs(x) <= 2);
+      joinByIndex<number, SVGLineElement>(
+        g, 'line.well-mark', 'line', wells, 'well-mark',
+        (sel) => {
+          sel.attr('x1', (x) => xScale(x)).attr('y1', 0)
+            .attr('x2', (x) => xScale(x)).attr('y2', innerHeight)
+            .attr('stroke', 'var(--accent-orange)').attr('stroke-width', 2)
+            .attr('stroke-dasharray', '5,5').attr('opacity', 0.6);
         }
-      });
+      );
+      joinByIndex<number, SVGTextElement>(
+        g, 'text.well-label', 'text', wells, 'well-label',
+        (sel) => {
+          sel.attr('x', (x) => xScale(x)).attr('y', 20)
+            .style('text-anchor', 'middle').style('fill', 'var(--accent-orange)')
+            .style('font-size', '12px')
+            .each(function () {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== 'Well') this.firstChild.nodeValue = 'Well';
+              } else { this.textContent = 'Well'; }
+            });
+        }
+      );
 
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('Position x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('Potential V(x)');
+      return { xScale, yScale, xLabel: 'Position x', yLabel: 'Potential V(x)' };
     };
 
     const renderBasins = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -190,47 +164,50 @@ const DuffingMapVisualization: React.FC = () => {
       const cellWidth = plotWidth / 60;
       const cellHeight = plotHeight / 60;
 
+      const cells: { x: number; y: number; value: number }[] = [];
       basinData.forEach((row, y) => {
-        row.forEach((value, x) => {
-          const color = value === -1 ? 'var(--accent-red)' :
-                       value === 1 ? 'var(--accent-cyan)' :
-                       value === 2 ? 'var(--accent-orange)' :
-                       'rgba(50, 50, 50, 0.5)';
-
-          g.append('rect')
-            .attr('x', offsetX + x * cellWidth)
-            .attr('y', offsetY + y * cellHeight)
-            .attr('width', cellWidth)
-            .attr('height', cellHeight)
-            .attr('fill', color)
-            .attr('opacity', 0.8)
-            .attr('stroke', 'none');
-        });
+        row.forEach((value, x) => cells.push({ x, y, value }));
       });
+      joinByIndex<typeof cells[number], SVGRectElement>(
+        g, 'rect.basin-cell', 'rect', cells, 'basin-cell',
+        (sel) => {
+          sel.attr('x', (d) => offsetX + d.x * cellWidth)
+            .attr('y', (d) => offsetY + d.y * cellHeight)
+            .attr('width', cellWidth).attr('height', cellHeight)
+            .attr('fill', (d) =>
+              d.value === -1 ? 'var(--accent-red)' :
+              d.value === 1 ? 'var(--accent-cyan)' :
+              d.value === 2 ? 'var(--accent-orange)' :
+              'rgba(50, 50, 50, 0.5)')
+            .attr('opacity', 0.8).attr('stroke', 'none');
+        }
+      );
 
-      // Add legend
       const legendData = [
         { color: 'var(--accent-cyan)', label: 'Left well' },
         { color: 'var(--accent-orange)', label: 'Right well' },
         { color: 'rgba(50, 50, 50, 0.5)', label: 'Center' },
         { color: 'var(--accent-red)', label: 'Escapes' }
       ];
-
-      legendData.forEach((item, i) => {
-        g.append('rect')
-          .attr('x', 10)
-          .attr('y', 10 + i * 20)
-          .attr('width', 15)
-          .attr('height', 15)
-          .attr('fill', item.color);
-
-        g.append('text')
-          .attr('x', 30)
-          .attr('y', 22 + i * 20)
-          .style('fill', 'var(--text-primary)')
-          .style('font-size', '12px')
-          .text(item.label);
-      });
+      joinByIndex<typeof legendData[number], SVGRectElement>(
+        g, 'rect.legend-swatch', 'rect', legendData, 'legend-swatch',
+        (sel) => {
+          sel.attr('x', 10).attr('y', (_d, i) => 10 + i * 20)
+            .attr('width', 15).attr('height', 15).attr('fill', (d) => d.color);
+        }
+      );
+      joinByIndex<typeof legendData[number], SVGTextElement>(
+        g, 'text.legend-label', 'text', legendData, 'legend-label',
+        (sel) => {
+          sel.attr('x', 30).attr('y', (_d, i) => 22 + i * 20)
+            .style('fill', 'var(--text-primary)').style('font-size', '12px')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.label) this.firstChild.nodeValue = d.label;
+              } else { this.textContent = d.label; }
+            });
+        }
+      );
     };
 
     const renderBifurcation = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -254,44 +231,20 @@ const DuffingMapVisualization: React.FC = () => {
         .domain([-2.5, 2.5])
         .range([innerHeight, 0]);
 
-      g.selectAll('circle')
-        .data(data)
-        .enter()
-        .append('circle')
-        .attr('cx', d => xScale(d.paramValue))
-        .attr('cy', d => yScale(d.x))
-        .attr('r', 0.5)
-        .attr('fill', 'var(--accent-magenta)')
-        .attr('opacity', 0.6);
+      joinByIndex<typeof data[number], SVGCircleElement>(
+        g, 'circle.bif-point', 'circle', data, 'bif-point',
+        (sel) => {
+          sel.attr('cx', (d) => xScale(d.paramValue)).attr('cy', (d) => yScale(d.x))
+            .attr('r', 0.5).attr('fill', 'var(--accent-magenta)').attr('opacity', 0.6);
+        }
+      );
 
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text(`Parameter ${bifurcationParam}`);
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
+      return {
+        xScale,
+        yScale,
+        xLabel: `Parameter ${bifurcationParam}`,
+        yLabel: 'x',
+      };
     };
 
     const renderEnergyTrajectories = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -312,59 +265,38 @@ const DuffingMapVisualization: React.FC = () => {
         .range([innerHeight, 0]);
 
       const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+      const line = d3.line<{x: number; y: number}>()
+        .x((_d, i) => xScale(i))
+        .y((d) => yScale(d.x))
+        .curve(d3.curveLinear);
 
-      trajectories.forEach((traj, trajIndex) => {
-        // Draw trajectory
-        const line = d3.line<{x: number; y: number}>()
-          .x((d, i) => xScale(i))
-          .y(d => yScale(d.x))
-          .curve(d3.curveLinear);
+      joinByIndex<typeof trajectories[number], SVGPathElement>(
+        g, 'path.energy-traj', 'path', trajectories, 'energy-traj',
+        (sel) => {
+          sel
+            .attr('fill', 'none')
+            .attr('stroke', (_d, i) => colorScale(String(i)) as string)
+            .attr('stroke-width', 1.5)
+            .attr('opacity', 0.8)
+            .attr('d', (d) => line(d.trajectory));
+        }
+      );
+      joinByIndex<typeof trajectories[number], SVGTextElement>(
+        g, 'text.energy-label', 'text', trajectories, 'energy-label',
+        (sel) => {
+          sel.attr('x', 10).attr('y', (_d, i) => 20 + i * 15)
+            .style('fill', (_d, i) => colorScale(String(i)) as string)
+            .style('font-size', '12px')
+            .each(function (d) {
+              const label = `${d.well} well`;
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== label) this.firstChild.nodeValue = label;
+              } else { this.textContent = label; }
+            });
+        }
+      );
 
-        g.append('path')
-          .datum(traj.trajectory)
-          .attr('fill', 'none')
-          .attr('stroke', colorScale(trajIndex.toString()) as string)
-          .attr('stroke-width', 1.5)
-          .attr('opacity', 0.8)
-          .attr('d', line);
-
-        // Add label
-        g.append('text')
-          .attr('x', 10)
-          .attr('y', 20 + trajIndex * 15)
-          .style('fill', colorScale(trajIndex.toString()) as string)
-          .style('font-size', '12px')
-          .text(`${traj.well} well`);
-      });
-
-      // Add axes
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight})`)
-        .call(d3.axisBottom(xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .call(d3.axisLeft(yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth/2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('Time');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('Position x');
+      return { xScale, yScale, xLabel: 'Time', yLabel: 'Position x' };
     };
 
     const getVisualizationTitle = () => {
@@ -434,59 +366,72 @@ const DuffingMapVisualization: React.FC = () => {
       });
     }
 
-    const dataGroup = squareViews && layout
-      ? createClippedDataGroup(
-          svg,
-          g,
-          { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight },
-          'duffing-plot-clip'
-        )
-      : g;
+    const dataGroup = createClippedDataGroup(
+      svg,
+      g,
+      squareViews && layout
+        ? { x: layout.offsetX, y: layout.offsetY, width: layout.plotWidth, height: layout.plotHeight }
+        : { x: 0, y: 0, width: innerWidth, height: innerHeight },
+      'duffing-plot-clip',
+      visualizationType
+    );
 
-    // Render based on visualization type
+    // Render based on visualization type; non-square views return their axes scales.
+    type AxisSpec = {
+      xScale: d3.ScaleLinear<number, number>;
+      yScale: d3.ScaleLinear<number, number>;
+      xLabel: string;
+      yLabel: string;
+      offsetX?: number;
+      offsetY?: number;
+    };
+    let axisSpec: AxisSpec | null = null;
+
     if ((visualizationType === 'attractor' || visualizationType === 'phase') && layout) {
       renderAttractorOverlay(dataGroup, layout.xScale, layout.yScale);
+      axisSpec = {
+        xScale: layout.xScale,
+        yScale: layout.yScale,
+        xLabel: 'x',
+        yLabel: 'y',
+        offsetX: layout.offsetX,
+        offsetY: layout.offsetY,
+      };
     } else if (visualizationType === 'potential') {
-      renderPotential(g, innerWidth, innerHeight);
+      axisSpec = renderPotential(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'basins' && layout) {
       renderBasins(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
+      axisSpec = {
+        xScale: layout.xScale,
+        yScale: layout.yScale,
+        xLabel: 'x',
+        yLabel: 'y',
+        offsetX: layout.offsetX,
+        offsetY: layout.offsetY,
+      };
     } else if (visualizationType === 'bifurcation') {
-      renderBifurcation(g, innerWidth, innerHeight);
+      axisSpec = renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'energy') {
-      renderEnergyTrajectories(g, innerWidth, innerHeight);
+      axisSpec = renderEnergyTrajectories(dataGroup, innerWidth, innerHeight);
     }
 
-    // Add axes for the square (canvas-backed) views; the others draw their
-    // own axes inline (their scales aren't shared with this outer scope).
-    if (layout) {
-      g.append('g')
-        .attr('transform', `translate(0,${innerHeight - layout.offsetY})`)
-        .call(d3.axisBottom(layout.xScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('g')
-        .attr('transform', `translate(${layout.offsetX},0)`)
-        .call(d3.axisLeft(layout.yScale))
-        .selectAll('text, line, path')
-        .style('color', 'var(--text-secondary)');
-
-      g.append('text')
-        .attr('transform', `translate(${innerWidth / 2}, ${innerHeight + 40})`)
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('x');
-
-      g.append('text')
-        .attr('transform', 'rotate(-90)')
-        .attr('y', 0 - 40)
-        .attr('x', 0 - (innerHeight / 2))
-        .attr('dy', '1em')
-        .style('text-anchor', 'middle')
-        .style('fill', 'var(--text-primary)')
-        .style('font-size', '14px')
-        .text('y');
+    if (axisSpec) {
+      renderChartAxes(
+        g,
+        axisSpec.xScale,
+        axisSpec.yScale,
+        innerHeight,
+        axisSpec.offsetX ?? 0,
+        axisSpec.offsetY ?? 0
+      );
+      renderAxisLabelsRotated(
+        g,
+        innerWidth,
+        innerHeight,
+        CHART_MARGIN.left,
+        axisSpec.xLabel,
+        axisSpec.yLabel
+      );
     }
 
     // Add title
