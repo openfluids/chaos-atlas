@@ -403,4 +403,69 @@ test.describe('Chart teardown budget (all playback maps)', () => {
     );
     expect(result.maxYTick).toBeGreaterThanOrEqual(result.dataMaxY);
   });
+
+  /**
+   * Escape regime at Henon a ≳ 1.42 (b=0.3): canvas has no attractor, but the
+   * plot must stay legible — held axes + in-plot caption with live param.
+   *
+   * Assertion (a) catches a missing/blank escape caption (broken-looking plot).
+   * Assertion (b) catches FALLBACK_DOMAIN [-1,1] snap when a frame escapes.
+   */
+  test('henon: escape caption names a; axis ticks hold from a=1.4 to a=1.8', async ({
+    page,
+  }) => {
+    test.setTimeout(45_000);
+    await page.goto('/maps/henon');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('[data-testid="playback-controls"]', {
+      timeout: 30_000,
+    });
+    await page.waitForSelector('.henon-map-visualization svg g.x-axis', {
+      timeout: 30_000,
+    });
+    await page.waitForTimeout(400);
+
+    const axisTicks = () =>
+      page.evaluate(() => {
+        const svg =
+          document.querySelector('.henon-map-visualization svg') ??
+          document.querySelector('svg');
+        const read = (axis: string) =>
+          Array.from(svg?.querySelectorAll(`g.${axis} .tick text`) ?? [])
+            .map((t) => t.textContent ?? '')
+            .join(',');
+        return `x[${read('x-axis')}] y[${read('y-axis')}]`;
+      });
+
+    const aSlider = page
+      .locator('input[type="range"]:not([data-testid="playback-scrubber"])')
+      .first();
+
+    // Bounded classic point (default is already 1.4; set explicitly).
+    await aSlider.fill('1.4');
+    await expect(aSlider).toHaveValue('1.4');
+    await page.waitForTimeout(500);
+    const ticksBounded = await axisTicks();
+    expect(ticksBounded.length).toBeGreaterThan(5);
+
+    // Divergent regime: attractor gone, every orbit escapes.
+    await aSlider.fill('1.8');
+    await expect(aSlider).toHaveValue('1.8');
+    await page.waitForTimeout(800);
+
+    // (a) In-plot escape caption visible and names the live parameter value.
+    // Revert of caption text/visibility fails here.
+    const notice = page.getByTestId('orbit-escape-notice');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText(/no bounded attractor at a = 1\.80/i);
+    await expect(notice).toContainText(/orbit escapes/i);
+
+    // (b) Axis ticks UNCHANGED vs a=1.4 — held union domain, no [-1,1] snap.
+    // Revert of domain-hold-on-escape fails here (ticks jump to fallback).
+    const ticksEscaped = await axisTicks();
+    expect(
+      ticksEscaped,
+      `axes snapped on escape: bounded="${ticksBounded}" escaped="${ticksEscaped}"`
+    ).toBe(ticksBounded);
+  });
 });

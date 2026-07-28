@@ -493,6 +493,19 @@ export function padDomain(
 /** Default number of parameter samples used by {@link computeUnionOrbitDomain}. */
 export const UNION_ORBIT_DOMAIN_SAMPLES = 20;
 
+/**
+ * In-plot / under-plot caption when the current orbit has no bounded attractor.
+ * Shared so every map with an `isOrbitEscaped` path shows the same wording and
+ * includes the live parameter value (escape must not read as a blank/broken plot).
+ */
+export function formatOrbitEscapeCaption(
+  paramName: string,
+  value: number,
+  digits = 2
+): string {
+  return `no bounded attractor at ${paramName} = ${value.toFixed(digits)} (orbit escapes)`;
+}
+
 export type OrbitPoint = { x: number; y: number };
 
 export type UnionOrbitDomainOptions = {

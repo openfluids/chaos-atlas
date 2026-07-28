@@ -9,6 +9,7 @@ jest.mock('d3', () => ({}));
 
 import {
   computeUnionOrbitDomain,
+  formatOrbitEscapeCaption,
   padDomain,
   UNION_ORBIT_DOMAIN_SAMPLES,
 } from '@/components/visualizations/chartHelpers';
@@ -95,5 +96,16 @@ describe('computeUnionOrbitDomain', () => {
       },
     });
     expect(calls).toBe(UNION_ORBIT_DOMAIN_SAMPLES);
+  });
+});
+
+describe('formatOrbitEscapeCaption', () => {
+  it('names the parameter and value for the in-plot escape state', () => {
+    expect(formatOrbitEscapeCaption('a', 1.8)).toBe(
+      'no bounded attractor at a = 1.80 (orbit escapes)'
+    );
+    expect(formatOrbitEscapeCaption('a', 1.6)).toBe(
+      'no bounded attractor at a = 1.60 (orbit escapes)'
+    );
   });
 });

@@ -13,6 +13,7 @@ import {
   renderChartTitleAccent,
   padDomain,
   computeUnionOrbitDomain,
+  formatOrbitEscapeCaption,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -135,9 +136,9 @@ const HenonMapVisualization: React.FC = () => {
     const escaped = isOrbitEscaped(finitePoints);
     setOrbitEscaped(escaped);
 
-    // Prefer the held union domain so axes/canvas stay fixed while a sweeps.
-    // If every sample across a escaped, fall back to the per-frame extent
-    // (or the drawable fallback when this frame itself escaped).
+    // Prefer the held union domain so axes/canvas stay fixed while a sweeps —
+    // including when THIS frame escaped (do not snap to FALLBACK_DOMAIN).
+    // Fallback applies only when no sample in the union is bounded.
     let xExtent: [number, number];
     let yExtent: [number, number];
     if (heldDomain && !heldDomain.allEscaped) {
@@ -291,6 +292,18 @@ const HenonMapVisualization: React.FC = () => {
             viewBox={`0 0 ${width} ${height}`}
             className="absolute inset-0 w-full h-full"
           />
+          {/* In-plot escape state: axes + held domain stay; canvas is empty.
+              Same orbitEscaped / orbit-escape-notice mechanism as before —
+              moved into the plot area so escape does not read as a broken chart. */}
+          {orbitEscaped && (
+            <p
+              className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center text-sm pointer-events-none"
+              style={{ color: 'var(--text-secondary)' }}
+              data-testid="orbit-escape-notice"
+            >
+              {formatOrbitEscapeCaption('a', a)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -311,17 +324,6 @@ const HenonMapVisualization: React.FC = () => {
             ln|b| = {Math.log(Math.abs(b)).toFixed(6)}
           </p>
         </div>
-      )}
-
-      {/* Divergence notice — same caption idiom as the info block below */}
-      {orbitEscaped && (
-        <p
-          className="mt-2 text-sm text-center"
-          style={{ color: 'var(--text-secondary)' }}
-          data-testid="orbit-escape-notice"
-        >
-          Orbit escapes to infinity for these parameters.
-        </p>
       )}
 
       {/* Sparse-orbit caption from measured bin diversity (not a guessed period). */}

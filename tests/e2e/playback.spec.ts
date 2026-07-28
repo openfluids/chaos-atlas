@@ -128,7 +128,7 @@ test.describe('Playback controls', () => {
     await expect(page.getByTestId('playback-play-pause')).toBeVisible();
     await expect(page.getByTestId('orbit-escape-notice')).toBeVisible();
     await expect(page.getByTestId('orbit-escape-notice')).toContainText(
-      /orbit escapes to infinity/i
+      /no bounded attractor at a = 1\.60 \(orbit escapes\)/i
     );
     expect(pageErrors).toEqual([]);
   });
