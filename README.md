@@ -1,4 +1,4 @@
-# Chaos Atlas
+![chaos-atlas banner](https://raw.githubusercontent.com/openfluids/chaos-atlas/main/assets/readme-banner-v1.jpg)
 
 [![CI](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/chaos-atlas.svg)](https://pypi.org/project/chaos-atlas/)
