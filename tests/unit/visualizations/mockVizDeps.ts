@@ -77,7 +77,10 @@ export const chartHelpersMock = {
   createClippedDataGroup: () => paintStub,
   renderChartAxes: () => undefined,
   renderAxisLabelsRotated: () => undefined,
+  renderAxisLabelsPlain: () => undefined,
   renderChartTitle: () => undefined,
+  renderChartTitleAccent: () => undefined,
+  padDomain: (d: [number, number]) => d,
 };
 
 export const densityCanvasMock = {

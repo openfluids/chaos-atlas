@@ -9,7 +9,9 @@ import {
   equalAspectScales,
   createClippedDataGroup,
   renderChartAxes,
+  renderAxisLabelsPlain,
   renderChartTitleAccent,
+  padDomain,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -106,12 +108,14 @@ const HenonMapVisualization: React.FC = () => {
     // Fallback domain keeps axes drawable when nothing is finite; density
     // paint is skipped below so the canvas stays cleared.
     const fallbackDomain: [number, number] = [-1, 1];
+    // Pad 4 % per side BEFORE equalAspectScales so extremes sit inside the
+    // spines (raw data max ~0.385 was past the outermost ±0.3 tick).
     const xExtent = escaped
       ? fallbackDomain
-      : (d3.extent(finitePoints, (d) => d.x) as [number, number]);
+      : padDomain(d3.extent(finitePoints, (d) => d.x) as [number, number]);
     const yExtent = escaped
       ? fallbackDomain
-      : (d3.extent(finitePoints, (d) => d.y) as [number, number]);
+      : padDomain(d3.extent(finitePoints, (d) => d.y) as [number, number]);
 
     // The Hénon attractor's x-extent (~3.0) is roughly 7x its y-extent
     // (~0.4); equalAspectScales keeps one scale factor for both axes.
@@ -159,25 +163,9 @@ const HenonMapVisualization: React.FC = () => {
     // Add axes with letterbox offsets so they align with the plot rectangle.
     renderChartAxes(g, xScale, yScale, innerHeight, offsetX, offsetY);
 
-    // Add axis labels manually (cannot use renderAxisLabelsPlain as it doesn't
-    // account for offsetY, and renderAxisLabelsPlain in chartHelpers.ts cannot
-    // be edited to accept offsetY). When the plot is letterboxed with offsetY,
-    // the axis labels must move with it so the x-label stays below the axis
-    // and the y-label stays to the left of the axis.
-    g.append('text')
-      .attr('x', innerWidth / 2)
-      .attr('y', innerHeight - offsetY + 45)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('x');
-
-    g.append('text')
-      .attr('transform', 'rotate(-90)')
-      .attr('x', -(innerHeight / 2))
-      .attr('y', -40)
-      .attr('text-anchor', 'middle')
-      .style('fill', 'var(--text-secondary)')
-      .text('y');
+    // Idempotent labels (select-or-append); offsetY keeps the x-label under
+    // the letterboxed axis rather than the padded inner-box edge.
+    renderAxisLabelsPlain(g, innerWidth, innerHeight, 'x', 'y', offsetY);
 
     // Add title
     renderChartTitleAccent(g, innerWidth, `Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
