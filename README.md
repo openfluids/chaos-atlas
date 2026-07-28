@@ -1,15 +1,17 @@
 ![chaos-atlas banner](https://raw.githubusercontent.com/openfluids/chaos-atlas/main/assets/readme-banner-v1.jpg)
 
-[![CI](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml)
+[![CI](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/openfluids/chaos-atlas/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/chaos-atlas.svg)](https://pypi.org/project/chaos-atlas/)
 [![Python](https://img.shields.io/pypi/pyversions/chaos-atlas.svg)](https://pypi.org/project/chaos-atlas/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
-Interactive web application for exploring chaotic dynamical systems. Visualize strange attractors, bifurcation diagrams, cobweb plots, Lyapunov exponents, and spatiotemporal patterns across 10 iterated maps and coupled map lattices.
+`chaos-atlas` is an interactive explorer for chaotic dynamical systems: strange
+attractors, bifurcation diagrams, cobweb plots, Lyapunov exponents and
+coupled-map-lattice patterns, across ten iterated maps. The map kernels are also
+published as a standalone Python package, so the same systems can be driven from
+a script.
 
 **Live demo:** [openfluids.github.io/chaos-atlas](https://openfluids.github.io/chaos-atlas/)
-
-**Topics:** #chaos-theory #dynamical-systems #strange-attractors #bifurcation-diagrams #coupled-map-lattices #lyapunov-exponents #fractal-geometry #nextjs #d3js #react
 
 ## Maps
 
