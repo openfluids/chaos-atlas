@@ -227,7 +227,25 @@ test.describe('Chart teardown budget (all playback maps)', () => {
       const fingerprint = () =>
         page.evaluate(fingerprintFn(), map.svgRoot);
 
+      /**
+       * BOTH axes' tick labels — must stay fixed across a parameter sweep.
+       * y alone is not enough: sweeping Henon's `a` moved the X ticks
+       * (-1.2.. -> -1.0..) while y held at +-0.3, so a y-only assertion
+       * passed even before the domain was held.
+       */
+      const yTickLabels = () =>
+        page.evaluate((sel) => {
+          const svg =
+            document.querySelector(sel) ?? document.querySelector('svg');
+          const read = (axis: string) =>
+            Array.from(svg?.querySelectorAll(`g.${axis} .tick text`) ?? [])
+              .map((t) => t.textContent ?? '')
+              .join(',');
+          return `x[${read('x-axis')}] y[${read('y-axis')}]`;
+        }, map.svgRoot);
+
       const beforePlay = await fingerprint();
+      const yTicksBefore = await yTickLabels();
 
       const markCountBefore =
         map.markSelector == null
@@ -260,6 +278,12 @@ test.describe('Chart teardown budget (all playback maps)', () => {
       );
 
       const afterPlay = await fingerprint();
+      const yTicksAfter = await yTickLabels();
+      expect(
+        yTicksAfter,
+        `${map.name}: y-axis ticks moved during playback (before="${yTicksBefore}" after="${yTicksAfter}") — domain must be held across the sweep`
+      ).toBe(yTicksBefore);
+
       expect(
         afterPlay,
         `${map.name}: chart did not change during playback — a frozen chart also scores 0 removals, so the budget below would be meaningless`

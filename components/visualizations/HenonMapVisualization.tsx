@@ -12,6 +12,7 @@ import {
   renderAxisLabelsPlain,
   renderChartTitleAccent,
   padDomain,
+  computeUnionOrbitDomain,
   CHART_MARGIN,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
@@ -31,6 +32,40 @@ import { calculateHenonLyapunovSpectrum } from '@/lib/maps/henon';
 const DEFAULT_ITERATIONS = 200_000;
 const MAX_ITERATIONS = 1_000_000;
 const LYAPUNOV_ITERATIONS = 10_000; // Fixed count for exponent calculation
+// Must match the Parameter-a ParamSlider range below (first registered =
+// default playback axis). Domain is the union over this range so the ruler
+// stays fixed while a is animated.
+const A_SLIDER_MIN = 0.5;
+const A_SLIDER_MAX = 2.0;
+const TRANSIENT_ITERS = 100;
+const FALLBACK_DOMAIN: [number, number] = [-1, 1];
+
+/** Iterate the Hénon map; skip `TRANSIENT_ITERS` then collect `count` points. */
+function henonOrbit(
+  aParam: number,
+  bParam: number,
+  xStart: number,
+  yStart: number,
+  count: number
+): { x: number; y: number }[] {
+  let x = xStart;
+  let y = yStart;
+  for (let i = 0; i < TRANSIENT_ITERS; i++) {
+    const xNext = 1 - aParam * x * x + y;
+    const yNext = bParam * x;
+    x = xNext;
+    y = yNext;
+  }
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    points.push({ x, y });
+    const xNext = 1 - aParam * x * x + y;
+    const yNext = bParam * x;
+    x = xNext;
+    y = yNext;
+  }
+  return points;
+}
 
 const HenonMapVisualization: React.FC = () => {
   const [a, setA] = useState(1.4);
@@ -65,6 +100,21 @@ const HenonMapVisualization: React.FC = () => {
     return calculateHenonLyapunovSpectrum(a, b, 0.1, 0.1, LYAPUNOV_ITERATIONS);
   }, [a, b, hydrated]);
 
+  // Held domain for playback of parameter a (default sweep axis). Recomputed
+  // when non-swept params change; NOT when a itself moves frame-to-frame.
+  // Cap domain-pass iterations at DEFAULT so dragging b with the 1M ceiling
+  // cannot turn a 20-sample pre-pass into a multi-second stall.
+  const heldDomain = useMemo(() => {
+    if (!hydrated) return null;
+    const domainIters = Math.min(iterations, DEFAULT_ITERATIONS);
+    return computeUnionOrbitDomain({
+      min: A_SLIDER_MIN,
+      max: A_SLIDER_MAX,
+      fallback: { x: FALLBACK_DOMAIN, y: FALLBACK_DOMAIN },
+      sampleOrbit: (aSample) => henonOrbit(aSample, b, x0, y0, domainIters),
+    });
+  }, [b, x0, y0, iterations, hydrated]);
+
   useEffect(() => {
     if (!hydrated) return;
 
@@ -72,27 +122,7 @@ const HenonMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, innerWidth, innerHeight } = chart;
 
-    // Calculate Henon map
-    const points: { x: number; y: number }[] = [];
-    let x = x0;
-    let y = y0;
-
-    // Skip transients
-    for (let i = 0; i < 100; i++) {
-      const xNext = 1 - a * x * x + y;
-      const yNext = b * x;
-      x = xNext;
-      y = yNext;
-    }
-
-    // Collect attractor points
-    for (let i = 0; i < iterations; i++) {
-      points.push({ x, y });
-      const xNext = 1 - a * x * x + y;
-      const yNext = b * x;
-      x = xNext;
-      y = yNext;
-    }
+    const points = henonOrbit(a, b, x0, y0, iterations);
 
     // Find data bounds from finite points only. For a ≳ 1.5 the orbit
     // escapes; d3.extent over ±Infinity/NaN yields [undefined, undefined]
@@ -105,17 +135,23 @@ const HenonMapVisualization: React.FC = () => {
     const escaped = isOrbitEscaped(finitePoints);
     setOrbitEscaped(escaped);
 
-    // Fallback domain keeps axes drawable when nothing is finite; density
-    // paint is skipped below so the canvas stays cleared.
-    const fallbackDomain: [number, number] = [-1, 1];
-    // Pad 4 % per side BEFORE equalAspectScales so extremes sit inside the
-    // spines (raw data max ~0.385 was past the outermost ±0.3 tick).
-    const xExtent = escaped
-      ? fallbackDomain
-      : padDomain(d3.extent(finitePoints, (d) => d.x) as [number, number]);
-    const yExtent = escaped
-      ? fallbackDomain
-      : padDomain(d3.extent(finitePoints, (d) => d.y) as [number, number]);
+    // Prefer the held union domain so axes/canvas stay fixed while a sweeps.
+    // If every sample across a escaped, fall back to the per-frame extent
+    // (or the drawable fallback when this frame itself escaped).
+    let xExtent: [number, number];
+    let yExtent: [number, number];
+    if (heldDomain && !heldDomain.allEscaped) {
+      xExtent = heldDomain.xDomain;
+      yExtent = heldDomain.yDomain;
+    } else if (escaped) {
+      xExtent = FALLBACK_DOMAIN;
+      yExtent = FALLBACK_DOMAIN;
+    } else {
+      // Pad 4 % per side BEFORE equalAspectScales so extremes sit inside the
+      // spines (raw data max ~0.385 was past the outermost ±0.3 tick).
+      xExtent = padDomain(d3.extent(finitePoints, (d) => d.x) as [number, number]);
+      yExtent = padDomain(d3.extent(finitePoints, (d) => d.y) as [number, number]);
+    }
 
     // The Hénon attractor's x-extent (~3.0) is roughly 7x its y-extent
     // (~0.4); equalAspectScales keeps one scale factor for both axes.
@@ -170,7 +206,7 @@ const HenonMapVisualization: React.FC = () => {
     // Add title
     renderChartTitleAccent(g, innerWidth, `Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
 
-  }, [a, b, x0, y0, iterations, hydrated]);
+  }, [a, b, x0, y0, iterations, hydrated, heldDomain]);
 
   return (
     <div className="henon-map-visualization p-6">
@@ -178,8 +214,8 @@ const HenonMapVisualization: React.FC = () => {
       <div className="controls mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
         <ParamSlider
           label={<>Parameter a: {a.toFixed(3)}</>}
-          min={0.5}
-          max={2.0}
+          min={A_SLIDER_MIN}
+          max={A_SLIDER_MAX}
           step={0.01}
           value={a}
           onChange={setA}

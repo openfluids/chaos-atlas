@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
 import * as d3 from 'd3';
+import { isOrbitEscaped } from './densityField';
 
 /**
  * Shared inner-margin used by every map visualization's SVG chart. All ten
@@ -487,6 +488,112 @@ export function padDomain(
   }
   const pad = span * fraction;
   return [lo - pad, hi + pad];
+}
+
+/** Default number of parameter samples used by {@link computeUnionOrbitDomain}. */
+export const UNION_ORBIT_DOMAIN_SAMPLES = 20;
+
+export type OrbitPoint = { x: number; y: number };
+
+export type UnionOrbitDomainOptions = {
+  /**
+   * Produce one orbit at a single sample of the swept parameter. Other
+   * parameters must be closed over at their current (held) values.
+   */
+  sampleOrbit: (paramValue: number) => readonly OrbitPoint[];
+  /** Inclusive lower end of the swept parameter's slider range. */
+  min: number;
+  /** Inclusive upper end of the swept parameter's slider range. */
+  max: number;
+  /** Samples across [min, max], inclusive of both ends. Default 20. */
+  sampleCount?: number;
+  /** Padding fraction applied once to the final union. Default 0.04. */
+  padFraction?: number;
+  /**
+   * Returned as the domains when every sample is escaped / non-finite, so the
+   * caller can fall back to per-frame behaviour.
+   */
+  fallback: { x: [number, number]; y: [number, number] };
+};
+
+export type UnionOrbitDomain = {
+  xDomain: [number, number];
+  yDomain: [number, number];
+  /** True when no sample contributed a bounded extent. */
+  allEscaped: boolean;
+  /** How many samples entered the union (not escaped). */
+  contributed: number;
+};
+
+/**
+ * Compute a single x/y domain as the UNION of orbit extents over a cheap
+ * parameter sweep. Use this for axes and canvas mapping during playback so
+ * the ruler does not move under the animation.
+ *
+ * Escaped / divergent samples (via {@link isOrbitEscaped}) are skipped and
+ * do not poison the union. If every sample escapes, returns `fallback` with
+ * `allEscaped: true` — the caller should keep its existing per-frame path.
+ *
+ * Padding is applied once to the final union (not per sample).
+ */
+export function computeUnionOrbitDomain(
+  options: UnionOrbitDomainOptions
+): UnionOrbitDomain {
+  const {
+    sampleOrbit,
+    min,
+    max,
+    sampleCount = UNION_ORBIT_DOMAIN_SAMPLES,
+    padFraction = 0.04,
+    fallback,
+  } = options;
+
+  const n = Math.max(2, Math.floor(sampleCount));
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let contributed = 0;
+
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const paramValue = min + t * (max - min);
+    const points = sampleOrbit(paramValue);
+    if (isOrbitEscaped(points)) continue;
+
+    let any = false;
+    for (const p of points) {
+      if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+      any = true;
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    if (any) contributed += 1;
+  }
+
+  if (
+    contributed === 0 ||
+    !Number.isFinite(minX) ||
+    !Number.isFinite(maxX) ||
+    !Number.isFinite(minY) ||
+    !Number.isFinite(maxY)
+  ) {
+    return {
+      xDomain: fallback.x,
+      yDomain: fallback.y,
+      allEscaped: true,
+      contributed: 0,
+    };
+  }
+
+  return {
+    xDomain: padDomain([minX, maxX], padFraction),
+    yDomain: padDomain([minY, maxY], padFraction),
+    allEscaped: false,
+    contributed,
+  };
 }
 
 /**
