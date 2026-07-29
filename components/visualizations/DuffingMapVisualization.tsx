@@ -200,17 +200,22 @@ const DuffingMapVisualization: React.FC = () => {
               d.value === -1 ? 'var(--accent-red)' :
               d.value === 1 ? 'var(--accent-cyan)' :
               d.value === 2 ? 'var(--accent-orange)' :
+              d.value === 3 ? 'var(--accent-magenta)' :
               'rgba(50, 50, 50, 0.5)')
             .attr('opacity', 0.8).attr('stroke', 'none');
         }
       );
 
-      const legendData = [
-        { color: 'var(--accent-cyan)', label: 'Left well' },
-        { color: 'var(--accent-orange)', label: 'Right well' },
-        { color: 'rgba(50, 50, 50, 0.5)', label: 'Center' },
-        { color: 'var(--accent-red)', label: 'Escapes' }
-      ];
+      // Legend entries follow which labels actually appear — never claim
+      // "Center" for an unclassified / chaotic cell.
+      const present = new Set(cells.map((c) => c.value));
+      const legendData: { color: string; label: string }[] = [];
+      if (present.has(1)) legendData.push({ color: 'var(--accent-cyan)', label: 'Left attractor' });
+      if (present.has(2)) legendData.push({ color: 'var(--accent-orange)', label: 'Right attractor' });
+      if (present.has(0)) legendData.push({ color: 'rgba(50, 50, 50, 0.5)', label: 'Origin' });
+      if (present.has(3)) legendData.push({ color: 'var(--accent-magenta)', label: 'Chaotic' });
+      if (present.has(-1)) legendData.push({ color: 'var(--accent-red)', label: 'Escapes' });
+
       joinByIndex<typeof legendData[number], SVGRectElement>(
         g, 'rect.legend-swatch', 'rect', legendData, 'legend-swatch',
         (sel) => {

@@ -137,11 +137,24 @@ export function calculateDuffingBifurcation(
 }
 
 /**
- * Calculate basins of attraction for the two wells
+ * Calculate basins of attraction for the Duffing map fixed points.
+ *
+ * Encoding (integer grid, consumed by renderBasins):
+ *   -1  escaped
+ *    0  converged to the origin fixed point
+ *    1  basin of the negative fixed point (x=y=-sqrt(a-b-1))
+ *    2  basin of the positive fixed point (x=y=+sqrt(a-b-1))
+ *    3  bounded but did not settle on a fixed point (chaotic / strange)
+ *
+ * Classification uses the MAP attractors from calculateDuffingFixedPoints,
+ * the converged tail of each orbit (no first-pass break), and a matching
+ * tolerance that scales with the separation between the nonzero fixed points.
+ * Grid samples sit at cell centres so the domain is symmetric about the origin.
+ *
  * @param params Duffing parameters
  * @param gridSize Size of the grid to test (default: 100)
  * @param bounds Spatial bounds
- * @returns 2D array indicating which well each point belongs to
+ * @returns 2D array of basin labels (rows = y index, cols = x index)
  */
 export function calculateDuffingBasins(
   params: { a: number; b: number },
@@ -149,52 +162,100 @@ export function calculateDuffingBasins(
   bounds: { xMin: number; xMax: number; yMin: number; yMax: number } = { xMin: -2, xMax: 2, yMin: -2, yMax: 2 }
 ): number[][] {
   const basins: number[][] = Array(gridSize).fill(null).map(() => Array(gridSize).fill(0));
+  // Cell centres: x_i = xMin + (i+1/2)·Δx so the grid is odd-symmetric
+  // about the origin (x_i + x_{n-1-i} = 0). Corner sampling (i·Δx) is not.
   const xStep = (bounds.xMax - bounds.xMin) / gridSize;
   const yStep = (bounds.yMax - bounds.yMin) / gridSize;
 
-  // Find the approximate centers of the two wells
-  const wellCenters = [
-    { x: -Math.sqrt(params.a), y: 0 },
-    { x: Math.sqrt(params.a), y: 0 }
-  ];
+  const fixedPoints = calculateDuffingFixedPoints(params);
+  const nonzero = fixedPoints.filter((p) => p.x !== 0 || p.y !== 0);
+
+  // Matching radius scales with how far the two nonzero fixed points sit
+  // apart. A fixed 0.5 overlaps both wells when a is only slightly above 1+b.
+  let separation = 1;
+  if (nonzero.length >= 2) {
+    const p0 = nonzero[0];
+    const p1 = nonzero[1];
+    separation = Math.hypot(p0.x - p1.x, p0.y - p1.y);
+  } else if (nonzero.length === 1) {
+    separation = 2 * Math.hypot(nonzero[0].x, nonzero[0].y);
+  }
+  const matchTol = 0.25 * separation;
+  // Orbit must actually settle: chaotic tails keep O(1) spread even when the
+  // time-average drifts near a fixed point.
+  const convergeTol = 0.05;
+
+  const maxIter = 1000;
+  const tailLen = 80;
+  const escapeR = 10;
 
   for (let i = 0; i < gridSize; i++) {
     for (let j = 0; j < gridSize; j++) {
-      const initialPoint: DuffingPoint = {
-        x: bounds.xMin + i * xStep,
-        y: bounds.yMin + j * yStep
+      let currentPoint: DuffingPoint = {
+        x: bounds.xMin + (i + 0.5) * xStep,
+        y: bounds.yMin + (j + 0.5) * yStep
       };
 
-      // Iterate to see which well it converges to
-      let currentPoint = initialPoint;
-      let basinId = 0;
+      let escaped = false;
+      let meanX = 0;
+      let meanY = 0;
+      let tailCount = 0;
+      // Ring buffer of the last tailLen points for spread after the mean is known.
+      const tailX = new Float64Array(tailLen);
+      const tailY = new Float64Array(tailLen);
 
-      for (let iter = 0; iter < 1000; iter++) {
+      for (let iter = 0; iter < maxIter; iter++) {
         currentPoint = calculateDuffingIteration(currentPoint, params);
 
-        // Check if point escapes
-        if (Math.abs(currentPoint.x) > 10 || Math.abs(currentPoint.y) > 10) {
-          basinId = -1; // Escapes
+        if (Math.abs(currentPoint.x) > escapeR || Math.abs(currentPoint.y) > escapeR) {
+          escaped = true;
           break;
         }
 
-        // After transients, check which well it's closest to
-        if (iter > 500) {
-          const distToWell1 = Math.sqrt(
-            Math.pow(currentPoint.x - wellCenters[0].x, 2) +
-            Math.pow(currentPoint.y - wellCenters[0].y, 2)
-          );
-          const distToWell2 = Math.sqrt(
-            Math.pow(currentPoint.x - wellCenters[1].x, 2) +
-            Math.pow(currentPoint.y - wellCenters[1].y, 2)
-          );
+        if (iter >= maxIter - tailLen) {
+          const t = tailCount;
+          tailX[t] = currentPoint.x;
+          tailY[t] = currentPoint.y;
+          meanX += currentPoint.x;
+          meanY += currentPoint.y;
+          tailCount++;
+        }
+      }
 
-          if (distToWell1 < 0.5) {
-            basinId = 1; // Left well
-            break;
-          } else if (distToWell2 < 0.5) {
-            basinId = 2; // Right well
-            break;
+      let basinId: number;
+      if (escaped || tailCount === 0) {
+        basinId = -1;
+      } else {
+        meanX /= tailCount;
+        meanY /= tailCount;
+
+        let spread = 0;
+        for (let t = 0; t < tailCount; t++) {
+          const d = Math.hypot(tailX[t] - meanX, tailY[t] - meanY);
+          if (d > spread) spread = d;
+        }
+
+        if (spread > convergeTol) {
+          basinId = 3; // bounded, not settled
+        } else {
+          let bestDist = Infinity;
+          let best: DuffingPoint | null = null;
+          for (const fp of fixedPoints) {
+            const d = Math.hypot(meanX - fp.x, meanY - fp.y);
+            if (d < bestDist) {
+              bestDist = d;
+              best = fp;
+            }
+          }
+
+          if (best === null || bestDist > matchTol) {
+            basinId = 3;
+          } else if (best.x === 0 && best.y === 0) {
+            basinId = 0;
+          } else if (best.x < 0) {
+            basinId = 1;
+          } else {
+            basinId = 2;
           }
         }
       }
