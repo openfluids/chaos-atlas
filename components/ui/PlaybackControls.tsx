@@ -2,7 +2,9 @@
 
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
+  clampSelectedIndex,
   usePlaybackRegistry,
+  usePlaybackSelection,
   type AnimatableParam,
 } from '@/components/ui/PlaybackContext';
 import { useAnimationLoop } from '@/hooks/useAnimationLoop';
@@ -16,12 +18,8 @@ export const PLAYBACK_SWEEP_SECONDS = 10;
 const SPEEDS = [0.2, 0.5, 1] as const;
 export type PlaybackSpeed = (typeof SPEEDS)[number];
 
-/** Clamp a selection index into `[0, count)`. Empty registry → 0. */
-export function clampSelectedIndex(index: number, count: number): number {
-  if (count <= 0) return 0;
-  if (!Number.isFinite(index)) return 0;
-  return Math.min(Math.max(0, Math.trunc(index)), count - 1);
-}
+/** Re-export: selection clamp lives next to the registry it protects. */
+export { clampSelectedIndex };
 
 /** Snap `value` to a legal slider tick in `[min, max]`. */
 export function quantizeToStep(
@@ -118,6 +116,11 @@ function formatValue(value: number, step: number): string {
 export function PlaybackControls(): React.ReactElement {
   const registry = usePlaybackRegistry();
   const params = registry.getParams();
+  // Selection lives in the registry so visualizations can hold domains for
+  // whichever param is swept. This bar is the writer; clamp on read so a
+  // param unmounting while selected cannot strand the control.
+  const { selectedIndex: selectedIndexRaw, setSelectedIndex: setSelectedIndexRaw } =
+    usePlaybackSelection();
   // Policy hook: reduced motion suppresses autoplay only. There is no
   // autoplay this cycle — play is always user-initiated and never gated.
   useReducedMotion();
@@ -126,11 +129,6 @@ export function PlaybackControls(): React.ReactElement {
   // Default to the slowest speed: a full sweep at 1x moves too fast to read
   // the structure the plots exist to show.
   const [speed, setSpeed] = useState<PlaybackSpeed>(0.5);
-  // Selection is an INDEX, not a useId() name — names are tree-position
-  // opaque and would not survive a view-mode remount of sibling sliders.
-  // Stored raw; always read through clampSelectedIndex so a shrink cannot
-  // leave us pointing past the end.
-  const [selectedIndexRaw, setSelectedIndexRaw] = useState(0);
   const [displayValue, setDisplayValue] = useState(0);
 
   const clampedIndex = clampSelectedIndex(selectedIndexRaw, params.length);

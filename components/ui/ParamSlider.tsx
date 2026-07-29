@@ -47,6 +47,12 @@ interface ParamSliderProps {
    * right thing on nearly every page with no per-page configuration.
    */
   animate?: boolean;
+  /**
+   * Optional stable registry key. When omitted, a React `useId()` is used
+   * (opaque; fine for index-based selection). Pass an explicit name when a
+   * visualization must recognise which param is selected (held domains).
+   */
+  name?: string;
 }
 
 type LiveFields = {
@@ -71,10 +77,12 @@ export function ParamSlider({
   labelStyle,
   disabled,
   animate = true,
+  name,
 }: ParamSliderProps): React.ReactElement {
   const registry = usePlaybackRegistryOptional();
   // Stable per-instance key; no new required prop, additive to existing call sites.
   const autoName = useId();
+  const paramName = name ?? autoName;
 
   // Live fields for the registry: updated in layout effect so we never write
   // refs during render (react-hooks/refs). Animation reads these between
@@ -104,7 +112,7 @@ export function ParamSlider({
     let mounted = true;
 
     registry.register({
-      name: autoName,
+      name: paramName,
       get label() {
         return liveRef.current.label;
       },
@@ -126,9 +134,9 @@ export function ParamSlider({
 
     return () => {
       mounted = false;
-      registry.deregister(autoName);
+      registry.deregister(paramName);
     };
-  }, [animate, registry, autoName]);
+  }, [animate, registry, paramName]);
 
   // Combine default classes with any additional className
   const computedClassName = className

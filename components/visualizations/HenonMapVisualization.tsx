@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePlaybackSelectedParam } from '@/components/ui/PlaybackContext';
 import {
   initChartBase,
   equalAspectScales,
@@ -33,13 +34,26 @@ import { calculateHenonLyapunovSpectrum } from '@/lib/maps/henon';
 const DEFAULT_ITERATIONS = 200_000;
 const MAX_ITERATIONS = 1_000_000;
 const LYAPUNOV_ITERATIONS = 10_000; // Fixed count for exponent calculation
-// Must match the Parameter-a ParamSlider range below (first registered =
-// default playback axis). Domain is the union over this range so the ruler
-// stays fixed while a is animated.
+// Parameter-a ParamSlider range (first registered = default playback axis).
+// When the selected playback param is unknown, the held domain still uses
+// this range — same default as cycle 15.
 const A_SLIDER_MIN = 0.5;
 const A_SLIDER_MAX = 2.0;
+const B_SLIDER_MIN = 0.1;
+const B_SLIDER_MAX = 0.5;
 const TRANSIENT_ITERS = 100;
 const FALLBACK_DOMAIN: [number, number] = [-1, 1];
+
+/** Stable registry keys for Henon sliders (held-domain matching). */
+const HENON_PARAM = {
+  a: 'henon-a',
+  b: 'henon-b',
+  x0: 'henon-x0',
+  y0: 'henon-y0',
+  iterations: 'henon-iterations',
+} as const;
+
+type HenonSweptKey = keyof typeof HENON_PARAM;
 
 /** Iterate the Hénon map; skip `TRANSIENT_ITERS` then collect `count` points. */
 function henonOrbit(
@@ -68,6 +82,14 @@ function henonOrbit(
   return points;
 }
 
+function matchHenonSweptKey(name: string | undefined): HenonSweptKey | null {
+  if (!name) return null;
+  for (const key of Object.keys(HENON_PARAM) as HenonSweptKey[]) {
+    if (HENON_PARAM[key] === name) return key;
+  }
+  return null;
+}
+
 const HenonMapVisualization: React.FC = () => {
   const [a, setA] = useState(1.4);
   const [b, setB] = useState(0.3);
@@ -86,6 +108,26 @@ const HenonMapVisualization: React.FC = () => {
   // hydration error #418 if the result reaches the first server-rendered
   // paint. See hooks/useHydrated.
   const hydrated = useHydrated();
+  // Which param playback is sweeping — drives the held union domain.
+  // Outside a provider this throws; map pages always wrap with PlaybackProvider.
+  const selectedParam = usePlaybackSelectedParam();
+  const matchedKey = matchHenonSweptKey(selectedParam?.name);
+  // Falling back to 'a' holds the domain for a parameter playback may not be
+  // sweeping — i.e. the drifting axes come back, silently. That only happens if
+  // a slider's registry name stops matching HENON_PARAM, so say so out loud in
+  // development rather than degrading without a signal.
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    selectedParam &&
+    matchedKey === null
+  ) {
+    console.warn(
+      `[henon] playback selected "${selectedParam.name}", which matches no ` +
+        `HENON_PARAM entry — holding the domain for 'a' instead. The axes ` +
+        `will drift while this parameter sweeps.`
+    );
+  }
+  const sweptKey = matchedKey ?? 'a';
 
   const width = 600;
   const height = 400;
@@ -101,20 +143,61 @@ const HenonMapVisualization: React.FC = () => {
     return calculateHenonLyapunovSpectrum(a, b, 0.1, 0.1, LYAPUNOV_ITERATIONS);
   }, [a, b, hydrated]);
 
-  // Held domain for playback of parameter a (default sweep axis). Recomputed
-  // when non-swept params change; NOT when a itself moves frame-to-frame.
-  // Cap domain-pass iterations at DEFAULT so dragging b with the 1M ceiling
-  // cannot turn a 20-sample pre-pass into a multi-second stall.
+  // Held domain for whichever param playback is sweeping. Recomputed when
+  // non-swept params change; NOT when the swept value moves frame-to-frame.
+  // Cap domain-pass iterations at DEFAULT so a high iterations ceiling cannot
+  // turn a 20-sample pre-pass into a multi-second stall.
+  // Unknown / missing selection → same as cycle 15 (hold over a's slider range).
+  // A matched selection carries its own range; an unmatched one always lands on
+  // 'a' above, so a's range is the only fallback that can be reached.
+  const knownSelected = matchedKey !== null ? selectedParam : null;
+  const sweepMin = knownSelected?.min ?? A_SLIDER_MIN;
+  const sweepMax = knownSelected?.max ?? A_SLIDER_MAX;
+  // fixed* are undefined for the swept key so that key drops out of the memo
+  // deps — frame-to-frame motion of the playhead must not rebuild the union.
+  const fixedA = sweptKey === 'a' ? undefined : a;
+  const fixedB = sweptKey === 'b' ? undefined : b;
+  const fixedX0 = sweptKey === 'x0' ? undefined : x0;
+  const fixedY0 = sweptKey === 'y0' ? undefined : y0;
+  const fixedIterations = sweptKey === 'iterations' ? undefined : iterations;
+
   const heldDomain = useMemo(() => {
     if (!hydrated) return null;
-    const domainIters = Math.min(iterations, DEFAULT_ITERATIONS);
+    const domainIters = Math.min(
+      fixedIterations ?? DEFAULT_ITERATIONS,
+      DEFAULT_ITERATIONS,
+    );
+
     return computeUnionOrbitDomain({
-      min: A_SLIDER_MIN,
-      max: A_SLIDER_MAX,
+      min: sweepMin,
+      max: sweepMax,
       fallback: { x: FALLBACK_DOMAIN, y: FALLBACK_DOMAIN },
-      sampleOrbit: (aSample) => henonOrbit(aSample, b, x0, y0, domainIters),
+      sampleOrbit: (sample) => {
+        const aVal = sweptKey === 'a' ? sample : (fixedA as number);
+        const bVal = sweptKey === 'b' ? sample : (fixedB as number);
+        const xVal = sweptKey === 'x0' ? sample : (fixedX0 as number);
+        const yVal = sweptKey === 'y0' ? sample : (fixedY0 as number);
+        if (sweptKey === 'iterations') {
+          const n = Math.min(
+            Math.max(Math.round(sample), 1),
+            DEFAULT_ITERATIONS,
+          );
+          return henonOrbit(aVal, bVal, xVal, yVal, n);
+        }
+        return henonOrbit(aVal, bVal, xVal, yVal, domainIters);
+      },
     });
-  }, [b, x0, y0, iterations, hydrated]);
+  }, [
+    hydrated,
+    sweptKey,
+    sweepMin,
+    sweepMax,
+    fixedA,
+    fixedB,
+    fixedX0,
+    fixedY0,
+    fixedIterations,
+  ]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -214,6 +297,7 @@ const HenonMapVisualization: React.FC = () => {
       {/* Controls */}
       <div className="controls mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
         <ParamSlider
+          name={HENON_PARAM.a}
           label={<>Parameter a: {a.toFixed(3)}</>}
           min={A_SLIDER_MIN}
           max={A_SLIDER_MAX}
@@ -226,9 +310,10 @@ const HenonMapVisualization: React.FC = () => {
         />
 
         <ParamSlider
+          name={HENON_PARAM.b}
           label={<>Parameter b: {b.toFixed(3)}</>}
-          min={0.1}
-          max={0.5}
+          min={B_SLIDER_MIN}
+          max={B_SLIDER_MAX}
           step={0.01}
           value={b}
           onChange={setB}
@@ -238,6 +323,7 @@ const HenonMapVisualization: React.FC = () => {
         />
 
         <ParamSlider
+          name={HENON_PARAM.x0}
           label={<>Initial x₀: {x0.toFixed(3)}</>}
           min={-1}
           max={1}
@@ -250,6 +336,7 @@ const HenonMapVisualization: React.FC = () => {
         />
 
         <ParamSlider
+          name={HENON_PARAM.y0}
           label={<>Initial y₀: {y0.toFixed(3)}</>}
           min={-1}
           max={1}
@@ -262,6 +349,7 @@ const HenonMapVisualization: React.FC = () => {
         />
 
         <ParamSlider
+          name={HENON_PARAM.iterations}
           label={<>Iterations: {iterations.toLocaleString()}</>}
           min={10_000}
           max={MAX_ITERATIONS}

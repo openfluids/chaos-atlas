@@ -25,6 +25,13 @@ export type AnimatableParam = {
   setValue: (value: number) => void;
 };
 
+/** Clamp a selection index into `[0, count)`. Empty registry → 0. */
+export function clampSelectedIndex(index: number, count: number): number {
+  if (count <= 0) return 0;
+  if (!Number.isFinite(index)) return 0;
+  return Math.min(Math.max(0, Math.trunc(index)), count - 1);
+}
+
 export type PlaybackRegistry = {
   /** Register a param. Notifies membership subscribers (mount). */
   register: (param: AnimatableParam) => void;
@@ -45,6 +52,22 @@ export type PlaybackRegistry = {
    * (that would change the context identity and re-run self-register effects).
    */
   readonly version: number;
+  /**
+   * Raw selected index (may be past the end until a reader clamps).
+   * Selection is membership-like: rare, own subscription — not the value path.
+   */
+  getSelectedIndex: () => number;
+  /** Store a raw selection index; notifies selection subscribers when it changes. */
+  setSelectedIndex: (index: number) => void;
+  /**
+   * Clamped selected param, or undefined when the registry is empty.
+   * Does not subscribe — pair with `subscribeSelection` / `usePlaybackSelection`.
+   */
+  getSelectedParam: () => AnimatableParam | undefined;
+  /** Subscribe to selection-index changes only (not value, not membership). */
+  subscribeSelection: (listener: () => void) => () => void;
+  /** Bumps when the selected index is written to a new value. */
+  readonly selectionVersion: number;
 };
 
 type Store = {
@@ -52,6 +75,9 @@ type Store = {
   order: string[];
   version: number;
   listeners: Set<() => void>;
+  selectedIndex: number;
+  selectionVersion: number;
+  selectionListeners: Set<() => void>;
 };
 
 const PlaybackContext = createContext<PlaybackRegistry | null>(null);
@@ -60,6 +86,11 @@ function createRegistry(store: Store): PlaybackRegistry {
   const emitMembership = () => {
     store.version += 1;
     store.listeners.forEach((listener) => listener());
+  };
+
+  const emitSelection = () => {
+    store.selectionVersion += 1;
+    store.selectionListeners.forEach((listener) => listener());
   };
 
   return {
@@ -93,6 +124,32 @@ function createRegistry(store: Store): PlaybackRegistry {
     get version() {
       return store.version;
     },
+    getSelectedIndex() {
+      return store.selectedIndex;
+    },
+    setSelectedIndex(index: number) {
+      const next = Number.isFinite(index) ? Math.trunc(index) : 0;
+      if (next === store.selectedIndex) return;
+      store.selectedIndex = next;
+      emitSelection();
+    },
+    getSelectedParam() {
+      const params = store.order
+        .map((name) => store.map.get(name))
+        .filter((p): p is AnimatableParam => p !== undefined);
+      if (params.length === 0) return undefined;
+      const idx = clampSelectedIndex(store.selectedIndex, params.length);
+      return params[idx];
+    },
+    subscribeSelection(listener: () => void) {
+      store.selectionListeners.add(listener);
+      return () => {
+        store.selectionListeners.delete(listener);
+      };
+    },
+    get selectionVersion() {
+      return store.selectionVersion;
+    },
   };
 }
 
@@ -104,7 +161,8 @@ function createRegistry(store: Store): PlaybackRegistry {
  * do not re-run their mount effects when membership changes. Registering or
  * updating a param's current value does not re-render consumers — only
  * mount/unmount notifies `subscribe` listeners (and `usePlaybackRegistry`
- * via `useSyncExternalStore`).
+ * via `useSyncExternalStore`). Selection has its own subscription: rare
+ * membership-like changes must not ride the per-frame value path.
  */
 export function PlaybackProvider({
   children,
@@ -119,6 +177,9 @@ export function PlaybackProvider({
       order: [],
       version: 0,
       listeners: new Set(),
+      selectedIndex: 0,
+      selectionVersion: 0,
+      selectionListeners: new Set(),
     }),
   );
 
@@ -153,4 +214,50 @@ export function usePlaybackRegistry(): PlaybackRegistry {
  */
 export function usePlaybackRegistryOptional(): PlaybackRegistry | null {
   return useContext(PlaybackContext);
+}
+
+/**
+ * Selected playback param (clamped). Re-renders on selection or membership
+ * changes; never on value updates. Must be used under a `PlaybackProvider`.
+ */
+export function usePlaybackSelectedParam(): AnimatableParam | undefined {
+  const ctx = useContext(PlaybackContext);
+  if (!ctx) {
+    throw new Error(
+      'usePlaybackSelectedParam must be used within a PlaybackProvider',
+    );
+  }
+  useSyncExternalStore(ctx.subscribe, () => ctx.version, () => 0);
+  useSyncExternalStore(
+    ctx.subscribeSelection,
+    () => ctx.selectionVersion,
+    () => 0,
+  );
+  return ctx.getSelectedParam();
+}
+
+/**
+ * Raw selected index + writer. Re-renders on selection changes only (not
+ * membership, not values). Pair with `usePlaybackRegistry` when the param
+ * list is also needed.
+ */
+export function usePlaybackSelection(): {
+  selectedIndex: number;
+  setSelectedIndex: (index: number) => void;
+} {
+  const ctx = useContext(PlaybackContext);
+  if (!ctx) {
+    throw new Error(
+      'usePlaybackSelection must be used within a PlaybackProvider',
+    );
+  }
+  useSyncExternalStore(
+    ctx.subscribeSelection,
+    () => ctx.selectionVersion,
+    () => 0,
+  );
+  return {
+    selectedIndex: ctx.getSelectedIndex(),
+    setSelectedIndex: ctx.setSelectedIndex,
+  };
 }

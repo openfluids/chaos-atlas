@@ -3,6 +3,8 @@ import { act, render, renderHook, screen } from '@testing-library/react';
 import {
   PlaybackProvider,
   usePlaybackRegistry,
+  usePlaybackSelectedParam,
+  usePlaybackSelection,
   type AnimatableParam,
 } from '@/components/ui/PlaybackContext';
 
@@ -144,5 +146,152 @@ describe('PlaybackContext', () => {
       renderHook(() => usePlaybackRegistry());
     }).toThrow(/PlaybackProvider/);
     spy.mockRestore();
+  });
+
+  it('notifies selection subscribers when the selected index changes', () => {
+    const { result } = renderHook(() => usePlaybackRegistry(), { wrapper });
+    const listener = jest.fn();
+
+    act(() => {
+      result.current.register(makeParam('a'));
+      result.current.register(makeParam('b'));
+    });
+
+    let unsubscribe: () => void = () => {};
+    act(() => {
+      unsubscribe = result.current.subscribeSelection(listener);
+    });
+
+    act(() => {
+      result.current.setSelectedIndex(1);
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(result.current.getSelectedIndex()).toBe(1);
+    expect(result.current.getSelectedParam()?.name).toBe('b');
+
+    // Same index must not re-notify.
+    act(() => {
+      result.current.setSelectedIndex(1);
+    });
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      result.current.setSelectedIndex(0);
+    });
+    expect(listener).toHaveBeenCalledTimes(2);
+    expect(result.current.getSelectedParam()?.name).toBe('a');
+
+    unsubscribe();
+  });
+
+  it('does not notify selection subscribers on value changes', () => {
+    const { result } = renderHook(() => usePlaybackRegistry(), { wrapper });
+    const selectionListener = jest.fn();
+
+    act(() => {
+      result.current.register(makeParam('a', 0.2));
+      result.current.subscribeSelection(selectionListener);
+    });
+
+    act(() => {
+      result.current.getParam('a')?.setValue(0.9);
+    });
+    expect(selectionListener).not.toHaveBeenCalled();
+    expect(result.current.getParam('a')?.getValue()).toBe(0.9);
+  });
+
+  it('does not notify selection subscribers on membership changes', () => {
+    const { result } = renderHook(() => usePlaybackRegistry(), { wrapper });
+    const selectionListener = jest.fn();
+
+    act(() => {
+      result.current.subscribeSelection(selectionListener);
+    });
+
+    act(() => {
+      result.current.register(makeParam('a'));
+    });
+    expect(selectionListener).not.toHaveBeenCalled();
+
+    act(() => {
+      result.current.deregister('a');
+    });
+    expect(selectionListener).not.toHaveBeenCalled();
+  });
+
+  it('usePlaybackSelection re-renders on selection, not on value change', () => {
+    const selectionRenders = { current: 0 };
+
+    function SelectionConsumer() {
+      const { selectedIndex, setSelectedIndex } = usePlaybackSelection();
+      const registry = usePlaybackRegistry();
+      useEffect(() => {
+        selectionRenders.current += 1;
+      });
+      return (
+        <div>
+          <span data-testid="sel">{selectedIndex}</span>
+          <button type="button" onClick={() => setSelectedIndex(1)}>
+            pick-b
+          </button>
+          <button
+            type="button"
+            onClick={() => registry.getParam('a')?.setValue(0.7)}
+          >
+            set-a
+          </button>
+        </div>
+      );
+    }
+
+    function Host() {
+      const registry = usePlaybackRegistry();
+      useEffect(() => {
+        registry.register(makeParam('a', 0.1));
+        registry.register(makeParam('b', 0.2));
+      }, [registry]);
+      return (
+        <SelectionConsumer />
+      );
+    }
+
+    render(
+      <PlaybackProvider>
+        <Host />
+      </PlaybackProvider>,
+    );
+
+    const afterMount = selectionRenders.current;
+
+    act(() => {
+      screen.getByRole('button', { name: 'set-a' }).click();
+    });
+    // Value write must not re-render the selection consumer.
+    expect(selectionRenders.current).toBe(afterMount);
+
+    act(() => {
+      screen.getByRole('button', { name: 'pick-b' }).click();
+    });
+    expect(selectionRenders.current).toBeGreaterThan(afterMount);
+    expect(screen.getByTestId('sel').textContent).toBe('1');
+  });
+
+  it('usePlaybackSelectedParam returns the clamped param', () => {
+    function Host() {
+      const registry = usePlaybackRegistry();
+      const selected = usePlaybackSelectedParam();
+      useEffect(() => {
+        registry.register(makeParam('a'));
+        registry.register(makeParam('b'));
+      }, [registry]);
+      return <span data-testid="name">{selected?.name ?? 'none'}</span>;
+    }
+
+    render(
+      <PlaybackProvider>
+        <Host />
+      </PlaybackProvider>,
+    );
+    expect(screen.getByTestId('name').textContent).toBe('a');
   });
 });

@@ -468,4 +468,67 @@ test.describe('Chart teardown budget (all playback maps)', () => {
       `axes snapped on escape: bounded="${ticksBounded}" escaped="${ticksEscaped}"`
     ).toBe(ticksBounded);
   });
+
+  /**
+   * Cycle-15 held the domain only for parameter `a`. Selecting the SECOND
+   * registered param (`b`) and playing must keep BOTH axes' tick labels
+   * fixed for the same reason: a moving ruler during playback is unreadable.
+   */
+  test('henon: sweeping b holds both axis tick labels across playback', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.goto('/maps/henon');
+    await page.waitForLoadState('networkidle');
+    await page.waitForSelector('[data-testid="playback-controls"]', {
+      timeout: 30_000,
+    });
+    await page.waitForSelector('.henon-map-visualization svg g.x-axis', {
+      timeout: 30_000,
+    });
+    await page.waitForTimeout(500);
+
+    const axisTicks = () =>
+      page.evaluate(() => {
+        const svg =
+          document.querySelector('.henon-map-visualization svg') ??
+          document.querySelector('svg');
+        const read = (axis: string) =>
+          Array.from(svg?.querySelectorAll(`g.${axis} .tick text`) ?? [])
+            .map((t) => t.textContent ?? '')
+            .join(',');
+        return `x[${read('x-axis')}] y[${read('y-axis')}]`;
+      });
+
+    // Second option in the playback param select is parameter b (a is first).
+    const paramSelect = page.getByTestId('playback-param-select');
+    await expect(paramSelect).toBeEnabled({ timeout: 15_000 });
+    await paramSelect.selectOption({ index: 1 });
+    await expect(page.getByTestId('playback-controls')).toHaveAttribute(
+      'data-selected-index',
+      '1'
+    );
+    // Let the held domain recompute for b before we sample ticks.
+    await page.waitForTimeout(600);
+
+    const ticksBefore = await axisTicks();
+    expect(ticksBefore.length).toBeGreaterThan(5);
+
+    const play = page.getByTestId('playback-play-pause');
+    await expect(play).toBeEnabled();
+    await play.click();
+    await expect(play).toHaveAttribute('aria-pressed', 'true');
+
+    // Enough wall time for b to move across a visible fraction of [0.1, 0.5].
+    await page.waitForTimeout(3_000);
+
+    await play.click();
+    await expect(play).toHaveAttribute('aria-pressed', 'false');
+
+    const ticksAfter = await axisTicks();
+    expect(
+      ticksAfter,
+      `henon b-sweep: axis ticks moved during playback (before="${ticksBefore}" after="${ticksAfter}") — domain must be held for the selected param`
+    ).toBe(ticksBefore);
+  });
 });
