@@ -345,16 +345,16 @@ export function getInterestingDuffingParameters(): {
       description: "Canonical parameters producing chaotic dynamics, lambda1 ~ +0.49"
     },
     {
-      name: "Single Well Dominance",
+      name: "Low Barrier",
       params: { a: 1.4, b: 0.2 },
       classification: 'fixed-point',
-      description: "Low-a fixed point near the well threshold, lambda1 ~ -0.80"
+      description: "Shallowest double-well barrier (a^2/4 = 0.49), lambda1 ~ -0.80"
     },
     {
-      name: "Symmetric Wells",
+      name: "Deep Wells",
       params: { a: 2.0, b: 0.2 },
       classification: 'fixed-point',
-      description: "Symmetric double-well fixed point (b>0 keeps full 2-D map), lambda1 ~ -0.80"
+      description: "Deepest regular double-well barrier (a^2/4 = 1.00), lambda1 ~ -0.80"
     },
     {
       name: "High Damping",
@@ -363,10 +363,10 @@ export function getInterestingDuffingParameters(): {
       description: "High damping at the chaotic a-value collapses to a fixed point, lambda1 ~ -0.22"
     },
     {
-      name: "Low Barrier",
+      name: "Weak Damping Chaos",
       params: { a: 2.5, b: 0.1 },
       classification: 'chaotic',
-      description: "Lower well separation with weak damping; bounded chaos, lambda1 ~ +0.20"
+      description: "Weakest damping in the table (b=0.1); bounded chaos, lambda1 ~ +0.20"
     }
   ];
 }

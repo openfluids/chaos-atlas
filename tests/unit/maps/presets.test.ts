@@ -113,7 +113,7 @@ describe('Ikeda presets', () => {
       'Tight Spiral',
       'Broken Spiral',
       'Optical Chaos',
-      'Periodic Orbit',
+      'Period-4 Window',
     ]);
     for (const p of presets) {
       expect(VALID).toContain(p.classification);
@@ -158,10 +158,10 @@ describe('Tinkerbell presets', () => {
     const names = presets.map((p) => p.name);
     expect(names).toEqual([
       'Classic Multi-loop',
-      'Bistable Configuration',
+      'Quasiperiodic Ring',
       'Complex Multi-loop',
-      'Crisis Region',
-      'Stable Single Loop',
+      'Period-7 Cycle',
+      'Period-8 Cycle',
       'Chaotic Regime',
     ]);
     for (const p of presets) {
@@ -207,10 +207,10 @@ describe('Duffing presets', () => {
     expect(names).toEqual([
       'Classic Bistable',
       'Chaotic Regime',
-      'Single Well Dominance',
-      'Symmetric Wells',
-      'High Damping',
       'Low Barrier',
+      'Deep Wells',
+      'High Damping',
+      'Weak Damping Chaos',
     ]);
     for (const p of presets) {
       expect(VALID).toContain(p.classification);

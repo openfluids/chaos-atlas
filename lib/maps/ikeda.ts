@@ -239,7 +239,7 @@ export function getInterestingIkedaParameters(): {
       description: "Optical-cavity chaotic regime (u=0.85, c=0.6, d=8), lambda1 ~ +0.62"
     },
     {
-      name: "Periodic Orbit",
+      name: "Period-4 Window",
       params: { a: 0.62, b: 0.62, c: 0.4, d: 6.0 },
       classification: 'periodic',
       description: "Period-4 window on the HJM cascade (u=0.62), lambda1 ~ -0.38"

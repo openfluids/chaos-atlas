@@ -294,10 +294,10 @@ describe('audited presets: verified orbit quality (real kernels)', () => {
     }
   });
 
-  it('Tinkerbell Stable Single Loop → bounded non-origin period cycle', () => {
+  it('Tinkerbell Period-8 Cycle → bounded non-origin period cycle', () => {
     const preset = presetByName(
       getInterestingTinkerbellParameters(),
-      'Stable Single Loop'
+      'Period-8 Cycle'
     );
     expect(preset.classification).toBe('periodic');
     const points = calculateTinkerbellAttractor(
@@ -319,9 +319,9 @@ describe('audited presets: verified orbit quality (real kernels)', () => {
     expect(domain.fitted).toBe(true);
   });
 
-  it('Duffing Classic Bistable and Single Well Dominance → fixed point off origin', () => {
+  it('Duffing Classic Bistable and Low Barrier → fixed point off origin', () => {
     const presets = getInterestingDuffingParameters();
-    for (const name of ['Classic Bistable', 'Single Well Dominance'] as const) {
+    for (const name of ['Classic Bistable', 'Low Barrier'] as const) {
       const preset = presetByName(presets, name);
       expect(preset.classification).toBe('fixed-point');
       const points = calculateDuffingAttractor(

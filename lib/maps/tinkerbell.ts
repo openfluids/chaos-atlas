@@ -324,10 +324,10 @@ export function getInterestingTinkerbellParameters(): {
       description: "Canonical Tinkerbell multi-loop attractor, lambda1 ~ +0.20"
     },
     {
-      name: "Bistable Configuration",
+      name: "Quasiperiodic Ring",
       params: { a: 0.3, b: 0.6, c: 2.0, d: 0.5 },
       classification: 'quasiperiodic',
-      description: "Dense bounded orbit with near-zero expansion (quasiperiodic), lambda1 ~ +0.00"
+      description: "Closed invariant curve (box dimension ~1, not area-filling), lambda1 ~ +0.00"
     },
     {
       name: "Complex Multi-loop",
@@ -336,16 +336,16 @@ export function getInterestingTinkerbellParameters(): {
       description: "Bounded multi-loop chaos near the classic lobe, lambda1 ~ +0.16"
     },
     {
-      name: "Crisis Region",
+      name: "Period-7 Cycle",
       params: { a: 0.5, b: -0.6, c: 2.0, d: 0.5 },
       classification: 'periodic',
-      description: "Short stable cycle below the chaotic window, lambda1 ~ -0.05"
+      description: "Stable period-7 cycle below the chaotic window, lambda1 ~ -0.05"
     },
     {
-      name: "Stable Single Loop",
+      name: "Period-8 Cycle",
       params: { a: 0.75, b: -0.5, c: 2.0, d: 0.5 },
       classification: 'periodic',
-      description: "Stable period-8 loop (non-origin), lambda1 ~ -0.14"
+      description: "Stable period-8 cycle (non-origin), lambda1 ~ -0.14"
     },
     {
       name: "Chaotic Regime",
