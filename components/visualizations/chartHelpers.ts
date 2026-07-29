@@ -1,6 +1,6 @@
 import type { RefObject } from 'react';
 import * as d3 from 'd3';
-import { isOrbitEscaped } from './densityField';
+import { isOrbitEscaped, SPARSE_OCCUPIED_BIN_THRESHOLD } from './densityField';
 
 /**
  * Shared inner-margin used by every map visualization's SVG chart. All ten
@@ -506,7 +506,152 @@ export function formatOrbitEscapeCaption(
   return `no bounded attractor at ${paramName} = ${value.toFixed(digits)} (orbit escapes)`;
 }
 
+/**
+ * Preset-driven escape caption (same wording family as
+ * {@link formatOrbitEscapeCaption}; these attractor views are preset-driven
+ * rather than single-parameter sliders).
+ */
+export function formatPresetOrbitEscapeCaption(presetName: string): string {
+  return `no bounded attractor at preset "${presetName}" (orbit escapes)`;
+}
+
+/**
+ * Caption when a bounded orbit has collapsed to a fixed point or short cycle.
+ * Period is the count of distinct finite points (see {@link countDistinctOrbitPoints}).
+ */
+export function formatOrbitSettledCaption(period: number): string {
+  if (period <= 1) return 'settled to a fixed point';
+  return `settled to a period-${period} cycle`;
+}
+
 export type OrbitPoint = { x: number; y: number };
+
+/**
+ * Fixed iteration count used when fitting attractor axes. Must not track the
+ * live "Attractor Iterations" slider — a moving ruler under that sweep is
+ * unreadable (cycles 15 / 19). Components sample the orbit once at this
+ * count for domain + classification, then paint at the slider value.
+ */
+export const ATTRACTOR_DOMAIN_REF_ITERATIONS = 50_000;
+
+/**
+ * Distinct finite (x, y) at `decimals` places. Matches the preset audit's
+ * 9-decimal quantization so period-n lines up with measured periods.
+ */
+export function countDistinctOrbitPoints(
+  points: readonly OrbitPoint[],
+  decimals = 9
+): number {
+  const seen = new Set<string>();
+  for (const p of points) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    seen.add(`${p.x.toFixed(decimals)},${p.y.toFixed(decimals)}`);
+  }
+  return seen.size;
+}
+
+export type OrbitQuality =
+  | { kind: 'escaped'; caption: string; distinct: number }
+  | { kind: 'degenerate'; caption: string; period: number; distinct: number }
+  | { kind: 'healthy'; caption: null; distinct: number };
+
+/**
+ * Classify a sampled orbit for attractor presentation: escaped, short cycle,
+ * or healthy. Degeneracy uses the same short-cycle ceiling as the density
+ * sparse path ({@link SPARSE_OCCUPIED_BIN_THRESHOLD}): the period-doubling
+ * cascade runs through periods 2…256… before chaos; 512 covers that cascade.
+ * Do not invent a second threshold without updating that comment.
+ */
+export function classifyOrbit(
+  points: readonly OrbitPoint[],
+  options: { presetName: string; shortCycleMax?: number }
+): OrbitQuality {
+  // Same threshold the density sparse path uses for "too few bins to paint
+  // as a field" — short cycles and the period-doubling cascade land here.
+  const shortCycleMax = options.shortCycleMax ?? SPARSE_OCCUPIED_BIN_THRESHOLD;
+  const distinct = countDistinctOrbitPoints(points);
+
+  if (isOrbitEscaped(points) || distinct === 0) {
+    return {
+      kind: 'escaped',
+      caption: formatPresetOrbitEscapeCaption(options.presetName),
+      distinct,
+    };
+  }
+
+  if (distinct <= shortCycleMax) {
+    return {
+      kind: 'degenerate',
+      period: distinct,
+      caption: formatOrbitSettledCaption(distinct),
+      distinct,
+    };
+  }
+
+  return { kind: 'healthy', caption: null, distinct };
+}
+
+/**
+ * Fit x/y domains to a reference orbit via {@link padDomain}. Escaped or
+ * empty orbits keep `fallback` (the component's hardcoded window).
+ *
+ * Pass an orbit sampled at a FIXED reference iteration count (see
+ * {@link ATTRACTOR_DOMAIN_REF_ITERATIONS}), never the live render count.
+ */
+export function fitOrbitDomain(
+  points: readonly OrbitPoint[],
+  fallback: { x: [number, number]; y: [number, number] },
+  padFraction = 0.04
+): { xDomain: [number, number]; yDomain: [number, number]; fitted: boolean } {
+  if (isOrbitEscaped(points)) {
+    return { xDomain: fallback.x, yDomain: fallback.y, fitted: false };
+  }
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+
+  if (
+    !Number.isFinite(minX) ||
+    !Number.isFinite(maxX) ||
+    !Number.isFinite(minY) ||
+    !Number.isFinite(maxY)
+  ) {
+    return { xDomain: fallback.x, yDomain: fallback.y, fitted: false };
+  }
+
+  return {
+    xDomain: padDomain([minX, maxX], padFraction),
+    yDomain: padDomain([minY, maxY], padFraction),
+    fitted: true,
+  };
+}
+
+/**
+ * Domain fit that always samples at `referenceIterations` (default
+ * {@link ATTRACTOR_DOMAIN_REF_ITERATIONS}). The live paint iteration count
+ * is intentionally not an argument — changing it must not move the axes.
+ */
+export function fitAttractorDomainFromReference(
+  sampleOrbit: (iterations: number) => readonly OrbitPoint[],
+  fallback: { x: [number, number]; y: [number, number] },
+  referenceIterations: number = ATTRACTOR_DOMAIN_REF_ITERATIONS,
+  padFraction = 0.04
+): { xDomain: [number, number]; yDomain: [number, number]; fitted: boolean } {
+  return fitOrbitDomain(
+    sampleOrbit(referenceIterations),
+    fallback,
+    padFraction
+  );
+}
 
 export type UnionOrbitDomainOptions = {
   /**

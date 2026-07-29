@@ -25,8 +25,15 @@ import {
   joinByIndex,
   upsertMark,
   CHART_MARGIN,
+  ATTRACTOR_DOMAIN_REF_ITERATIONS,
+  classifyOrbit,
+  fitOrbitDomain,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+import { isOrbitEscaped } from './densityField';
+
+/** Hardcoded attractor window — fallback when there is nothing sane to fit. */
+const ATTRACTOR_FALLBACK: [number, number] = [-2, 2];
 
 const TinkerbellMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
@@ -66,6 +73,21 @@ const TinkerbellMapVisualization: React.FC = () => {
     () => calculateTinkerbellFixedPoints(currentParams.params),
     [currentParams]
   );
+
+  // Domain + caption from a FIXED reference iteration count so the axes do
+  // not move when the attractor-iterations slider is swept.
+  const attractorPresentation = useMemo(() => {
+    const refPoints = calculateTinkerbellAttractor(
+      currentParams.params,
+      ATTRACTOR_DOMAIN_REF_ITERATIONS
+    );
+    const quality = classifyOrbit(refPoints, { presetName: currentParams.name });
+    const domain = fitOrbitDomain(refPoints, {
+      x: ATTRACTOR_FALLBACK,
+      y: ATTRACTOR_FALLBACK,
+    });
+    return { quality, xDomain: domain.xDomain, yDomain: domain.yDomain };
+  }, [currentParams]);
 
   // On a chaotic attractor, successive iterates jump all over the set, so
   // the previous per-iterate color coding (`interpolateSpectral` -- a
@@ -350,31 +372,47 @@ const TinkerbellMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // Attractor, basin, return map and fixed points all plot x and y on the
-    // same [-2, 2] domain; equalAspectScales keeps them undistorted instead
-    // of fitting each axis independently to the 520x300 box. Bifurcation and
-    // crisis-behavior keep the wide box: parameter-vs-x and
+    // Attractor, basin, return map and fixed points use equal-aspect scales.
+    // Non-attractor square views keep the hardcoded ±2 window; the attractor
+    // view uses a fitted domain from the fixed reference sample so orbits
+    // outside that window (or collapsed inside it) stay legible. Bifurcation
+    // and crisis-behavior keep the wide box: parameter-vs-x and
     // parameter-vs-(size, Lyapunov) are genuinely incommensurate axes.
     const squareViews = visualizationType === 'attractor' || visualizationType === 'basin' ||
       visualizationType === 'return' || visualizationType === 'fixed';
+    const attractorX = attractorPresentation.xDomain;
+    const attractorY = attractorPresentation.yDomain;
     const layout = squareViews
-      ? equalAspectScales([-2, 2], [-2, 2], innerWidth, innerHeight)
+      ? equalAspectScales(
+          visualizationType === 'attractor' ? attractorX : ATTRACTOR_FALLBACK,
+          visualizationType === 'attractor' ? attractorY : ATTRACTOR_FALLBACK,
+          innerWidth,
+          innerHeight
+        )
       : null;
 
-    if (visualizationType === 'attractor' && canvasRef.current) {
+    if (visualizationType === 'attractor' && canvasRef.current && layout) {
       const data = calculateTinkerbellAttractor(currentParams.params, attractorIterations);
+      // Never feed non-finite coordinates to the density path / d3 scales
+      // (several Tinkerbell presets diverge to NaN).
+      const finitePoints = data.filter(
+        (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+      );
+      const escaped =
+        attractorPresentation.quality.kind === 'escaped' ||
+        isOrbitEscaped(finitePoints);
       renderDensityCanvas(
         canvasRef.current,
-        data,
-        [-2, 2],
-        [-2, 2],
+        escaped ? [] : finitePoints,
+        attractorX,
+        attractorY,
         width,
         height,
         {
-          x: CHART_MARGIN.left + layout!.offsetX,
-          y: CHART_MARGIN.top + layout!.offsetY,
-          width: layout!.plotWidth,
-          height: layout!.plotHeight,
+          x: CHART_MARGIN.left + layout.offsetX,
+          y: CHART_MARGIN.top + layout.offsetY,
+          width: layout.plotWidth,
+          height: layout.plotHeight,
         },
         d3.interpolateMagma
       );
@@ -382,7 +420,7 @@ const TinkerbellMapVisualization: React.FC = () => {
       // Clear any density paint left over from a previous render in the
       // 'attractor' view -- `renderDensityCanvas` clears its backing store
       // before painting, so calling it with no points is enough.
-      renderDensityCanvas(canvasRef.current, [], [-2, 2], [-2, 2], width, height, {
+      renderDensityCanvas(canvasRef.current, [], ATTRACTOR_FALLBACK, ATTRACTOR_FALLBACK, width, height, {
         x: 0, y: 0, width, height,
       });
     }
@@ -427,8 +465,8 @@ const TinkerbellMapVisualization: React.FC = () => {
     } else {
       const xDomain: [number, number] = visualizationType === 'bifurcation' ?
         [bifurcationParam === 'a' ? 0.3 : bifurcationParam === 'b' ? -1.0 : 1.5,
-         bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : [-2, 2];
-      const yDomain: [number, number] = [-2, 2];
+         bifurcationParam === 'a' ? 1.3 : bifurcationParam === 'b' ? -0.3 : 2.5] : ATTRACTOR_FALLBACK;
+      const yDomain: [number, number] = ATTRACTOR_FALLBACK;
 
       const xScale = layout?.xScale ?? d3.scaleLinear().domain(xDomain).range([0, innerWidth]);
       const yScale = layout?.yScale ?? d3.scaleLinear().domain(yDomain).range([innerHeight, 0]);
@@ -447,7 +485,7 @@ const TinkerbellMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -590,9 +628,32 @@ const TinkerbellMapVisualization: React.FC = () => {
               viewBox={`0 0 ${width} ${height}`}
               className="absolute inset-0 w-full h-full"
             />
+            {visualizationType === 'attractor' &&
+              attractorPresentation.quality.kind === 'escaped' &&
+              attractorPresentation.quality.caption && (
+                <p
+                  className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center text-sm pointer-events-none"
+                  style={{ color: 'var(--text-secondary)' }}
+                  data-testid="orbit-escape-notice"
+                >
+                  {attractorPresentation.quality.caption}
+                </p>
+              )}
           </div>
         </div>
       </div>
+
+      {visualizationType === 'attractor' &&
+        attractorPresentation.quality.kind === 'degenerate' &&
+        attractorPresentation.quality.caption && (
+          <p
+            className="mt-2 text-sm text-center"
+            style={{ color: 'var(--text-secondary)' }}
+            data-testid="orbit-settled-notice"
+          >
+            {attractorPresentation.quality.caption}
+          </p>
+        )}
     </div>
   );
 };

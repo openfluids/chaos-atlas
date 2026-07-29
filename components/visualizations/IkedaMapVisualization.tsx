@@ -25,8 +25,15 @@ import {
   upsertMark,
   joinByIndex,
   CHART_MARGIN,
+  ATTRACTOR_DOMAIN_REF_ITERATIONS,
+  classifyOrbit,
+  fitOrbitDomain,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+import { isOrbitEscaped } from './densityField';
+
+/** Hardcoded attractor window — fallback when there is nothing sane to fit. */
+const ATTRACTOR_FALLBACK: [number, number] = [-2, 2];
 
 const IkedaMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(0);
@@ -59,6 +66,21 @@ const IkedaMapVisualization: React.FC = () => {
     () => calculateIkedaLyapunovExponents(currentParams.params, 2000),
     [currentParams]
   );
+
+  // Domain + caption from a FIXED reference iteration count so the axes do
+  // not move when the attractor-iterations slider is swept.
+  const attractorPresentation = useMemo(() => {
+    const refPoints = calculateIkedaAttractor(
+      currentParams.params,
+      ATTRACTOR_DOMAIN_REF_ITERATIONS
+    );
+    const quality = classifyOrbit(refPoints, { presetName: currentParams.name });
+    const domain = fitOrbitDomain(refPoints, {
+      x: ATTRACTOR_FALLBACK,
+      y: ATTRACTOR_FALLBACK,
+    });
+    return { quality, xDomain: domain.xDomain, yDomain: domain.yDomain };
+  }, [currentParams]);
 
   const animationPlaying = isAnimating && visualizationType === 'time';
 
@@ -283,32 +305,46 @@ const IkedaMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, margin, innerWidth, innerHeight } = chart;
 
-    // The attractor, phase portrait and return map all plot x and y on the
-    // same [-2, 2] domain; equalAspectScales keeps them undistorted instead
-    // of fitting each axis independently to the 520x300 box. Time
-    // evolution, bifurcation and the power spectrum keep the wide box: their
-    // axes are genuinely incommensurate (time vs. amplitude, parameter vs.
-    // x, frequency vs. power).
+    // The attractor, phase portrait and return map all plot x and y on equal
+    // aspect scales. Phase / return keep the hardcoded ±2 window; the
+    // attractor view uses a fitted domain from the fixed reference sample
+    // (see attractorPresentation) so orbits outside that window stay visible.
+    // Time evolution, bifurcation and the power spectrum keep the wide box:
+    // their axes are genuinely incommensurate.
     const squareViews = visualizationType === 'attractor' ||
       visualizationType === 'phase' || visualizationType === 'return';
+    const attractorX = attractorPresentation.xDomain;
+    const attractorY = attractorPresentation.yDomain;
     const layout = squareViews
-      ? equalAspectScales([-2, 2], [-2, 2], innerWidth, innerHeight)
+      ? equalAspectScales(
+          visualizationType === 'attractor' ? attractorX : ATTRACTOR_FALLBACK,
+          visualizationType === 'attractor' ? attractorY : ATTRACTOR_FALLBACK,
+          innerWidth,
+          innerHeight
+        )
       : null;
 
-    if (visualizationType === 'attractor' && canvasRef.current) {
+    if (visualizationType === 'attractor' && canvasRef.current && layout) {
       const data = calculateIkedaAttractor(currentParams.params, attractorIterations);
+      // Never feed non-finite coordinates to the density path / d3 scales.
+      const finitePoints = data.filter(
+        (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+      );
+      const escaped =
+        attractorPresentation.quality.kind === 'escaped' ||
+        isOrbitEscaped(finitePoints);
       renderDensityCanvas(
         canvasRef.current,
-        data,
-        [-2, 2],
-        [-2, 2],
+        escaped ? [] : finitePoints,
+        attractorX,
+        attractorY,
         width,
         height,
         {
-          x: CHART_MARGIN.left + layout!.offsetX,
-          y: CHART_MARGIN.top + layout!.offsetY,
-          width: layout!.plotWidth,
-          height: layout!.plotHeight,
+          x: CHART_MARGIN.left + layout.offsetX,
+          y: CHART_MARGIN.top + layout.offsetY,
+          width: layout.plotWidth,
+          height: layout.plotHeight,
         },
         d3.interpolatePlasma
       );
@@ -316,7 +352,7 @@ const IkedaMapVisualization: React.FC = () => {
       // Clear any density paint left over from a previous render in the
       // 'attractor' view -- `renderDensityCanvas` clears its backing store
       // before painting, so calling it with no points is enough.
-      renderDensityCanvas(canvasRef.current, [], [-2, 2], [-2, 2], width, height, {
+      renderDensityCanvas(canvasRef.current, [], ATTRACTOR_FALLBACK, ATTRACTOR_FALLBACK, width, height, {
         x: 0, y: 0, width, height,
       });
     }
@@ -346,8 +382,8 @@ const IkedaMapVisualization: React.FC = () => {
 
     // Axes (idempotent structural ticks)
     if (visualizationType !== 'spectrum') {
-      const axisXScale = layout?.xScale ?? d3.scaleLinear().domain([-2, 2]).range([0, innerWidth]);
-      const axisYScale = layout?.yScale ?? d3.scaleLinear().domain([-2, 2]).range([innerHeight, 0]);
+      const axisXScale = layout?.xScale ?? d3.scaleLinear().domain(ATTRACTOR_FALLBACK).range([0, innerWidth]);
+      const axisYScale = layout?.yScale ?? d3.scaleLinear().domain(ATTRACTOR_FALLBACK).range([innerHeight, 0]);
       const axisOffsetX = layout?.offsetX ?? 0;
       const axisOffsetY = layout?.offsetY ?? 0;
 
@@ -365,7 +401,7 @@ const IkedaMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [selectedParams, iterations, attractorIterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating]);
+  }, [selectedParams, iterations, attractorIterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating, attractorPresentation]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -508,9 +544,32 @@ const IkedaMapVisualization: React.FC = () => {
               viewBox={`0 0 ${width} ${height}`}
               className="absolute inset-0 w-full h-full"
             />
+            {visualizationType === 'attractor' &&
+              attractorPresentation.quality.kind === 'escaped' &&
+              attractorPresentation.quality.caption && (
+                <p
+                  className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center text-sm pointer-events-none"
+                  style={{ color: 'var(--text-secondary)' }}
+                  data-testid="orbit-escape-notice"
+                >
+                  {attractorPresentation.quality.caption}
+                </p>
+              )}
           </div>
         </div>
       </div>
+
+      {visualizationType === 'attractor' &&
+        attractorPresentation.quality.kind === 'degenerate' &&
+        attractorPresentation.quality.caption && (
+          <p
+            className="mt-2 text-sm text-center"
+            style={{ color: 'var(--text-secondary)' }}
+            data-testid="orbit-settled-notice"
+          >
+            {attractorPresentation.quality.caption}
+          </p>
+        )}
     </div>
   );
 };

@@ -25,8 +25,15 @@ import {
   joinByIndex,
   upsertMark,
   CHART_MARGIN,
+  ATTRACTOR_DOMAIN_REF_ITERATIONS,
+  classifyOrbit,
+  fitOrbitDomain,
 } from './chartHelpers';
 import { renderDensityCanvas } from './densityCanvas';
+import { isOrbitEscaped } from './densityField';
+
+/** Hardcoded attractor window — fallback when there is nothing sane to fit. */
+const ATTRACTOR_FALLBACK: [number, number] = [-2.5, 2.5];
 
 const DuffingMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(1);
@@ -66,6 +73,21 @@ const DuffingMapVisualization: React.FC = () => {
     () => calculateDuffingFixedPoints(currentParams.params),
     [currentParams]
   );
+
+  // Domain + caption from a FIXED reference iteration count so the axes do
+  // not move when the attractor-iterations slider is swept.
+  const attractorPresentation = useMemo(() => {
+    const refPoints = calculateDuffingAttractor(
+      currentParams.params,
+      ATTRACTOR_DOMAIN_REF_ITERATIONS
+    );
+    const quality = classifyOrbit(refPoints, { presetName: currentParams.name });
+    const domain = fitOrbitDomain(refPoints, {
+      x: ATTRACTOR_FALLBACK,
+      y: ATTRACTOR_FALLBACK,
+    });
+    return { quality, xDomain: domain.xDomain, yDomain: domain.yDomain };
+  }, [currentParams]);
 
   // On a chaotic attractor, successive iterates jump all over the set, so
   // the previous per-iterate/per-point color coding on both the 'attractor'
@@ -315,37 +337,46 @@ const DuffingMapVisualization: React.FC = () => {
     if (!chart) return;
     const { svg, g, innerWidth, innerHeight } = chart;
 
-    // Attractor, basins and phase-space-density all plot x and y on the
-    // same [-2.5, 2.5] (or [-2, 2] for basins) domain; equalAspectScales
-    // keeps them undistorted instead of fitting each axis independently to
-    // the 520x300 box. Potential, bifurcation and energy-trajectories keep
-    // the wide box: position-vs-potential, parameter-vs-x and
-    // time-vs-position are genuinely incommensurate axes.
-    const densityDomain: [number, number] = [-2.5, 2.5];
+    // Attractor / phase use a fitted domain from the fixed reference sample
+    // so origin-collapse and tiny orbits stay legible; basins keep [-2, 2].
+    // Potential, bifurcation and energy-trajectories keep the wide box:
+    // position-vs-potential, parameter-vs-x and time-vs-position are
+    // genuinely incommensurate axes.
     const squareViews = visualizationType === 'attractor' || visualizationType === 'phase' ||
       visualizationType === 'basins';
+    const densityX =
+      visualizationType === 'basins'
+        ? ([-2, 2] as [number, number])
+        : visualizationType === 'attractor' || visualizationType === 'phase'
+          ? attractorPresentation.xDomain
+          : ATTRACTOR_FALLBACK;
+    const densityY =
+      visualizationType === 'basins'
+        ? ([-2, 2] as [number, number])
+        : visualizationType === 'attractor' || visualizationType === 'phase'
+          ? attractorPresentation.yDomain
+          : ATTRACTOR_FALLBACK;
     const layout = squareViews
-      ? equalAspectScales(
-          visualizationType === 'basins' ? [-2, 2] : densityDomain,
-          visualizationType === 'basins' ? [-2, 2] : densityDomain,
-          innerWidth,
-          innerHeight
-        )
+      ? equalAspectScales(densityX, densityY, innerWidth, innerHeight)
       : null;
 
     const usesDensityCanvas = visualizationType === 'attractor' || visualizationType === 'phase';
     if (usesDensityCanvas && canvasRef.current && layout) {
-      // The 'attractor' and 'phase space density' views previously differed
-      // only in which per-point coloring scheme they used (iteration order
-      // vs. a hand-rolled linear density bucket) -- both are now the same
-      // shared density field, so they render identically. Higher iteration
-      // counts (attractorIterations) resolve finer structure in the folds.
+      // The 'attractor' and 'phase space density' views share the density
+      // field. Higher iteration counts resolve finer structure in the folds;
+      // axes stay on the fixed-reference domain so the slider does not move them.
       const data = calculateDuffingAttractor(currentParams.params, attractorIterations);
+      const finitePoints = data.filter(
+        (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+      );
+      const escaped =
+        attractorPresentation.quality.kind === 'escaped' ||
+        isOrbitEscaped(finitePoints);
       renderDensityCanvas(
         canvasRef.current,
-        data,
-        densityDomain,
-        densityDomain,
+        escaped ? [] : finitePoints,
+        densityX,
+        densityY,
         width,
         height,
         {
@@ -361,7 +392,7 @@ const DuffingMapVisualization: React.FC = () => {
       // 'attractor'/'phase' views -- `renderDensityCanvas` clears its
       // backing store before painting, so calling it with no points is
       // enough.
-      renderDensityCanvas(canvasRef.current, [], densityDomain, densityDomain, width, height, {
+      renderDensityCanvas(canvasRef.current, [], ATTRACTOR_FALLBACK, ATTRACTOR_FALLBACK, width, height, {
         x: 0, y: 0, width, height,
       });
     }
@@ -437,7 +468,7 @@ const DuffingMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">
@@ -575,9 +606,32 @@ const DuffingMapVisualization: React.FC = () => {
               viewBox={`0 0 ${width} ${height}`}
               className="absolute inset-0 w-full h-full"
             />
+            {(visualizationType === 'attractor' || visualizationType === 'phase') &&
+              attractorPresentation.quality.kind === 'escaped' &&
+              attractorPresentation.quality.caption && (
+                <p
+                  className="absolute inset-0 z-10 flex items-center justify-center px-6 text-center text-sm pointer-events-none"
+                  style={{ color: 'var(--text-secondary)' }}
+                  data-testid="orbit-escape-notice"
+                >
+                  {attractorPresentation.quality.caption}
+                </p>
+              )}
           </div>
         </div>
       </div>
+
+      {(visualizationType === 'attractor' || visualizationType === 'phase') &&
+        attractorPresentation.quality.kind === 'degenerate' &&
+        attractorPresentation.quality.caption && (
+          <p
+            className="mt-2 text-sm text-center"
+            style={{ color: 'var(--text-secondary)' }}
+            data-testid="orbit-settled-notice"
+          >
+            {attractorPresentation.quality.caption}
+          </p>
+        )}
     </div>
   );
 };
