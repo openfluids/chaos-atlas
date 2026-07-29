@@ -23,19 +23,12 @@ const LogisticMapVisualization: React.FC = () => {
 
   const width = 800;
   const height = 600;
-  // Simple theme system
-  const themes = {
-    matplotlib: { primary: '#1f77b4', secondary: '#ff7f0e', tertiary: '#2ca02c', background: '#ffffff', grid: '#e0e0e0', text: '#333333', axis: '#666666' },
-    seaborn: { primary: '#4c72b0', secondary: '#dd8452', tertiary: '#55a868', background: '#fafafa', grid: '#e8e8e8', text: '#2c2c2c', axis: '#7f7f7f' },
-    neon: { primary: '#00ffff', secondary: '#ff00ff', tertiary: '#ffff00', background: '#0a0a0a', grid: '#1a1a1a', text: '#ffffff', axis: '#666666' },
-    scientific: { primary: '#0d47a1', secondary: '#c62828', tertiary: '#2e7d32', background: '#ffffff', grid: '#f5f5f5', text: '#212121', axis: '#616161' }
-  };
-
-  const [currentTheme, setCurrentTheme] = useState('matplotlib');
-  const theme = themes[currentTheme as keyof typeof themes];
 
   useEffect(() => {
-    const chart = initChartBase(svgRef, width, height, { background: theme.background });
+    // No opaque chart-background rect: match Henon/Standard/CML and let the
+    // themed wrapper below (--bg-primary) be the only painted surface, rather
+    // than a private hard-coded panel fill.
+    const chart = initChartBase(svgRef, width, height);
     if (!chart) return;
     const { g, innerWidth, innerHeight } = chart;
 
@@ -80,7 +73,7 @@ const LogisticMapVisualization: React.FC = () => {
           .attr('y1', 0)
           .attr('x2', (d) => xScale(d))
           .attr('y2', innerHeight)
-          .attr('stroke', theme.grid)
+          .attr('stroke', 'var(--viz-grid)')
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '2,2');
       }
@@ -98,26 +91,20 @@ const LogisticMapVisualization: React.FC = () => {
           .attr('y1', (d) => yScale(d))
           .attr('x2', innerWidth)
           .attr('y2', (d) => yScale(d))
-          .attr('stroke', theme.grid)
+          .attr('stroke', 'var(--viz-grid)')
           .attr('stroke-width', 1)
           .attr('stroke-dasharray', '2,2');
       }
     );
 
-    // Axes (idempotent structural ticks)
+    // Axes / labels / title: chartHelpers already paint --text-* vars.
     renderChartAxes(g, xScale, yScale, innerHeight);
-    g.selectAll('g.x-axis text, g.x-axis line, g.x-axis path, g.y-axis text, g.y-axis line, g.y-axis path')
-      .style('color', theme.axis);
 
     const xLabel = visualizationType === 'time' ? 'Iteration' :
                    visualizationType === 'bifurcation' ? 'Parameter r' : 'x';
     const yLabel = visualizationType === 'bifurcation' ? 'x' : 'f(x)';
     renderAxisLabelsPlain(g, innerWidth, innerHeight, xLabel, yLabel);
-    g.selectAll('text.x-axis-label, text.y-axis-label').style('fill', theme.text);
     renderChartTitleAccent(g, innerWidth, `Logistic Map (r = ${r.toFixed(2)})`);
-    g.select('text.chart-title')
-      .style('fill', theme.primary)
-      .style('font-size', '18px');
 
     function renderCobweb(
       parent: d3.Selection<SVGGElement, unknown, null, undefined>,
@@ -133,7 +120,7 @@ const LogisticMapVisualization: React.FC = () => {
       upsertMark<SVGPathElement>(parent, 'path', 'logistic-curve')
         .datum(points)
         .attr('fill', 'none')
-        .attr('stroke', theme.primary)
+        .attr('stroke', 'var(--viz-line)')
         .attr('stroke-width', 2)
         .attr('d', curve);
 
@@ -142,7 +129,7 @@ const LogisticMapVisualization: React.FC = () => {
         .attr('y1', ys(0))
         .attr('x2', xs(1))
         .attr('y2', ys(1))
-        .attr('stroke', theme.secondary)
+        .attr('stroke', 'var(--viz-point)')
         .attr('stroke-width', 1)
         .attr('stroke-dasharray', '5,5');
 
@@ -186,7 +173,7 @@ const LogisticMapVisualization: React.FC = () => {
             .attr('y1', (d) => ys(d.y1))
             .attr('x2', (d) => xs(d.x2))
             .attr('y2', (d) => ys(d.y2))
-            .attr('stroke', theme.tertiary)
+            .attr('stroke', 'var(--viz-tertiary)')
             .attr('stroke-width', 1.5);
         }
       );
@@ -212,7 +199,7 @@ const LogisticMapVisualization: React.FC = () => {
       upsertMark<SVGPathElement>(parent, 'path', 'time-series')
         .datum(timeSeriesPoints)
         .attr('fill', 'none')
-        .attr('stroke', theme.primary)
+        .attr('stroke', 'var(--viz-line)')
         .attr('stroke-width', 2)
         .attr('d', line);
 
@@ -227,7 +214,7 @@ const LogisticMapVisualization: React.FC = () => {
             .attr('cx', (d) => xs(d.i))
             .attr('cy', (d) => ys(d.x))
             .attr('r', 2)
-            .attr('fill', theme.primary);
+            .attr('fill', 'var(--viz-point)');
         }
       );
     }
@@ -264,7 +251,7 @@ const LogisticMapVisualization: React.FC = () => {
             .attr('cx', (d) => xs(d.r))
             .attr('cy', (d) => ys(d.x))
             .attr('r', 0.5)
-            .attr('fill', theme.primary)
+            .attr('fill', 'var(--viz-point)')
             .attr('opacity', 0.7);
         }
       );
@@ -274,113 +261,100 @@ const LogisticMapVisualization: React.FC = () => {
         .attr('y1', 0)
         .attr('x2', xs(r))
         .attr('y2', chartHeight)
-        .attr('stroke', theme.secondary)
+        .attr('stroke', 'var(--viz-line)')
         .attr('stroke-width', 2)
         .attr('stroke-dasharray', '5,5');
     }
 
-  }, [r, x0, iterations, visualizationType, currentTheme]);
+  }, [r, x0, iterations, visualizationType]);
 
   return (
-    <div className="logistic-map-visualization min-h-screen bg-linear-to-br from-gray-900 via-black to-gray-900 text-white">
-      <div className="container mx-auto px-4 py-8">
-        {/* Header with Theme Switcher */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold neon-text-cyan">Logistic Map Visualization</h1>
-          <div className="flex items-center gap-4">
-            <select
-              value={currentTheme}
-              onChange={(e) => setCurrentTheme(e.target.value)}
-              className="bg-black/70 border border-cyan-500/30 rounded-sm px-4 py-2 text-white"
-            >
-              <option value="matplotlib">Matplotlib</option>
-              <option value="seaborn">Seaborn</option>
-              <option value="neon">Neon</option>
-              <option value="scientific">Scientific</option>
-            </select>
-          </div>
+    <div className="logistic-map-visualization p-6">
+      <div className="controls mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <ParamSlider
+          label={<>Parameter r: {r.toFixed(3)}</>}
+          min={2.5}
+          max={4}
+          step={0.01}
+          value={r}
+          onChange={setR}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Initial Value x₀: {x0.toFixed(3)}</>}
+          min={0.01}
+          max={0.99}
+          step={0.01}
+          value={x0}
+          onChange={setX0}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <ParamSlider
+          label={<>Iterations: {iterations}</>}
+          min={10}
+          max={200}
+          step={5}
+          value={iterations}
+          onChange={setIterations}
+          parse={parseInt}
+          className="w-full"
+          labelClassName="block text-sm mb-2"
+          labelStyle={{ color: 'var(--text-secondary)' }}
+        />
+
+        <div>
+          <label
+            className="block text-sm mb-2"
+            style={{ color: 'var(--text-secondary)' }}
+          >
+            Visualization Type
+          </label>
+          <select
+            value={visualizationType}
+            onChange={(e) => setVisualizationType(e.target.value)}
+            className="w-full rounded-sm px-3 py-2"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+              borderColor: 'var(--border-primary)',
+              borderWidth: 1,
+              borderStyle: 'solid',
+            }}
+          >
+            <option value="cobweb">Cobweb Plot</option>
+            <option value="time">Time Series</option>
+            <option value="bifurcation">Bifurcation Diagram</option>
+          </select>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          {/* Controls Panel */}
-          <div className="lg:col-span-1">
-            <div className="bg-black/40 border border-cyan-500/20 rounded-lg p-6 space-y-6">
-              <h2 className="text-xl font-bold neon-text-cyan">Parameters</h2>
-
-              <ParamSlider
-                label={<>Parameter r: {r.toFixed(3)}</>}
-                min={2.5}
-                max={4}
-                step={0.01}
-                value={r}
-                onChange={setR}
-                className="w-full accent-cyan-500"
-                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
-              />
-
-              <ParamSlider
-                label={<>Initial Value x₀: {x0.toFixed(3)}</>}
-                min={0.01}
-                max={0.99}
-                step={0.01}
-                value={x0}
-                onChange={setX0}
-                className="w-full accent-cyan-500"
-                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
-              />
-
-              <ParamSlider
-                label={<>Iterations: {iterations}</>}
-                min={10}
-                max={200}
-                step={5}
-                value={iterations}
-                onChange={setIterations}
-                parse={parseInt}
-                className="w-full accent-cyan-500"
-                labelClassName="block text-sm font-medium mb-2 text-cyan-400"
-              />
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-cyan-400">
-                  Visualization Type
-                </label>
-                <select
-                  value={visualizationType}
-                  onChange={(e) => setVisualizationType(e.target.value)}
-                  className="w-full bg-black/50 border border-cyan-500/30 rounded-sm px-3 py-2 text-white"
-                >
-                  <option value="cobweb">Cobweb Plot</option>
-                  <option value="time">Time Series</option>
-                  <option value="bifurcation">Bifurcation Diagram</option>
-                </select>
-              </div>
-
-            </div>
-          </div>
-
-          {/* Visualization */}
-          <div className="lg:col-span-3">
-            <div className="bg-black/40 border border-cyan-500/20 rounded-lg p-6">
-              <div className="flex justify-center">
-                <div className="border border-cyan-500/20 rounded-sm">
-                  <svg
-                    ref={svgRef}
-                    viewBox={`0 0 ${width} ${height}`}
-                    className="w-full"
-                    style={{ maxWidth: width, aspectRatio: `${width}/${height}` }}
-                  />
-                </div>
-              </div>
-
-              {/* Visualization Info */}
-              <div className="mt-4 text-center text-sm text-gray-400">
-                <p>Interactive Controls: Adjust parameters using controls panel • Themes change colors</p>
-                <p className="mt-1">Current Theme: {currentTheme}</p>
-              </div>
-            </div>
-          </div>
+      <div className="visualization-wrapper flex justify-center">
+        <div
+          className="relative w-full border rounded-lg overflow-hidden"
+          style={{
+            borderColor: 'var(--border-primary)',
+            backgroundColor: 'var(--bg-primary)',
+            maxWidth: width,
+            aspectRatio: `${width}/${height}`,
+          }}
+          data-testid="logistic-plot-surface"
+        >
+          <svg
+            ref={svgRef}
+            viewBox={`0 0 ${width} ${height}`}
+            className="w-full h-full"
+          />
         </div>
+      </div>
+
+      <div className="mt-4 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <p>Interactive Controls: Adjust parameters using the controls above.</p>
       </div>
     </div>
   );

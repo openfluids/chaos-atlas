@@ -355,4 +355,112 @@ test.describe('Simple Theme System - E2E Tests', () => {
       });
     }
   }
+
+  /**
+   * Logistic plot palette is derived from the active app theme (CSS vars),
+   * not a private component palette.
+   *
+   * Assertion map (both must fail if the change is reverted):
+   * 1. Plot surface background == resolved --bg-primary under every theme.
+   *    Catches the old matplotlib `background: '#ffffff'` rect (white under
+   *    Black & White) and any other hard-coded panel fill.
+   * 2. A data mark's stroke/fill differs between Blue Tron and Neon Vintage.
+   *    Catches marks still painted from a fixed palette that ignores the
+   *    app theme switcher.
+   */
+  const LOGISTIC_THEMES = [
+    { label: 'Black & White', id: 'black-white' },
+    { label: 'Neon Vintage', id: 'neon-vintage' },
+    { label: 'Blue Tron', id: 'blue-tron' },
+  ] as const;
+
+  for (const theme of LOGISTIC_THEMES) {
+    test(`logistic plot background follows --bg-primary under ${theme.label}`, async ({
+      page,
+    }) => {
+      await page.goto('/maps/logistic');
+      await page.waitForLoadState('networkidle');
+
+      await page.locator(`button:has-text("${theme.label}")`).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme.id);
+      // ThemeProvider injects a 300ms color transition; wait it out.
+      await page.waitForTimeout(350);
+
+      const surface = page.locator('[data-testid="logistic-plot-surface"]');
+      await expect(surface).toBeVisible();
+
+      const result = await page.evaluate(() => {
+        const surfaceEl = document.querySelector(
+          '[data-testid="logistic-plot-surface"]'
+        ) as HTMLElement | null;
+        if (!surfaceEl) return null;
+
+        const probe = document.createElement('div');
+        probe.style.backgroundColor = 'var(--bg-primary)';
+        document.body.appendChild(probe);
+        const expected = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+
+        const actual = getComputedStyle(surfaceEl).backgroundColor;
+
+        // The white rectangle was an SVG rect painted by initChartBase from a
+        // literal, NOT the wrapper div. Asserting only the wrapper would gate
+        // this test's own scaffolding: restoring
+        // `initChartBase(..., { background: '#ffffff' })` recreates the rect
+        // and the wrapper assertion above would still pass.
+        const chartBg = surfaceEl.querySelector('svg rect.chart-background');
+
+        return { actual, expected, hasChartBgRect: chartBg !== null };
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.actual).toBe(result!.expected);
+      // Explicit guard: white matplotlib panel must not survive under any theme.
+      expect(result!.actual).not.toBe('rgb(255, 255, 255)');
+      // The opaque chart rect is gone; the plot sits on the themed surface.
+      expect(result!.hasChartBgRect).toBe(false);
+    });
+  }
+
+  test('logistic data mark colour differs between Blue Tron and Neon Vintage', async ({
+    page,
+  }) => {
+    await page.goto('/maps/logistic');
+    await page.waitForLoadState('networkidle');
+
+    const readMark = async (themeLabel: string, themeId: string) => {
+      await page.locator(`button:has-text("${themeLabel}")`).click();
+      await expect(page.locator('html')).toHaveAttribute('data-theme', themeId);
+      await page.waitForTimeout(350);
+
+      return page.evaluate(() => {
+        // Cobweb default: logistic curve stroke uses --viz-line.
+        const mark = document.querySelector(
+          '.logistic-map-visualization path.logistic-curve'
+        ) as SVGPathElement | null;
+        if (!mark) return null;
+
+        const stroke = getComputedStyle(mark).stroke;
+
+        const probe = document.createElement('div');
+        probe.style.color = 'var(--viz-line)';
+        document.body.appendChild(probe);
+        const expected = getComputedStyle(probe).color;
+        probe.remove();
+
+        return { stroke, expected };
+      });
+    };
+
+    const tron = await readMark('Blue Tron', 'blue-tron');
+    const neon = await readMark('Neon Vintage', 'neon-vintage');
+
+    expect(tron).not.toBeNull();
+    expect(neon).not.toBeNull();
+    // Mark resolves through the theme var (not a leftover literal).
+    expect(tron!.stroke).toBe(tron!.expected);
+    expect(neon!.stroke).toBe(neon!.expected);
+    // Themes declare different secondary colours → different --viz-line.
+    expect(tron!.stroke).not.toBe(neon!.stroke);
+  });
 });
