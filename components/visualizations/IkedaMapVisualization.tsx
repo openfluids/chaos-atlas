@@ -107,7 +107,15 @@ const IkedaMapVisualization: React.FC = () => {
     const renderTimeEvolution = (g: d3.Selection<SVGGElement, unknown, null, undefined>,
                                innerWidth: number, innerHeight: number) => {
       const data = calculateIkedaTimeEvolution(currentParams.params, iterations);
-      const displayData = isAnimating ? data.slice(0, animationStep) : data;
+      // Never pass non-finite coordinates to d3 scales (diverging presets).
+      const finiteData = data.filter(
+        (d) => Number.isFinite(d.x) && Number.isFinite(d.y) && Number.isFinite(d.time)
+      );
+      const escaped =
+        attractorPresentation.quality.kind === 'escaped' ||
+        isOrbitEscaped(finiteData);
+      const safeData = escaped ? [] : finiteData;
+      const displayData = isAnimating ? safeData.slice(0, animationStep) : safeData;
 
       const xScale = d3.scaleLinear()
         .domain([0, iterations])
@@ -128,7 +136,7 @@ const IkedaMapVisualization: React.FC = () => {
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-cyan)')
         .attr('stroke-width', 1.5)
-        .attr('d', xLine);
+        .attr('d', displayData.length ? xLine(displayData) : null);
 
       // Y coordinate evolution
       const yLine = d3.line<{time: number; x: number; y: number}>()
@@ -141,7 +149,7 @@ const IkedaMapVisualization: React.FC = () => {
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 1.5)
-        .attr('d', yLine);
+        .attr('d', displayData.length ? yLine(displayData) : null);
 
       // Current-point indicators: always join 0 or 1 element so nodes exit cleanly.
       const cur = (isAnimating && displayData.length > 0)
@@ -197,6 +205,14 @@ const IkedaMapVisualization: React.FC = () => {
                                 xScale: d3.ScaleLinear<number, number>,
                                 yScale: d3.ScaleLinear<number, number>) => {
       const data = calculateIkedaTimeEvolution(currentParams.params, Math.min(iterations, 1000));
+      // Never pass non-finite coordinates to d3 scales (diverging presets).
+      const finiteData = data.filter(
+        (d) => Number.isFinite(d.x) && Number.isFinite(d.y)
+      );
+      const escaped =
+        attractorPresentation.quality.kind === 'escaped' ||
+        isOrbitEscaped(finiteData);
+      const safeData = escaped ? [] : finiteData;
 
       // Create phase portrait with trajectory
       const line = d3.line<{time: number; x: number; y: number}>()
@@ -205,18 +221,18 @@ const IkedaMapVisualization: React.FC = () => {
         .curve(d3.curveLinear);
 
       upsertMark<SVGPathElement>(g, 'path', 'phase-line')
-        .datum(data)
+        .datum(safeData)
         .attr('fill', 'none')
         .attr('stroke', 'var(--accent-orange)')
         .attr('stroke-width', 1)
         .attr('opacity', 0.8)
-        .attr('d', line);
+        .attr('d', safeData.length ? line(safeData) : null);
 
       const colorScale = d3.scaleSequential(d3.interpolateViridis)
-        .domain([0, data.length]);
-      const sampled = data.filter((_d, i) => i % 10 === 0);
+        .domain([0, Math.max(safeData.length, 1)]);
+      const sampled = safeData.filter((_d, i) => i % 10 === 0);
 
-      joinByIndex<typeof data[number], SVGCircleElement>(
+      joinByIndex<typeof safeData[number], SVGCircleElement>(
         g, 'circle.phase-point', 'circle', sampled, 'phase-point',
         (sel) => {
           sel.attr('cx', d => xScale(d.x)).attr('cy', d => yScale(d.y))
@@ -544,7 +560,9 @@ const IkedaMapVisualization: React.FC = () => {
               viewBox={`0 0 ${width} ${height}`}
               className="absolute inset-0 w-full h-full"
             />
-            {visualizationType === 'attractor' &&
+            {(visualizationType === 'attractor' ||
+              visualizationType === 'time' ||
+              visualizationType === 'phase') &&
               attractorPresentation.quality.kind === 'escaped' &&
               attractorPresentation.quality.caption && (
                 <p
@@ -559,7 +577,9 @@ const IkedaMapVisualization: React.FC = () => {
         </div>
       </div>
 
-      {visualizationType === 'attractor' &&
+      {(visualizationType === 'attractor' ||
+        visualizationType === 'time' ||
+        visualizationType === 'phase') &&
         attractorPresentation.quality.kind === 'degenerate' &&
         attractorPresentation.quality.caption && (
           <p

@@ -11,9 +11,11 @@ import {
   ATTRACTOR_DOMAIN_REF_ITERATIONS,
   classifyOrbit,
   countDistinctOrbitPoints,
+  findVerifiedPeriod,
   fitAttractorDomainFromReference,
   fitOrbitDomain,
   formatOrbitSettledCaption,
+  formatOrbitSparseCaption,
   formatPresetOrbitEscapeCaption,
   padDomain,
 } from '@/components/visualizations/chartHelpers';
@@ -62,6 +64,11 @@ describe('orbit presentation helpers', () => {
     expect(formatOrbitSettledCaption(4)).toBe('settled to a period-4 cycle');
   });
 
+  it('sparse captions name a distinct count without claiming a period', () => {
+    expect(formatOrbitSparseCaption(1)).toBe('1 distinct point');
+    expect(formatOrbitSparseCaption(17)).toBe('17 distinct points');
+  });
+
   it('classifies all-non-finite points as escaped with a caption', () => {
     const q = classifyOrbit(
       [
@@ -75,8 +82,54 @@ describe('orbit presentation helpers', () => {
     expect(q.caption).toContain('Bad');
   });
 
-  it('classifies a short cycle via distinct-point count (sparse threshold)', () => {
+  it('findVerifiedPeriod accepts a pure short cycle and rejects non-periodic samples', () => {
+    const period2 = [
+      { x: 1.0, y: 2.0 },
+      { x: 3.0, y: 4.0 },
+      { x: 1.0, y: 2.0 },
+      { x: 3.0, y: 4.0 },
+      { x: 1.0, y: 2.0 },
+      { x: 3.0, y: 4.0 },
+    ];
+    expect(findVerifiedPeriod(period2, 512)).toBe(2);
+
+    // Low variety (many repeated keys) but never a pure cycle: slow drift of
+    // unique points under the short-cycle ceiling.
+    const drift = Array.from({ length: 40 }, (_, i) => ({
+      x: i * 0.1,
+      y: i * 0.1,
+    }));
+    expect(countDistinctOrbitPoints(drift)).toBe(40);
+    expect(findVerifiedPeriod(drift, 512)).toBeNull();
+  });
+
+  it('rejects a stutter: few distinct points, visited in no fixed order', () => {
+    // This is the case the old distinct-count path got WRONG in the way that
+    // mattered. The existing reject tests use a 40-point open drift, which is
+    // high-variety — the old code mislabelled it "period-40", obviously bogus.
+    // A stutter is the dangerous one: it looks exactly like a short cycle
+    // (2 distinct points) and the old code would have called it "period-2",
+    // a claim a reader would believe. It is not periodic at any lag.
+    const A = { x: 1.0, y: 2.0 };
+    const B = { x: 3.0, y: 4.0 };
+    const stutter = [A, B, A, B, A, A, B, A, B, B, A, B, A, A, A, B];
+
+    expect(countDistinctOrbitPoints(stutter)).toBe(2);
+    expect(findVerifiedPeriod(stutter, SPARSE_OCCUPIED_BIN_THRESHOLD)).toBeNull();
+
+    const q = classifyOrbit(stutter, { presetName: 'Stutter' });
+    expect(q.kind).toBe('degenerate');
+    if (q.kind === 'degenerate') {
+      expect(q.periodic).toBe(false);
+      expect(q.caption).not.toMatch(/period-\d+/);
+      expect(q.caption).toBe(formatOrbitSparseCaption(2));
+    }
+  });
+
+  it('classifies a verified short cycle only when period is confirmed', () => {
     const points = [
+      { x: 1.0, y: 2.0 },
+      { x: 3.0, y: 4.0 },
       { x: 1.0, y: 2.0 },
       { x: 3.0, y: 4.0 },
       { x: 1.0, y: 2.0 },
@@ -86,11 +139,36 @@ describe('orbit presentation helpers', () => {
     const q = classifyOrbit(points, { presetName: 'P2' });
     expect(q.kind).toBe('degenerate');
     if (q.kind === 'degenerate') {
+      expect(q.periodic).toBe(true);
       expect(q.period).toBe(2);
       expect(q.caption).toBe('settled to a period-2 cycle');
     }
-    // Threshold is the shared sparse ceiling, not a second invented cutoff.
+    // Threshold is the shared ceiling value; it is not a period bound.
     expect(SPARSE_OCCUPIED_BIN_THRESHOLD).toBe(512);
+  });
+
+  it('rejects a non-periodic low-variety orbit (no period-N claim)', () => {
+    // Constructed: 40 distinct points on a slow drift — under the short-cycle
+    // ceiling, so the old distinct-count path would have claimed period-40.
+    const drift = Array.from({ length: 40 }, (_, i) => ({
+      x: i * 0.1,
+      y: Math.sin(i) * 0.01,
+    }));
+    expect(countDistinctOrbitPoints(drift)).toBeLessThanOrEqual(
+      SPARSE_OCCUPIED_BIN_THRESHOLD
+    );
+    expect(findVerifiedPeriod(drift, SPARSE_OCCUPIED_BIN_THRESHOLD)).toBeNull();
+
+    const q = classifyOrbit(drift, { presetName: 'Drift' });
+    expect(q.kind).toBe('degenerate');
+    if (q.kind === 'degenerate') {
+      expect(q.periodic).toBe(false);
+      expect(q.period).toBeUndefined();
+      expect(q.caption).toBe(formatOrbitSparseCaption(q.distinct));
+      expect(q.caption).toMatch(/distinct points?$/);
+      expect(q.caption).not.toMatch(/period-\d+/);
+      expect(q.caption).not.toMatch(/settled to/);
+    }
   });
 
   it('classifies a dense bounded orbit as healthy (no caption)', () => {
@@ -170,11 +248,13 @@ describe('orbit presentation helpers', () => {
   });
 });
 
-describe('known-blank presets produce captions (real kernels)', () => {
-  // Measured against the same kernels the components call. Captions — not
-  // empty plots — are the presentation contract for this cycle.
+describe('audited presets: verified-period captions (real kernels)', () => {
+  // Distinct-count in .sc/preset-audit.md labelled Tight/Broken "period-2"
+  // and Stable Single Loop "period-4". Checking p[i]≈p[i+N] on the tail shows
+  // those three settle to fixed points (approach noise / signed-zero bins made
+  // the multiset look larger). Captions below follow the verified period.
 
-  it('Ikeda "Tight Spiral" and "Broken Spiral" settle (period-2 outside window)', () => {
+  it('Ikeda Tight/Broken Spiral → verified fixed point on the tail', () => {
     const presets = getInterestingIkedaParameters();
     for (const name of ['Tight Spiral', 'Broken Spiral'] as const) {
       const preset = presetByName(presets, name);
@@ -184,8 +264,11 @@ describe('known-blank presets produce captions (real kernels)', () => {
       );
       const q = classifyOrbit(points, { presetName: preset.name });
       expect(q.kind).toBe('degenerate');
-      expect(q.caption).toMatch(/settled to a period-2 cycle/);
-      // Points sit outside ±2; fitted domain must still be finite for axes.
+      if (q.kind === 'degenerate') {
+        expect(q.periodic).toBe(true);
+        expect(q.period).toBe(1);
+        expect(q.caption).toBe('settled to a fixed point');
+      }
       const domain = fitOrbitDomain(points, IKEDA_FALLBACK);
       expect(domain.fitted).toBe(true);
       expect(domain.xDomain.every(Number.isFinite)).toBe(true);
@@ -193,7 +276,7 @@ describe('known-blank presets produce captions (real kernels)', () => {
     }
   });
 
-  it('Tinkerbell "Complex Multi-loop" and "Chaotic Regime" escape to non-finite', () => {
+  it('Tinkerbell Complex Multi-loop and Chaotic Regime → escaped', () => {
     const presets = getInterestingTinkerbellParameters();
     for (const name of ['Complex Multi-loop', 'Chaotic Regime'] as const) {
       const preset = presetByName(presets, name);
@@ -204,14 +287,13 @@ describe('known-blank presets produce captions (real kernels)', () => {
       const q = classifyOrbit(points, { presetName: preset.name });
       expect(q.kind).toBe('escaped');
       expect(q.caption).toBe(formatPresetOrbitEscapeCaption(preset.name));
-      // No non-finite domain reaches a scale — fallback window only.
       const domain = fitOrbitDomain(points, IKEDA_FALLBACK);
       expect(domain.fitted).toBe(false);
       expect(domain.xDomain).toEqual(IKEDA_FALLBACK.x);
     }
   });
 
-  it('Tinkerbell "Stable Single Loop" settles to a short cycle', () => {
+  it('Tinkerbell Stable Single Loop → verified fixed point at the origin', () => {
     const preset = presetByName(
       getInterestingTinkerbellParameters(),
       'Stable Single Loop'
@@ -222,10 +304,14 @@ describe('known-blank presets produce captions (real kernels)', () => {
     );
     const q = classifyOrbit(points, { presetName: preset.name });
     expect(q.kind).toBe('degenerate');
-    expect(q.caption).toMatch(/settled to a (fixed point|period-\d+ cycle)/);
+    if (q.kind === 'degenerate') {
+      expect(q.periodic).toBe(true);
+      expect(q.period).toBe(1);
+      expect(q.caption).toBe('settled to a fixed point');
+    }
   });
 
-  it('Duffing "Classic Bistable" and "Single Well Dominance" settle at origin', () => {
+  it('Duffing Classic Bistable and Single Well Dominance → fixed point', () => {
     const presets = getInterestingDuffingParameters();
     for (const name of ['Classic Bistable', 'Single Well Dominance'] as const) {
       const preset = presetByName(presets, name);
@@ -235,7 +321,11 @@ describe('known-blank presets produce captions (real kernels)', () => {
       );
       const q = classifyOrbit(points, { presetName: preset.name });
       expect(q.kind).toBe('degenerate');
-      expect(q.caption).toMatch(/settled to a (fixed point|period-\d+ cycle)/);
+      if (q.kind === 'degenerate') {
+        expect(q.periodic).toBe(true);
+        expect(q.period).toBe(1);
+        expect(q.caption).toBe('settled to a fixed point');
+      }
       const domain = fitOrbitDomain(points, DUFFING_FALLBACK);
       expect(domain.xDomain.every(Number.isFinite)).toBe(true);
       expect(domain.yDomain.every(Number.isFinite)).toBe(true);

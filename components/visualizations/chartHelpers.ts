@@ -516,12 +516,21 @@ export function formatPresetOrbitEscapeCaption(presetName: string): string {
 }
 
 /**
- * Caption when a bounded orbit has collapsed to a fixed point or short cycle.
- * Period is the count of distinct finite points (see {@link countDistinctOrbitPoints}).
+ * Caption when a bounded orbit is verified to be a fixed point or short cycle.
+ * Period must come from {@link findVerifiedPeriod}, not from a distinct count.
  */
 export function formatOrbitSettledCaption(period: number): string {
   if (period <= 1) return 'settled to a fixed point';
   return `settled to a period-${period} cycle`;
+}
+
+/**
+ * Caption when the orbit is bounded and low-variety but not verified periodic.
+ * Same wording everywhere that path is taken — names a distinct count only.
+ */
+export function formatOrbitSparseCaption(distinct: number): string {
+  if (distinct === 1) return '1 distinct point';
+  return `${distinct} distinct points`;
 }
 
 export type OrbitPoint = { x: number; y: number };
@@ -534,40 +543,123 @@ export type OrbitPoint = { x: number; y: number };
  */
 export const ATTRACTOR_DOMAIN_REF_ITERATIONS = 50_000;
 
+/** Quantization used for distinct-count and period checks (preset audit). */
+export const ORBIT_POINT_DECIMALS = 9;
+
 /**
- * Distinct finite (x, y) at `decimals` places. Matches the preset audit's
- * 9-decimal quantization so period-n lines up with measured periods.
+ * Format one coordinate at `decimals` places. Collapses the signed-zero
+ * string that `toFixed` emits for tiny negatives (e.g. −2e−323 → "-0.000…"),
+ * so +0 and −0 are one bin — the same tolerance family as the distinct count.
+ */
+function formatOrbitCoord(value: number, decimals: number): string {
+  const s = value.toFixed(decimals);
+  // "-0.000000000" is not a different point from "0.000000000" for teaching.
+  if (s.length > 1 && s.startsWith('-') && Number(s) === 0) {
+    return s.slice(1);
+  }
+  return s;
+}
+
+/** Shared (x,y) key for distinct-count and period checks. */
+export function orbitPointKey(
+  point: OrbitPoint,
+  decimals: number = ORBIT_POINT_DECIMALS
+): string {
+  return `${formatOrbitCoord(point.x, decimals)},${formatOrbitCoord(point.y, decimals)}`;
+}
+
+/**
+ * Distinct finite (x, y) at `decimals` places. Same keying as
+ * {@link findVerifiedPeriod} (signed-zero collapsed).
  */
 export function countDistinctOrbitPoints(
   points: readonly OrbitPoint[],
-  decimals = 9
+  decimals: number = ORBIT_POINT_DECIMALS
 ): number {
   const seen = new Set<string>();
   for (const p of points) {
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-    seen.add(`${p.x.toFixed(decimals)},${p.y.toFixed(decimals)}`);
+    seen.add(orbitPointKey(p, decimals));
   }
   return seen.size;
 }
 
+/**
+ * Smallest period N such that the orbit tail satisfies p[i] ≈ p[i+N] at the
+ * same quantization as {@link countDistinctOrbitPoints}.
+ *
+ * The sample is already past each kernel's own transient discard; on long
+ * samples the first half can still be settling, so the check runs on the
+ * second half ("the tail"). Short samples (unit tests, short cycles) use the
+ * whole series. Requires at least two full cycles. Returns null when no
+ * period in 1..maxPeriod is verified.
+ */
+export function findVerifiedPeriod(
+  points: readonly OrbitPoint[],
+  maxPeriod: number,
+  decimals: number = ORBIT_POINT_DECIMALS
+): number | null {
+  if (!(maxPeriod >= 1)) return null;
+
+  const keys: string[] = [];
+  for (const p of points) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    keys.push(orbitPointKey(p, decimals));
+  }
+  if (keys.length < 2) return null;
+
+  // Prefer the tail once the sample is long enough for a fair short-cycle test.
+  const minTail = Math.max(2 * Math.floor(maxPeriod), 8);
+  const tailStart =
+    keys.length >= 2 * minTail ? Math.floor(keys.length / 2) : 0;
+  const tail = tailStart > 0 ? keys.slice(tailStart) : keys;
+
+  const limit = Math.min(Math.floor(maxPeriod), Math.floor(tail.length / 2));
+  for (let n = 1; n <= limit; n++) {
+    if (isOrbitPeriodN(tail, n)) return n;
+  }
+  return null;
+}
+
+/**
+ * True when keys[i] === keys[i+n] for every consecutive i that can be checked,
+ * and there are at least two full cycles (keys.length >= 2n).
+ */
+function isOrbitPeriodN(keys: readonly string[], n: number): boolean {
+  if (n < 1 || keys.length < 2 * n) return false;
+  for (let i = 0; i < keys.length - n; i++) {
+    if (keys[i] !== keys[i + n]) return false;
+  }
+  return true;
+}
+
 export type OrbitQuality =
   | { kind: 'escaped'; caption: string; distinct: number }
-  | { kind: 'degenerate'; caption: string; period: number; distinct: number }
+  | {
+      kind: 'degenerate';
+      caption: string;
+      /** Verified period when periodic; otherwise unset. */
+      period?: number;
+      distinct: number;
+      /** True only when {@link findVerifiedPeriod} succeeded. */
+      periodic: boolean;
+    }
   | { kind: 'healthy'; caption: null; distinct: number };
 
 /**
- * Classify a sampled orbit for attractor presentation: escaped, short cycle,
- * or healthy. Degeneracy uses the same short-cycle ceiling as the density
- * sparse path ({@link SPARSE_OCCUPIED_BIN_THRESHOLD}): the period-doubling
- * cascade runs through periods 2…256… before chaos; 512 covers that cascade.
- * Do not invent a second threshold without updating that comment.
+ * Classify a sampled orbit for attractor presentation: escaped, verified short
+ * cycle, low-variety non-periodic, or healthy.
+ *
+ * `shortCycleMax` (default {@link SPARSE_OCCUPIED_BIN_THRESHOLD}) is a ceiling
+ * for "worth testing for a short cycle" — not a period bound. Distinct-point
+ * count alone never names a period; only {@link findVerifiedPeriod} does.
  */
 export function classifyOrbit(
   points: readonly OrbitPoint[],
   options: { presetName: string; shortCycleMax?: number }
 ): OrbitQuality {
-  // Same threshold the density sparse path uses for "too few bins to paint
-  // as a field" — short cycles and the period-doubling cascade land here.
+  // Worth-testing-for-a-short-cycle ceiling (same numeric value the density
+  // path uses for occupied bins — a different space; not a period bound).
   const shortCycleMax = options.shortCycleMax ?? SPARSE_OCCUPIED_BIN_THRESHOLD;
   const distinct = countDistinctOrbitPoints(points);
 
@@ -580,11 +672,21 @@ export function classifyOrbit(
   }
 
   if (distinct <= shortCycleMax) {
+    const period = findVerifiedPeriod(points, shortCycleMax);
+    if (period != null) {
+      return {
+        kind: 'degenerate',
+        period,
+        caption: formatOrbitSettledCaption(period),
+        distinct,
+        periodic: true,
+      };
+    }
     return {
       kind: 'degenerate',
-      period: distinct,
-      caption: formatOrbitSettledCaption(distinct),
+      caption: formatOrbitSparseCaption(distinct),
       distinct,
+      periodic: false,
     };
   }
 
