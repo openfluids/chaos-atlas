@@ -32,17 +32,17 @@
   --tron-border-light: #555555;
   --tron-border-dark: #222222;
 
-  /* Glow Effects */
-  --tron-glow-cyan: 0 0 8px rgba(0, 255, 255, 0.8);
-  --tron-glow-orange: 0 0 8px rgba(255, 127, 0, 0.8);
-  --tron-glow-magenta: 0 0 8px rgba(255, 0, 255, 0.8);
-  --tron-glow-yellow: 0 0 8px rgba(255, 255, 0, 0.8);
-
-  /* Enhanced Glow for Hover States */
-  --tron-glow-cyan-hover: 0 0 16px rgba(0, 255, 255, 1);
-  --tron-glow-orange-hover: 0 0 16px rgba(255, 127, 0, 1);
-  --tron-glow-magenta-hover: 0 0 16px rgba(255, 0, 255, 1);
-  --tron-glow-yellow-hover: 0 0 16px rgba(255, 255, 0, 1);
+  /* Glow Effects — names kept; values come from getLegacyThemeCSSProperties
+     (theme.glow + ThemeColors). Pre-hydrate fallback is none so B&W is not
+     painted with a hardcoded cyan halo before JS runs. */
+  --tron-glow-cyan: none;
+  --tron-glow-orange: none;
+  --tron-glow-magenta: none;
+  --tron-glow-yellow: none;
+  --tron-glow-cyan-hover: none;
+  --tron-glow-orange-hover: none;
+  --tron-glow-magenta-hover: none;
+  --tron-glow-yellow-hover: none;
 
   /* Animation Durations */
   --tron-transition-fast: 0.15s;
@@ -77,14 +77,9 @@
   --tron-reduced-motion: none;
 }
 
-/* High Contrast Mode Override */
+/* High Contrast Mode Override — borders only; glow is theme-map owned */
 @media (prefers-contrast: high) {
   :root {
-    --tron-glow-cyan: 0 0 12px rgba(0, 255, 255, 1);
-    --tron-glow-orange: 0 0 12px rgba(255, 127, 0, 1);
-    --tron-glow-magenta: 0 0 12px rgba(255, 0, 255, 1);
-    --tron-glow-yellow: 0 0 12px rgba(255, 255, 0, 1);
-
     --tron-border: #666666;
     --tron-border-light: #888888;
     --tron-border-dark: #444444;

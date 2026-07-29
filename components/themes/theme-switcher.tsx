@@ -152,7 +152,13 @@ export function ThemeSwitcher({
                   isActive ? 'text-cyan-400 neon-text-cyan' : 'text-gray-300'
                 )}
                 style={{
-                  textShadow: isActive ? `0 0 8px ${themeConfig.colors.glow}` : 'none',
+                  // Each button shows its OWN theme's glow, so read that
+                  // theme's intensity too. Black & White declares intensity 0
+                  // and was still painting a white halo on the active button.
+                  textShadow:
+                    isActive && themeConfig.glow.intensity > 0
+                      ? `0 0 8px ${themeConfig.colors.glow}`
+                      : 'none',
                 }}
               >
                 {themeConfig.name}

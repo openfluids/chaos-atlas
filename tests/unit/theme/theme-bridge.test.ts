@@ -208,7 +208,10 @@ describe('applyThemeCSSProperties — full legacy bridge', () => {
     (_id, theme) => {
       applyThemeCSSProperties(theme, root);
 
-      const expected = getLegacyThemeCSSProperties(theme.colors);
+      const effectiveGlow = theme.accessibility.reducedGlow
+        ? { ...theme.glow, intensity: 0 }
+        : theme.glow;
+      const expected = getLegacyThemeCSSProperties(theme.colors, effectiveGlow);
       for (const [prop, value] of Object.entries(expected)) {
         expect(root.style.getPropertyValue(prop)).toBe(value);
       }
@@ -248,6 +251,56 @@ describe('applyThemeCSSProperties — full legacy bridge', () => {
     expect(root.style.getPropertyValue('--bg-card')).toBe('');
     expect(root.style.getPropertyValue('--viz-grid')).toBe('');
     expect(root.style.getPropertyValue('--tron-primary')).toBe('');
+    expect(root.style.getPropertyValue('--tron-glow-cyan')).toBe('');
     expect(root.getAttribute('data-theme')).toBeNull();
+  });
+});
+
+describe('getLegacyThemeCSSProperties — glow tokens', () => {
+  it('Black & White (intensity 0) emits none for all eight --tron-glow-* slots', () => {
+    const theme = defaultThemes.find((t) => t.themeId === 'black-white')!;
+    const props = getLegacyThemeCSSProperties(theme.colors, theme.glow);
+    for (const key of [
+      '--tron-glow-cyan',
+      '--tron-glow-orange',
+      '--tron-glow-magenta',
+      '--tron-glow-yellow',
+      '--tron-glow-cyan-hover',
+      '--tron-glow-orange-hover',
+      '--tron-glow-magenta-hover',
+      '--tron-glow-yellow-hover',
+    ] as const) {
+      expect(props[key]).toBe('none');
+    }
+  });
+
+  it('Neon Vintage and Blue Tron emit non-empty, non-none cyan glow from primary', () => {
+    for (const themeId of ['neon-vintage', 'blue-tron'] as const) {
+      const theme = defaultThemes.find((t) => t.themeId === themeId)!;
+      const props = getLegacyThemeCSSProperties(theme.colors, theme.glow);
+      const cyan = props['--tron-glow-cyan'];
+      expect(cyan).toBeTruthy();
+      expect(cyan).not.toBe('none');
+      expect(cyan).toContain('rgba');
+      // Derived from primary + intensity via hexWithAlpha (not a hardcoded palette).
+      expect(cyan).toBe(
+        `0 0 ${theme.glow.blurRadius} ${hexWithAlpha(theme.colors.primary, theme.glow.intensity)}`
+      );
+    }
+  });
+
+  it('applyThemeCSSProperties zeros glow when accessibility.reducedGlow is true', () => {
+    const root = document.documentElement;
+    root.removeAttribute('style');
+    const base = defaultThemes.find((t) => t.themeId === 'blue-tron')!;
+    const reduced = {
+      ...base,
+      accessibility: { ...base.accessibility, reducedGlow: true },
+    };
+    applyThemeCSSProperties(reduced, root);
+    expect(root.style.getPropertyValue('--tron-glow-cyan')).toBe('none');
+    expect(root.style.getPropertyValue('--tron-glow-intensity')).toBe('0');
+    removeThemeCSSProperties(root);
+    root.removeAttribute('style');
   });
 });

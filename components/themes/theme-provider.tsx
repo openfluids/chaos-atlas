@@ -8,7 +8,6 @@ import {
   getSystemTheme,
   watchSystemTheme,
   getReducedMotionPreference,
-  getHighContrastPreference,
   applyThemeCSSProperties,
   removeThemeCSSProperties,
   safeStorageGet,
@@ -120,16 +119,20 @@ export function ThemeProvider({
       }, 300);
     }
 
-    // Apply theme CSS properties
-    applyThemeCSSProperties(themeConfig);
+    // Apply theme CSS properties (reducedGlow → intensity 0 inside the map).
+    // System prefers-reduced-motion forces glow off without a dead string flag.
+    const prefersReducedMotion = getReducedMotionPreference();
+    const configForApply =
+      prefersReducedMotion && !themeConfig.accessibility.reducedGlow
+        ? {
+            ...themeConfig,
+            accessibility: { ...themeConfig.accessibility, reducedGlow: true },
+            animation: { ...themeConfig.animation, reducedMotion: true },
+          }
+        : themeConfig;
+    applyThemeCSSProperties(configForApply);
 
-    // Update accessibility preferences
-    if (themeConfig.accessibility.highContrast || getHighContrastPreference()) {
-      document.documentElement.style.setProperty('--tron-high-contrast', 'high');
-    }
-
-    if (themeConfig.accessibility.reducedGlow || getReducedMotionPreference()) {
-      document.documentElement.style.setProperty('--tron-reduced-glow', 'true');
+    if (prefersReducedMotion) {
       document.documentElement.style.setProperty('--tron-reduced-motion', 'reduce');
     }
   }, undefined);

@@ -358,7 +358,7 @@ export function PlaybackControls(): React.ReactElement {
             value={empty ? min : displayValue}
             disabled={empty}
             onChange={(e) => handleScrub(e.target.value)}
-            className="w-full h-2 mt-1 bg-gray-700 rounded-lg appearance-none cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full h-2 mt-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider disabled:opacity-40 disabled:cursor-not-allowed"
           />
         </label>
       </div>

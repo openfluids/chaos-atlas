@@ -322,6 +322,26 @@ export const LEGACY_SURFACE_BLEND = 0.18;
  */
 export const LEGACY_MUTED_BLEND = 0.4;
 
+/** Default glow used when the map is keyed without a theme.glow argument. */
+const DEFAULT_GLOW = { intensity: 0.8, blurRadius: '8px', spreadRadius: '2px' };
+
+/**
+ * CSS box/text-shadow token for a glow slot. Intensity 0 → `none` (no halo).
+ * Reuses hexWithAlpha; no parallel colour path.
+ */
+function themeGlowShadow(color: string, intensity: number, blurRadius: string): string {
+  if (intensity <= 0) return 'none';
+  return `0 0 ${blurRadius} ${hexWithAlpha(color, intensity)}`;
+}
+
+/** Hover twin: double blur, full opacity when intensity > 0; else `none`. */
+function themeGlowShadowHover(color: string, intensity: number, blurRadius: string): string {
+  if (intensity <= 0) return 'none';
+  const n = parseFloat(blurRadius);
+  const hoverBlur = Number.isFinite(n) ? `${n * 2}px` : blurRadius;
+  return `0 0 ${hoverBlur} ${hexWithAlpha(color, 1)}`;
+}
+
 /**
  * Single source of truth for the legacy :root bridge (globals.css).
  * Every key is both applied by `applyThemeCSSProperties` and cleared by
@@ -342,14 +362,20 @@ export const LEGACY_MUTED_BLEND = 0.4;
  *   blend(textSecondary→bg, 0.4)        → --text-muted
  *   primary                             → --text-accent, --viz-secondary, --viz-point,
  *                                         --border-secondary (α0.3), --viz-area (α0.3),
- *                                         --accent-cyan
+ *                                         --accent-cyan, --tron-glow-cyan
  *   secondary                           → --border-focus, --viz-primary, --viz-line,
- *                                         --viz-grid (α0.2), --accent-magenta
- *   tertiary                            → --viz-tertiary, --accent-orange
+ *                                         --viz-grid (α0.2), --accent-magenta,
+ *                                         --tron-glow-magenta
+ *   tertiary                            → --viz-tertiary, --accent-orange, --tron-glow-orange
+ *   glow color + glow.{intensity,blur}  → --tron-glow-yellow (+ -hover twins for all four)
  *   border + α 0.3                      → --border-primary
  *   warning                             → --accent-red
+ *   intensity 0 (or reducedGlow)        → all eight --tron-glow-* = none
  */
-export function getLegacyThemeCSSProperties(colors: ThemeColors): Record<string, string> {
+export function getLegacyThemeCSSProperties(
+  colors: ThemeColors,
+  glow: { intensity: number; blurRadius: string; spreadRadius: string } = DEFAULT_GLOW
+): Record<string, string> {
   // Surface tint: background → border by LEGACY_SURFACE_BLEND, then legacy alphas.
   const surface = blendHexToward(
     colors.background,
@@ -362,6 +388,14 @@ export function getLegacyThemeCSSProperties(colors: ThemeColors): Record<string,
     colors.background,
     LEGACY_MUTED_BLEND
   );
+
+  const { intensity, blurRadius } = glow;
+  // Slot colours follow the same accent bridge as --accent-*; yellow uses
+  // colors.glow (the dedicated glow colour on ThemeColors).
+  const glowCyan = themeGlowShadow(colors.primary, intensity, blurRadius);
+  const glowOrange = themeGlowShadow(colors.tertiary, intensity, blurRadius);
+  const glowMagenta = themeGlowShadow(colors.secondary, intensity, blurRadius);
+  const glowYellow = themeGlowShadow(colors.glow, intensity, blurRadius);
 
   return {
     '--bg-primary': colors.background,
@@ -392,6 +426,15 @@ export function getLegacyThemeCSSProperties(colors: ThemeColors): Record<string,
     '--accent-orange': colors.tertiary,
     '--accent-magenta': colors.secondary,
     '--accent-red': colors.warning,
+
+    '--tron-glow-cyan': glowCyan,
+    '--tron-glow-orange': glowOrange,
+    '--tron-glow-magenta': glowMagenta,
+    '--tron-glow-yellow': glowYellow,
+    '--tron-glow-cyan-hover': themeGlowShadowHover(colors.primary, intensity, blurRadius),
+    '--tron-glow-orange-hover': themeGlowShadowHover(colors.tertiary, intensity, blurRadius),
+    '--tron-glow-magenta-hover': themeGlowShadowHover(colors.secondary, intensity, blurRadius),
+    '--tron-glow-yellow-hover': themeGlowShadowHover(colors.glow, intensity, blurRadius),
   };
 }
 
@@ -422,8 +465,14 @@ export function applyThemeCSSProperties(theme: ThemeConfiguration, element: HTML
     safeSetProperty(`--tron-${key.replace(/([A-Z])/g, '-$1').toLowerCase()}`, value);
   });
 
-  // Apply glow variables
-  safeSetProperty('--tron-glow-intensity', theme.glow.intensity.toString());
+  // Apply glow dimension variables (intensity also drives the shadow map below)
+  const effectiveIntensity = theme.accessibility.reducedGlow ? 0 : theme.glow.intensity;
+  const effectiveGlow = {
+    intensity: effectiveIntensity,
+    blurRadius: theme.glow.blurRadius,
+    spreadRadius: theme.glow.spreadRadius,
+  };
+  safeSetProperty('--tron-glow-intensity', effectiveIntensity.toString());
   safeSetProperty('--tron-glow-blur-radius', theme.glow.blurRadius);
   safeSetProperty('--tron-glow-spread-radius', theme.glow.spreadRadius);
 
@@ -432,13 +481,14 @@ export function applyThemeCSSProperties(theme: ThemeConfiguration, element: HTML
   safeSetProperty('--tron-animation-easing', theme.animation.easing);
   safeSetProperty('--tron-reduced-motion', theme.animation.reducedMotion ? 'reduce' : 'no-preference');
 
-  // Apply accessibility variables
-  safeSetProperty('--tron-high-contrast', theme.accessibility.highContrast ? 'high' : 'normal');
-  safeSetProperty('--tron-reduced-glow', theme.accessibility.reducedGlow ? 'true' : 'false');
+  // Accessibility: reducedGlow is folded into effectiveIntensity above (glow
+  // slots become `none`). highContrast is carried by the theme palette itself
+  // — no unused string flag on :root.
 
   // Bridge every legacy :root var from the shared map (one loop — keys come
-  // from the map; do not hand-maintain a second list for apply).
-  Object.entries(getLegacyThemeCSSProperties(theme.colors)).forEach(([k, v]) =>
+  // from the map; do not hand-maintain a second list for apply). Includes the
+  // eight --tron-glow-* shadow tokens derived from theme colours + glow.
+  Object.entries(getLegacyThemeCSSProperties(theme.colors, effectiveGlow)).forEach(([k, v]) =>
     safeSetProperty(k, v)
   );
 }
@@ -458,8 +508,10 @@ export function removeThemeCSSProperties(element: HTMLElement = document.documen
     });
 
     // Remove the legacy bridge from the same map apply uses (keys only;
-    // values are irrelevant for teardown).
-    const legacyKeys = Object.keys(getLegacyThemeCSSProperties(defaultThemes[0].colors));
+    // values are irrelevant for teardown). Includes --tron-glow-*.
+    const legacyKeys = Object.keys(
+      getLegacyThemeCSSProperties(defaultThemes[0].colors, defaultThemes[0].glow)
+    );
     legacyKeys.forEach((property) => {
       element.style.removeProperty(property);
     });

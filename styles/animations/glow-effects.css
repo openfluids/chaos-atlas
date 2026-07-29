@@ -143,10 +143,10 @@
   }
 
   .neon-text {
-    text-shadow: 0 0 4px rgba(0, 255, 255, 0.5);
+    text-shadow: var(--tron-glow-cyan);
   }
 
   .neon-text:hover {
-    text-shadow: 0 0 8px rgba(0, 255, 255, 0.8);
+    text-shadow: var(--tron-glow-cyan-hover);
   }
 }
