@@ -143,6 +143,13 @@ tests/                   # 184 tests (unit, integration, a11y, e2e)
 - **Python package:** NumPy, Python 3.14+
 - **Deployment:** GitHub Pages via Actions
 
+## Contributing
+
+Contributions are welcome, and questions and bug reports count. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for setup and the checks CI runs, and the
+[openfluids Code of Conduct](https://github.com/openfluids/.github/blob/main/CODE_OF_CONDUCT.md)
+for how we work together.
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
