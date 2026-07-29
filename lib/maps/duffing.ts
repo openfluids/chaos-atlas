@@ -78,6 +78,194 @@ export function calculateDuffingAttractor(
   return calculateDuffingMap(initialPoint, params, iterations, 500);
 }
 
+/** Result of seeding one orbit per nonzero fixed-point basin. */
+export interface DuffingDualAttractorsResult {
+  /** Seeds used (small perturbations of the nonzero fixed points, left then right). */
+  seeds: DuffingPoint[];
+  /** One orbit per seed; a single orbit when fewer than two nonzero fixed points. */
+  orbits: DuffingPoint[][];
+  /** Mean of the converged tail of each orbit (same length as `orbits`). */
+  tailMeans: DuffingPoint[];
+  /**
+   * True when every returned orbit lands on the same attractor set (one cloud),
+   * or when only one orbit could be seeded. False when the tails sit on
+   * distinct sets (e.g. the two bistable fixed points).
+   */
+  sameSet: boolean;
+}
+
+/**
+ * Seed one orbit near each nonzero fixed point and report whether the tails
+ * share one attractor set or two.
+ *
+ * Seeds track the fixed points as `a` and `b` change (never hardcoded
+ * coordinates). Same-set detection reuses the basins idea: tail mean +
+ * spread, with a match radius scaled to the separation of the nonzero fixed
+ * points; when tails do not settle, nearest-neighbour occupancy decides.
+ */
+export function calculateDuffingDualAttractors(
+  params: { a: number; b: number },
+  iterations: number = 2000
+): DuffingDualAttractorsResult {
+  const fixedPoints = calculateDuffingFixedPoints(params);
+  const nonzero = fixedPoints
+    .filter((p) => p.x !== 0 || p.y !== 0)
+    .slice()
+    .sort((a, b) => a.x - b.x); // left (negative x) then right
+
+  const transient = 500;
+  const tailLen = 80;
+  const convergeTol = 0.05;
+
+  let separation = 1;
+  if (nonzero.length >= 2) {
+    separation = Math.hypot(
+      nonzero[0].x - nonzero[1].x,
+      nonzero[0].y - nonzero[1].y
+    );
+  } else if (nonzero.length === 1) {
+    separation = 2 * Math.hypot(nonzero[0].x, nonzero[0].y);
+  }
+  const matchTol = 0.25 * separation;
+
+  // Fewer than two nonzero fixed points → single-orbit fallback (same seed
+  // family as calculateDuffingAttractor when there is nothing to perturb).
+  if (nonzero.length < 2) {
+    const seed =
+      nonzero.length === 1
+        ? perturbFixedPoint(nonzero[0])
+        : { x: 0.1, y: 0.1 };
+    const orbit = calculateDuffingMap(seed, params, iterations, transient);
+    const { mean } = orbitTailStats(orbit, tailLen);
+    return {
+      seeds: [seed],
+      orbits: [orbit],
+      tailMeans: [mean],
+      sameSet: true,
+    };
+  }
+
+  const seeds = nonzero.map(perturbFixedPoint);
+  const orbits = seeds.map((seed) =>
+    calculateDuffingMap(seed, params, iterations, transient)
+  );
+  const stats = orbits.map((orbit) => orbitTailStats(orbit, tailLen));
+  const tailMeans = stats.map((s) => s.mean);
+
+  let sameSet: boolean;
+  if (stats[0].spread <= convergeTol && stats[1].spread <= convergeTol) {
+    // Both settled: same set iff the tail means agree within matchTol.
+    const d = Math.hypot(
+      stats[0].mean.x - stats[1].mean.x,
+      stats[0].mean.y - stats[1].mean.y
+    );
+    sameSet = d <= matchTol;
+  } else {
+    // Unsettled (chaotic / strange): compare cloud occupancy across the
+    // whole post-transient orbit (strided), not only the last few hundred
+    // points — intermittent lobes can make a short window look like two
+    // separate sets even when both seeds fill the same attractor.
+    const sample0 = strideSample(orbits[0], 500);
+    const sample1 = strideSample(orbits[1], 500);
+    const nn = meanNearestNeighbour(sample0, sample1);
+    const diam = Math.max(
+      orbitDiameter(sample0),
+      orbitDiameter(sample1),
+      1e-9
+    );
+    sameSet = nn < 0.15 * diam;
+  }
+
+  return { seeds, orbits, tailMeans, sameSet };
+}
+
+/** Nudge a fixed point slightly outward so the seed is not exactly on it. */
+function perturbFixedPoint(fp: DuffingPoint): DuffingPoint {
+  const r = Math.hypot(fp.x, fp.y);
+  if (r < 1e-12) {
+    return { x: fp.x + 0.05, y: fp.y + 0.05 };
+  }
+  const delta = 0.05;
+  return {
+    x: fp.x + (delta * fp.x) / r,
+    y: fp.y + (delta * fp.y) / r,
+  };
+}
+
+function orbitTailStats(
+  orbit: DuffingPoint[],
+  tailLen: number
+): { mean: DuffingPoint; spread: number } {
+  if (orbit.length === 0) {
+    return { mean: { x: 0, y: 0 }, spread: Infinity };
+  }
+  const n = Math.min(tailLen, orbit.length);
+  const start = orbit.length - n;
+  let meanX = 0;
+  let meanY = 0;
+  for (let i = start; i < orbit.length; i++) {
+    meanX += orbit[i].x;
+    meanY += orbit[i].y;
+  }
+  meanX /= n;
+  meanY /= n;
+  let spread = 0;
+  for (let i = start; i < orbit.length; i++) {
+    const d = Math.hypot(orbit[i].x - meanX, orbit[i].y - meanY);
+    if (d > spread) spread = d;
+  }
+  return { mean: { x: meanX, y: meanY }, spread };
+}
+
+/** Evenly spaced subsample so long orbits stay O(maxCount) to compare. */
+function strideSample(orbit: DuffingPoint[], maxCount: number): DuffingPoint[] {
+  if (orbit.length <= maxCount) return orbit;
+  const step = orbit.length / maxCount;
+  const out: DuffingPoint[] = [];
+  for (let i = 0; i < maxCount; i++) {
+    out.push(orbit[Math.min(orbit.length - 1, Math.floor(i * step))]);
+  }
+  return out;
+}
+
+function meanNearestNeighbour(
+  a: DuffingPoint[],
+  b: DuffingPoint[]
+): number {
+  if (a.length === 0 || b.length === 0) return Infinity;
+  const maxSample = 200;
+  const step = Math.max(1, Math.floor(a.length / maxSample));
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < a.length; i += step) {
+    const p = a[i];
+    let best = Infinity;
+    for (let j = 0; j < b.length; j++) {
+      const d = Math.hypot(p.x - b[j].x, p.y - b[j].y);
+      if (d < best) best = d;
+    }
+    sum += best;
+    count++;
+  }
+  return sum / count;
+}
+
+function orbitDiameter(points: DuffingPoint[]): number {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const p of points) {
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!Number.isFinite(minX)) return 0;
+  return Math.hypot(maxX - minX, maxY - minY);
+}
+
 /**
  * Calculate the potential energy landscape for the Duffing Map
  * V(x) = -0.5·a·x² + 0.25·x⁴

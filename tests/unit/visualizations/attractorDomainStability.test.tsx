@@ -76,6 +76,8 @@ describe.each(CASES)(
           height: h,
         }),
         putImageData: jest.fn(),
+        clearRect: jest.fn(),
+        drawImage: jest.fn(),
       })) as unknown as typeof HTMLCanvasElement.prototype.getContext;
     });
 

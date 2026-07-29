@@ -115,6 +115,9 @@ export const chartHelpersMock = {
 
 export const densityCanvasMock = {
   renderDensityCanvas: () => undefined,
+  // Dual-orbit Duffing paint imports this; keep a no-op LUT builder so
+  // suites that mock the canvas module do not throw on the dual path.
+  buildColorLut: () => new Uint8ClampedArray(256 * 3),
 };
 
 export const useHydratedMock = {

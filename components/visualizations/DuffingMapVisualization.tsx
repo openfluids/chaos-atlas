@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import {
-  calculateDuffingAttractor,
+  calculateDuffingDualAttractors,
   calculateDuffingPotential,
   calculateDuffingBifurcation,
   calculateDuffingBasins,
@@ -34,6 +34,95 @@ import { isOrbitEscaped } from './densityField';
 
 /** Hardcoded attractor window — fallback when there is nothing sane to fit. */
 const ATTRACTOR_FALLBACK: [number, number] = [-2.5, 2.5];
+
+/** Basin legend colours — must exist on every theme (see lib/themes). */
+const BASIN_LEFT_COLOR = 'var(--accent-cyan)';
+const BASIN_RIGHT_COLOR = 'var(--accent-orange)';
+
+const SINGLE_ATTRACTOR_CAPTION =
+  'Single attractor — both seeds land on the same set';
+
+/**
+ * Resolve a CSS custom property to a concrete color string for canvas paint.
+ * Falls back when the variable is unset (SSR / bare jsdom).
+ */
+function resolveCssColor(cssVar: string, fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const raw = cssVar.match(/var\((--[^)]+)\)/)?.[1];
+  if (!raw) return fallback;
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(raw)
+    .trim();
+  return value || fallback;
+}
+
+/** Solid black→accent ramp so density/sparse paint uses one basin colour. */
+function solidColorScale(solid: string): (t: number) => string {
+  return (t: number) => d3.interpolateRgb('#000000', solid)(Math.max(0, Math.min(1, t)));
+}
+
+/**
+ * Paint two basin orbits through the existing density-canvas renderer,
+ * compositing off-screen so each keeps its own colour (cyan left / orange right).
+ */
+function renderDualOrbitDensity(
+  canvas: HTMLCanvasElement,
+  orbits: readonly { x: number; y: number }[][],
+  colors: readonly string[],
+  xDomain: [number, number],
+  yDomain: [number, number],
+  canvasCssWidth: number,
+  canvasCssHeight: number,
+  plotRect: { x: number; y: number; width: number; height: number }
+): void {
+  if (orbits.length === 1) {
+    renderDensityCanvas(
+      canvas,
+      orbits[0],
+      xDomain,
+      yDomain,
+      canvasCssWidth,
+      canvasCssHeight,
+      plotRect,
+      solidColorScale(colors[0])
+    );
+    return;
+  }
+
+  // Clear the live canvas, then layer each orbit from a scratch canvas.
+  renderDensityCanvas(
+    canvas,
+    [],
+    xDomain,
+    yDomain,
+    canvasCssWidth,
+    canvasCssHeight,
+    plotRect
+  );
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const scratch = document.createElement('canvas');
+  for (let oi = 0; oi < orbits.length; oi++) {
+    const solid = colors[oi] ?? colors[0];
+    renderDensityCanvas(
+      scratch,
+      orbits[oi],
+      xDomain,
+      yDomain,
+      canvasCssWidth,
+      canvasCssHeight,
+      plotRect,
+      solidColorScale(solid)
+    );
+    // 'lighter' keeps both sparse markers / density lobes visible where they
+    // overlap; source-over would hide the first orbit under the second's clear.
+    ctx.globalCompositeOperation = oi === 0 ? 'source-over' : 'lighter';
+    ctx.drawImage(scratch, 0, 0);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+}
 
 const DuffingMapVisualization: React.FC = () => {
   const [selectedParams, setSelectedParams] = useState(1);
@@ -75,18 +164,28 @@ const DuffingMapVisualization: React.FC = () => {
   );
 
   // Domain + caption from a FIXED reference iteration count so the axes do
-  // not move when the attractor-iterations slider is swept.
+  // not move when the attractor-iterations slider is swept. Fit covers BOTH
+  // basin orbits when they are distinct so neither cloud is clipped.
   const attractorPresentation = useMemo(() => {
-    const refPoints = calculateDuffingAttractor(
+    const dual = calculateDuffingDualAttractors(
       currentParams.params,
       ATTRACTOR_DOMAIN_REF_ITERATIONS
     );
+    const orbitsForView = dual.sameSet ? [dual.orbits[0]] : dual.orbits;
+    const refPoints = orbitsForView.flat();
     const quality = classifyOrbit(refPoints, { presetName: currentParams.name });
     const domain = fitOrbitDomain(refPoints, {
       x: ATTRACTOR_FALLBACK,
       y: ATTRACTOR_FALLBACK,
     });
-    return { quality, xDomain: domain.xDomain, yDomain: domain.yDomain };
+    return {
+      quality,
+      xDomain: domain.xDomain,
+      yDomain: domain.yDomain,
+      sameSet: dual.sameSet,
+      // True when two seeds were tried and collapsed onto one set.
+      showSingleAttractorCaption: dual.sameSet && dual.seeds.length >= 2,
+    };
   }, [currentParams]);
 
   // On a chaotic attractor, successive iterates jump all over the set, so
@@ -367,31 +466,68 @@ const DuffingMapVisualization: React.FC = () => {
 
     const usesDensityCanvas = visualizationType === 'attractor' || visualizationType === 'phase';
     if (usesDensityCanvas && canvasRef.current && layout) {
-      // The 'attractor' and 'phase space density' views share the density
-      // field. Higher iteration counts resolve finer structure in the folds;
-      // axes stay on the fixed-reference domain so the slider does not move them.
-      const data = calculateDuffingAttractor(currentParams.params, attractorIterations);
-      const finitePoints = data.filter(
-        (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
+      // One orbit per basin; when both seeds share a set, paint a single
+      // cloud. Colours match the basins legend (cyan left / orange right).
+      const dual = calculateDuffingDualAttractors(
+        currentParams.params,
+        attractorIterations
       );
+      const orbitsForView = dual.sameSet ? [dual.orbits[0]] : dual.orbits;
+      const finiteOrbits = orbitsForView.map((orbit) =>
+        orbit.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+      );
+      const allFinite = finiteOrbits.flat();
       const escaped =
         attractorPresentation.quality.kind === 'escaped' ||
-        isOrbitEscaped(finitePoints);
-      renderDensityCanvas(
-        canvasRef.current,
-        escaped ? [] : finitePoints,
-        densityX,
-        densityY,
-        width,
-        height,
-        {
-          x: CHART_MARGIN.left + layout.offsetX,
-          y: CHART_MARGIN.top + layout.offsetY,
-          width: layout.plotWidth,
-          height: layout.plotHeight,
-        },
-        d3.interpolateViridis
-      );
+        isOrbitEscaped(allFinite);
+      const plotRect = {
+        x: CHART_MARGIN.left + layout.offsetX,
+        y: CHART_MARGIN.top + layout.offsetY,
+        width: layout.plotWidth,
+        height: layout.plotHeight,
+      };
+      if (escaped) {
+        renderDensityCanvas(
+          canvasRef.current,
+          [],
+          densityX,
+          densityY,
+          width,
+          height,
+          plotRect,
+          d3.interpolateViridis
+        );
+      } else if (dual.sameSet || finiteOrbits.length === 1) {
+        // Single set: keep the shared viridis density path.
+        renderDensityCanvas(
+          canvasRef.current,
+          finiteOrbits[0] ?? [],
+          densityX,
+          densityY,
+          width,
+          height,
+          plotRect,
+          d3.interpolateViridis
+        );
+      } else {
+        // Fallbacks are a deliberately distinguishable pair for the case where
+        // no theme has set the variables (SSR / bare jsdom). They are NOT the
+        // themes' values: --accent-orange resolves to each theme's `tertiary`,
+        // which is blue in Blue Tron, so there is no single hex to mirror.
+        const cyan = resolveCssColor(BASIN_LEFT_COLOR, '#00e5ff');
+        const orange = resolveCssColor(BASIN_RIGHT_COLOR, '#ff9f1c');
+        // orbits sorted left-then-right by seed (negative x first).
+        renderDualOrbitDensity(
+          canvasRef.current,
+          finiteOrbits,
+          [cyan, orange],
+          densityX,
+          densityY,
+          width,
+          height,
+          plotRect
+        );
+      }
     } else if (canvasRef.current) {
       // Clear any density paint left over from a previous render in the
       // 'attractor'/'phase' views -- `renderDensityCanvas` clears its
@@ -425,6 +561,36 @@ const DuffingMapVisualization: React.FC = () => {
 
     if ((visualizationType === 'attractor' || visualizationType === 'phase') && layout) {
       renderAttractorOverlay(dataGroup, layout.xScale, layout.yScale);
+      // Legend entries only when two distinct basin orbits are on screen.
+      // The join runs unconditionally with an EMPTY list in the shared-set
+      // case: `g.chart-data` is only wiped when the visualization type
+      // changes, so skipping the call would strand the previous preset's
+      // "Left/Right attractor" swatches on a single-attractor view.
+      const legendData = attractorPresentation.sameSet
+        ? []
+        : [
+            { color: BASIN_LEFT_COLOR, label: 'Left attractor' },
+            { color: BASIN_RIGHT_COLOR, label: 'Right attractor' },
+          ];
+      joinByIndex<{ color: string; label: string }, SVGRectElement>(
+        dataGroup, 'rect.dual-legend-swatch', 'rect', legendData, 'dual-legend-swatch',
+        (sel) => {
+          sel.attr('x', 10).attr('y', (_d, i) => 10 + i * 20)
+            .attr('width', 15).attr('height', 15).attr('fill', (d) => d.color);
+        }
+      );
+      joinByIndex<{ color: string; label: string }, SVGTextElement>(
+        dataGroup, 'text.dual-legend-label', 'text', legendData, 'dual-legend-label',
+        (sel) => {
+          sel.attr('x', 30).attr('y', (_d, i) => 22 + i * 20)
+            .style('fill', 'var(--text-primary)').style('font-size', '12px')
+            .each(function (d) {
+              if (this.firstChild && this.firstChild.nodeType === Node.TEXT_NODE) {
+                if (this.firstChild.nodeValue !== d.label) this.firstChild.nodeValue = d.label;
+              } else { this.textContent = d.label; }
+            });
+        }
+      );
       axisSpec = {
         xScale: layout.xScale,
         yScale: layout.yScale,
@@ -635,6 +801,17 @@ const DuffingMapVisualization: React.FC = () => {
             data-testid="orbit-settled-notice"
           >
             {attractorPresentation.quality.caption}
+          </p>
+        )}
+
+      {(visualizationType === 'attractor' || visualizationType === 'phase') &&
+        attractorPresentation.showSingleAttractorCaption && (
+          <p
+            className="mt-2 text-sm text-center"
+            style={{ color: 'var(--text-secondary)' }}
+            data-testid="single-attractor-notice"
+          >
+            {SINGLE_ATTRACTOR_CAPTION}
           </p>
         )}
     </div>
