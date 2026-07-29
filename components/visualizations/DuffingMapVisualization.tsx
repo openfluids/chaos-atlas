@@ -56,14 +56,29 @@ function resolveCssColor(cssVar: string, fallback: string): string {
   return value || fallback;
 }
 
-/** Solid black→accent ramp so density/sparse paint uses one basin colour. */
+/**
+ * Solid black→accent ramp for one basin colour.
+ * Floor at ~12% accent so the lowest non-zero density bins still paint a
+ * visible tint on the black page (pure black at t=0 is lost against the
+ * background, and under additive blend would contribute nothing).
+ */
 function solidColorScale(solid: string): (t: number) => string {
-  return (t: number) => d3.interpolateRgb('#000000', solid)(Math.max(0, Math.min(1, t)));
+  return (t: number) =>
+    d3.interpolateRgb('#000000', solid)(
+      0.12 + 0.88 * Math.max(0, Math.min(1, t))
+    );
 }
 
 /**
  * Paint two basin orbits through the existing density-canvas renderer,
  * compositing off-screen so each keeps its own colour (cyan left / orange right).
+ *
+ * Compositing choice: source-over for every orbit (no 'lighter' on the second).
+ * Empty density bins are fully transparent, so layering does not erase the
+ * previous cloud; low-density bins share the same floored accent ramp above.
+ * That removes the previous asymmetry where orbit 1 was source-over (faint
+ * points stayed) while orbit 2 used 'lighter' (near-black RGB added ~0 and
+ * vanished). Both orbits are now equally legible at low density.
  */
 function renderDualOrbitDensity(
   canvas: HTMLCanvasElement,
@@ -116,9 +131,7 @@ function renderDualOrbitDensity(
       plotRect,
       solidColorScale(solid)
     );
-    // 'lighter' keeps both sparse markers / density lobes visible where they
-    // overlap; source-over would hide the first orbit under the second's clear.
-    ctx.globalCompositeOperation = oi === 0 ? 'source-over' : 'lighter';
+    ctx.globalCompositeOperation = 'source-over';
     ctx.drawImage(scratch, 0, 0);
   }
   ctx.globalCompositeOperation = 'source-over';
@@ -166,13 +179,21 @@ const DuffingMapVisualization: React.FC = () => {
   // Domain + caption from a FIXED reference iteration count so the axes do
   // not move when the attractor-iterations slider is swept. Fit covers BOTH
   // basin orbits when they are distinct so neither cloud is clipped.
+  // Escape is per-orbit: drop diverging seeds and fit/classify only survivors.
+  // All orbits escaped → same blank + caption path as before.
   const attractorPresentation = useMemo(() => {
     const dual = calculateDuffingDualAttractors(
       currentParams.params,
       ATTRACTOR_DOMAIN_REF_ITERATIONS
     );
     const orbitsForView = dual.sameSet ? [dual.orbits[0]] : dual.orbits;
-    const refPoints = orbitsForView.flat();
+    const surviving = orbitsForView.filter(
+      (orbit) => !isOrbitEscaped(
+        orbit.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+      )
+    );
+    const refPoints =
+      surviving.length > 0 ? surviving.flat() : orbitsForView.flat();
     const quality = classifyOrbit(refPoints, { presetName: currentParams.name });
     const domain = fitOrbitDomain(refPoints, {
       x: ATTRACTOR_FALLBACK,
@@ -473,13 +494,15 @@ const DuffingMapVisualization: React.FC = () => {
         attractorIterations
       );
       const orbitsForView = dual.sameSet ? [dual.orbits[0]] : dual.orbits;
-      const finiteOrbits = orbitsForView.map((orbit) =>
-        orbit.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
-      );
-      const allFinite = finiteOrbits.flat();
+      // Per-orbit escape: drop only the diverging seed(s); paint survivors.
+      const finiteOrbits = orbitsForView
+        .map((orbit) =>
+          orbit.filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+        )
+        .filter((orbit) => !isOrbitEscaped(orbit));
       const escaped =
-        attractorPresentation.quality.kind === 'escaped' ||
-        isOrbitEscaped(allFinite);
+        finiteOrbits.length === 0 ||
+        attractorPresentation.quality.kind === 'escaped';
       const plotRect = {
         x: CHART_MARGIN.left + layout.offsetX,
         y: CHART_MARGIN.top + layout.offsetY,
@@ -498,7 +521,7 @@ const DuffingMapVisualization: React.FC = () => {
           d3.interpolateViridis
         );
       } else if (dual.sameSet || finiteOrbits.length === 1) {
-        // Single set: keep the shared viridis density path.
+        // Single set (or one survivor of a dual pair): shared viridis path.
         renderDensityCanvas(
           canvasRef.current,
           finiteOrbits[0] ?? [],
