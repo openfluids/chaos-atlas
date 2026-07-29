@@ -50,8 +50,20 @@ export const d3Mock = (() => {
   );
 })();
 
+// Start from the real module so a newly added pure export is present (not
+// undefined). Override only the DOM-painting entry points that need paintStub.
+//
+// EVERY DOM-touching export must appear in the overrides below. Spreading the
+// real module turns a missing stub from "undefined is not a function" into the
+// subtler "<method> is not a function" thrown from inside the real helper the
+// first time a suite reaches it — paintStub implements only the selection
+// methods listed above (no `.empty()`, for one).
+const chartHelpersActual = jest.requireActual(
+  '@/components/visualizations/chartHelpers',
+) as Record<string, unknown>;
+
 export const chartHelpersMock = {
-  CHART_MARGIN: { top: 40, right: 20, bottom: 60, left: 60 },
+  ...chartHelpersActual,
   initChartBase: () => ({
     svg: paintStub,
     g: paintStub,
@@ -75,12 +87,16 @@ export const chartHelpersMock = {
     plotSize: 300,
   }),
   createClippedDataGroup: () => paintStub,
+  // Same family as createClippedDataGroup: the real one calls `.empty()` on the
+  // selection, which paintStub does not implement. Unreached by today's mocked
+  // suites (they all use createClippedDataGroup) but reached by any suite for a
+  // component that uses this instead — e.g. LogisticMapVisualization.
+  ensureChartDataGroup: () => paintStub,
   renderChartAxes: () => undefined,
   renderAxisLabelsRotated: () => undefined,
   renderAxisLabelsPlain: () => undefined,
   renderChartTitle: () => undefined,
   renderChartTitleAccent: () => undefined,
-  padDomain: (d: [number, number]) => d,
   // Keyed-join helpers. `joinByIndex` still INVOKES its update callback so the
   // per-mark attribute code stays covered under the stub rather than being
   // silently skipped — a no-op mock here would hide a throwing update fn.
