@@ -319,48 +319,54 @@ export function calculateDuffingEnergyTrajectories(
 }
 
 /**
- * Generate interesting Duffing parameter sets
- * @returns Array of parameter configurations with descriptions
+ * Generate interesting Duffing parameter sets.
+ * Canonical chaos is a=2.75, b=0.2. Other slots keep the same names but use
+ * bounded, non-origin parameters verified by measurement (4000 pts after 2000
+ * transient; calculateDuffingLyapunovExponents). b=0 is avoided: det J = b
+ * collapses the map to one dimension.
  */
 export function getInterestingDuffingParameters(): {
   name: string;
   params: { a: number; b: number };
   description: string;
+  classification: 'chaotic' | 'periodic' | 'quasiperiodic' | 'fixed-point';
 }[] {
-  // Lyapunov exponents below were measured with the corrected map
-  // (x' = y; y' = -b x + a y - y^3). Only the "Chaotic Regime" entry
-  // (the canonical a=2.75, b=0.2 parameters) actually has lambda1 > 0;
-  // every other preset here is regular/non-chaotic, so labels reflect that.
   return [
     {
       name: "Classic Bistable",
-      params: { a: 1.0, b: 0.2 },
-      description: "Classic double-well potential with clear bistable behavior (regular, lambda1 < 0)"
+      params: { a: 1.6, b: 0.2 },
+      classification: 'fixed-point',
+      description: "Double-well fixed point off the origin (a>1+b), lambda1 ~ -0.80"
     },
     {
       name: "Chaotic Regime",
       params: { a: 2.75, b: 0.2 },
-      description: "Canonical parameters producing chaotic dynamics (lambda1 ~ +0.48)"
+      classification: 'chaotic',
+      description: "Canonical parameters producing chaotic dynamics, lambda1 ~ +0.49"
     },
     {
       name: "Single Well Dominance",
-      params: { a: 0.8, b: 0.1 },
-      description: "One well dominates, reducing bistability (regular, lambda1 < 0)"
+      params: { a: 1.4, b: 0.2 },
+      classification: 'fixed-point',
+      description: "Low-a fixed point near the well threshold, lambda1 ~ -0.80"
     },
     {
       name: "Symmetric Wells",
-      params: { a: 1.0, b: 0.0 },
-      description: "Perfectly symmetric double-well potential"
+      params: { a: 2.0, b: 0.2 },
+      classification: 'fixed-point',
+      description: "Symmetric double-well fixed point (b>0 keeps full 2-D map), lambda1 ~ -0.80"
     },
     {
       name: "High Damping",
-      params: { a: 1.0, b: 0.5 },
-      description: "High damping suppresses chaotic behavior (regular, lambda1 < 0)"
+      params: { a: 2.75, b: 0.4 },
+      classification: 'fixed-point',
+      description: "High damping at the chaotic a-value collapses to a fixed point, lambda1 ~ -0.22"
     },
     {
       name: "Low Barrier",
-      params: { a: 0.5, b: 0.2 },
-      description: "Low barrier between wells allows easy transitions (regular, lambda1 < 0)"
+      params: { a: 2.5, b: 0.1 },
+      classification: 'chaotic',
+      description: "Lower well separation with weak damping; bounded chaos, lambda1 ~ +0.20"
     }
   ];
 }

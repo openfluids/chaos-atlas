@@ -195,44 +195,54 @@ export function calculateIkedaLyapunovExponents(
 }
 
 /**
- * Generate interesting Ikeda parameter sets
- * @returns Array of parameter configurations with descriptions
+ * Generate interesting Ikeda parameter sets.
+ * One-gain family a = b = u, c = 0.4, d = 6 (Hammel–Jones–Moloney), except
+ * Optical Chaos which keeps the published optical-cavity (c, d) = (0.6, 8).
+ * classification and lambda1 quotes are measured (4000 pts after 2000 transient;
+ * Benettin spectrum via calculateIkedaLyapunovExponents).
  */
 export function getInterestingIkedaParameters(): {
   name: string;
   params: { a: number; b: number; c: number; d: number };
   description: string;
+  classification: 'chaotic' | 'periodic' | 'quasiperiodic' | 'fixed-point';
 }[] {
   return [
     {
       name: "Classic Spiral",
       params: { a: 0.9, b: 0.9, c: 0.4, d: 6.0 },
-      description: "Classic Ikeda attractor with beautiful spiral structure"
+      classification: 'chaotic',
+      description: "Canonical Ikeda attractor (u=0.9); spiral strange attractor, lambda1 ~ +0.51"
     },
     {
       name: "Diffuse Spiral",
-      params: { a: 0.8, b: 0.8, c: 0.3, d: 5.0 },
-      description: "More diffuse spiral with less defined structure"
+      params: { a: 0.7, b: 0.7, c: 0.4, d: 6.0 },
+      classification: 'chaotic',
+      description: "Lower-gain chaotic spiral (u=0.7); more diffuse structure, lambda1 ~ +0.32"
     },
     {
       name: "Tight Spiral",
-      params: { a: 0.95, b: 0.95, c: 0.5, d: 7.0 },
-      description: "Tightly wound spiral with clear fractal structure"
+      params: { a: 0.86, b: 0.86, c: 0.4, d: 6.0 },
+      classification: 'chaotic',
+      description: "Mid-high gain chaotic spiral (u=0.86); tightly wound, lambda1 ~ +0.44"
     },
     {
       name: "Broken Spiral",
-      params: { a: 1.0, b: 0.9, c: 0.4, d: 6.0 },
-      description: "Fragmented spiral structure showing chaotic behavior"
+      params: { a: 0.8, b: 0.8, c: 0.4, d: 6.0 },
+      classification: 'chaotic',
+      description: "Chaotic spiral at u=0.8; fragmented folds, lambda1 ~ +0.36"
     },
     {
       name: "Optical Chaos",
       params: { a: 0.85, b: 0.85, c: 0.6, d: 8.0 },
-      description: "Highly chaotic regime from optical cavity model"
+      classification: 'chaotic',
+      description: "Optical-cavity chaotic regime (u=0.85, c=0.6, d=8), lambda1 ~ +0.62"
     },
     {
       name: "Periodic Orbit",
-      params: { a: 0.7, b: 0.7, c: 0.2, d: 4.0 },
-      description: "Regular periodic behavior with low chaos"
+      params: { a: 0.62, b: 0.62, c: 0.4, d: 6.0 },
+      classification: 'periodic',
+      description: "Period-4 window on the HJM cascade (u=0.62), lambda1 ~ -0.38"
     }
   ];
 }

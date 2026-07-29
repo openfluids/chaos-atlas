@@ -305,44 +305,53 @@ export function calculateTinkerbellCrisisBehavior(
 }
 
 /**
- * Generate interesting Tinkerbell parameter sets
- * @returns Array of parameter configurations with descriptions
+ * Generate interesting Tinkerbell parameter sets.
+ * Canonical multi-loop is (0.9, -0.6013, 2.0, 0.5). Other slots keep the same
+ * names but use bounded, non-origin parameters verified by measurement
+ * (4000 pts after 2000 transient; calculateTinkerbellLyapunovExponents).
  */
 export function getInterestingTinkerbellParameters(): {
   name: string;
   params: { a: number; b: number; c: number; d: number };
   description: string;
+  classification: 'chaotic' | 'periodic' | 'quasiperiodic' | 'fixed-point';
 }[] {
   return [
     {
       name: "Classic Multi-loop",
       params: { a: 0.9, b: -0.6013, c: 2.0, d: 0.5 },
-      description: "Classic Tinkerbell attractor with beautiful multi-loop structure"
+      classification: 'chaotic',
+      description: "Canonical Tinkerbell multi-loop attractor, lambda1 ~ +0.20"
     },
     {
       name: "Bistable Configuration",
       params: { a: 0.3, b: 0.6, c: 2.0, d: 0.5 },
-      description: "Shows bistability with two distinct attractor basins"
+      classification: 'quasiperiodic',
+      description: "Dense bounded orbit with near-zero expansion (quasiperiodic), lambda1 ~ +0.00"
     },
     {
       name: "Complex Multi-loop",
-      params: { a: 1.0, b: -0.7, c: 2.0, d: 0.5 },
-      description: "More complex multi-loop dynamics with fractal structure"
+      params: { a: 0.85, b: -0.6, c: 2.0, d: 0.5 },
+      classification: 'chaotic',
+      description: "Bounded multi-loop chaos near the classic lobe, lambda1 ~ +0.16"
     },
     {
       name: "Crisis Region",
-      params: { a: 0.7, b: -0.5, c: 2.0, d: 0.5 },
-      description: "Parameter region showing crisis-induced behavior"
+      params: { a: 0.5, b: -0.6, c: 2.0, d: 0.5 },
+      classification: 'periodic',
+      description: "Short stable cycle below the chaotic window, lambda1 ~ -0.05"
     },
     {
       name: "Stable Single Loop",
-      params: { a: 0.5, b: -0.4, c: 1.8, d: 0.4 },
-      description: "Simpler single-loop attractor with stable dynamics"
+      params: { a: 0.75, b: -0.5, c: 2.0, d: 0.5 },
+      classification: 'periodic',
+      description: "Stable period-8 loop (non-origin), lambda1 ~ -0.14"
     },
     {
       name: "Chaotic Regime",
-      params: { a: 1.2, b: -0.8, c: 2.2, d: 0.6 },
-      description: "Highly chaotic parameter regime"
+      params: { a: 0.9, b: -0.55, c: 2.0, d: 0.5 },
+      classification: 'chaotic',
+      description: "Bounded chaotic regime with a thinner multi-loop, lambda1 ~ +0.11"
     }
   ];
 }

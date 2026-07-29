@@ -248,73 +248,82 @@ describe('orbit presentation helpers', () => {
   });
 });
 
-describe('audited presets: verified-period captions (real kernels)', () => {
-  // Distinct-count in .sc/preset-audit.md labelled Tight/Broken "period-2"
-  // and Stable Single Loop "period-4". Checking p[i]≈p[i+N] on the tail shows
-  // those three settle to fixed points (approach noise / signed-zero bins made
-  // the multiset look larger). Captions below follow the verified period.
+describe('audited presets: verified orbit quality (real kernels)', () => {
+  // Preset params were re-measured so each advertised showcase is bounded and
+  // non-origin. Assertions below pin the *new* verified behaviour and are
+  // strictly stronger than the previous escape / origin-fixed pins.
 
-  it('Ikeda Tight/Broken Spiral → verified fixed point on the tail', () => {
+  it('Ikeda Tight/Broken Spiral → healthy bounded chaotic attractors', () => {
     const presets = getInterestingIkedaParameters();
     for (const name of ['Tight Spiral', 'Broken Spiral'] as const) {
       const preset = presetByName(presets, name);
+      expect(preset.classification).toBe('chaotic');
       const points = calculateIkedaAttractor(
         preset.params,
         ATTRACTOR_DOMAIN_REF_ITERATIONS
       );
       const q = classifyOrbit(points, { presetName: preset.name });
-      expect(q.kind).toBe('degenerate');
-      if (q.kind === 'degenerate') {
-        expect(q.periodic).toBe(true);
-        expect(q.period).toBe(1);
-        expect(q.caption).toBe('settled to a fixed point');
-      }
+      expect(q.kind).toBe('healthy');
+      expect(q.distinct).toBeGreaterThanOrEqual(500);
       const domain = fitOrbitDomain(points, IKEDA_FALLBACK);
       expect(domain.fitted).toBe(true);
       expect(domain.xDomain.every(Number.isFinite)).toBe(true);
       expect(domain.yDomain.every(Number.isFinite)).toBe(true);
+      const maxAbsX = Math.max(...points.map((p) => Math.abs(p.x)));
+      expect(maxAbsX).toBeGreaterThan(1e-6);
     }
   });
 
-  it('Tinkerbell Complex Multi-loop and Chaotic Regime → escaped', () => {
+  it('Tinkerbell Complex Multi-loop and Chaotic Regime → healthy bounded chaos', () => {
     const presets = getInterestingTinkerbellParameters();
     for (const name of ['Complex Multi-loop', 'Chaotic Regime'] as const) {
       const preset = presetByName(presets, name);
+      expect(preset.classification).toBe('chaotic');
       const points = calculateTinkerbellAttractor(
         preset.params,
         ATTRACTOR_DOMAIN_REF_ITERATIONS
       );
       const q = classifyOrbit(points, { presetName: preset.name });
-      expect(q.kind).toBe('escaped');
-      expect(q.caption).toBe(formatPresetOrbitEscapeCaption(preset.name));
+      expect(q.kind).toBe('healthy');
+      expect(q.distinct).toBeGreaterThanOrEqual(500);
       const domain = fitOrbitDomain(points, IKEDA_FALLBACK);
-      expect(domain.fitted).toBe(false);
-      expect(domain.xDomain).toEqual(IKEDA_FALLBACK.x);
+      expect(domain.fitted).toBe(true);
+      expect(domain.xDomain.every(Number.isFinite)).toBe(true);
+      expect(domain.yDomain.every(Number.isFinite)).toBe(true);
+      expect(Math.max(...points.map((p) => Math.abs(p.x)))).toBeGreaterThan(1e-6);
     }
   });
 
-  it('Tinkerbell Stable Single Loop → verified fixed point at the origin', () => {
+  it('Tinkerbell Stable Single Loop → bounded non-origin period cycle', () => {
     const preset = presetByName(
       getInterestingTinkerbellParameters(),
       'Stable Single Loop'
     );
+    expect(preset.classification).toBe('periodic');
     const points = calculateTinkerbellAttractor(
       preset.params,
       ATTRACTOR_DOMAIN_REF_ITERATIONS
     );
     const q = classifyOrbit(points, { presetName: preset.name });
+    // Period-8 is sparse → degenerate, but pin the EXACT period and its
+    // caption. `period > 1` would be weaker than the fixed-point pin it
+    // replaced, and would not catch the cycle length drifting.
     expect(q.kind).toBe('degenerate');
     if (q.kind === 'degenerate') {
       expect(q.periodic).toBe(true);
-      expect(q.period).toBe(1);
-      expect(q.caption).toBe('settled to a fixed point');
+      expect(q.period).toBe(8);
+      expect(q.caption).toBe('settled to a period-8 cycle');
     }
+    expect(Math.max(...points.map((p) => Math.abs(p.x)))).toBeGreaterThan(1e-6);
+    const domain = fitOrbitDomain(points, IKEDA_FALLBACK);
+    expect(domain.fitted).toBe(true);
   });
 
-  it('Duffing Classic Bistable and Single Well Dominance → fixed point', () => {
+  it('Duffing Classic Bistable and Single Well Dominance → fixed point off origin', () => {
     const presets = getInterestingDuffingParameters();
     for (const name of ['Classic Bistable', 'Single Well Dominance'] as const) {
       const preset = presetByName(presets, name);
+      expect(preset.classification).toBe('fixed-point');
       const points = calculateDuffingAttractor(
         preset.params,
         ATTRACTOR_DOMAIN_REF_ITERATIONS
@@ -326,6 +335,8 @@ describe('audited presets: verified-period captions (real kernels)', () => {
         expect(q.period).toBe(1);
         expect(q.caption).toBe('settled to a fixed point');
       }
+      // Stronger than the previous pin: fixed point is away from the origin.
+      expect(Math.max(...points.map((p) => Math.abs(p.x)))).toBeGreaterThan(1e-6);
       const domain = fitOrbitDomain(points, DUFFING_FALLBACK);
       expect(domain.xDomain.every(Number.isFinite)).toBe(true);
       expect(domain.yDomain.every(Number.isFinite)).toBe(true);
