@@ -54,7 +54,6 @@ const config = [
       // Deliberately-dead code implementing pan/zoom and a DPI-correct plot
       // exporter, kept as-is for a later phase to wire in. Not held to this
       // rule so it doesn't have to be edited to satisfy it.
-      'components/ui/ExportControls.tsx',
       'lib/export/plot-export.ts',
       'hooks/usePlotTransform.ts',
       'components/visualizations/InteractiveSVG.tsx',

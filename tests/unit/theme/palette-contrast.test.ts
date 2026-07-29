@@ -12,9 +12,11 @@
  *    - else bg/from/to/via           → FILL,   floor 3.0
  *    - no uses at all                → UNUSED, no floor (still listed)
  *    FILL exemption: mapping target is --bg-primary itself (the page) → skip.
- * 2. PAIR RULE: real fg/bg class pairs from ExportControls rest/hover clear
- *    3.0:1 in every theme. Disabled pairs are WCAG 1.4.3-exempt and instead
- *    assert no-regression vs stock Tailwind (mapped ≥ stock/stock).
+ * 2. PAIR RULE: real fg/bg class pairs from PlaybackControls rest/hover clear
+ *    3.0:1 in every theme. Disabled pairs (recolored disabled:bg/text) are
+ *    WCAG 1.4.3-exempt and instead assert no-regression vs stock Tailwind
+ *    (mapped ≥ stock/stock). Opacity-only disabled does not introduce a new
+ *    color pair — rest already covers those tokens.
  *
  * Why not no-regression on tokens: it fires on HUE CHANGE, not legibility.
  * Under Neon Vintage cyan→magenta is the feature; black→--bg-primary is 1.00
@@ -297,56 +299,104 @@ function isFillBgPrimaryExemption(role: Role, varRef: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// ExportControls pair discovery (rest + hover + disabled)
+// PlaybackControls pair discovery (rest + hover; rendered on every map page)
 // ---------------------------------------------------------------------------
-const EXPORT_CONTROLS = path.join(
+// PlaybackControls is the live control bar (MapPageLayout). Prior fixture was
+// an unreachable export panel; this keeps the pair suite on chrome users see.
+// Play/pause and reset: text-cyan-400 / bg-black + hover:bg-black.
+// Speed/param selects: text-gray-300 / bg-gray-800.
+// Panel labels/readouts: text-cyan-400 / text-gray-500 on bg-gray-800.
+// Disabled is opacity-only (disabled:opacity-40) — no recolored disabled:bg
+// or disabled:text — so it does not add a separate color pair.
+const PLAYBACK_CONTROLS = path.join(
   process.cwd(),
-  'components/ui/ExportControls.tsx'
+  'components/ui/PlaybackControls.tsx'
 );
 const GLOBALS_CSS = path.join(process.cwd(), 'app/globals.css');
 
 type ClassPair = { label: string; fg: string; bg: string; disabled?: boolean };
 
-function discoverExportPairs(source: string): ClassPair[] {
+function discoverPlaybackPairs(source: string): ClassPair[] {
   const pairs: ClassPair[] = [];
 
-  // Three export buttons: rest bg + optional hover:bg-*-500 or hover:opacity-90
-  const buttonDefs: { label: string; restBg: string; hoverAccent: string }[] = [
-    { label: 'Export PNG', restBg: 'cyan-600', hoverAccent: 'cyan-500' },
-    { label: 'Export SVG', restBg: 'purple-600', hoverAccent: 'purple-500' },
-    { label: 'Export CSV', restBg: 'green-600', hoverAccent: 'green-500' },
+  // Play/pause + reset share solid chrome: text-cyan-400 / bg-black(/opacity)
+  // with hover:bg-black(/opacity). Confirm each control via data-testid.
+  const solidButtons: { label: string; marker: string }[] = [
+    { label: 'Play/Pause', marker: 'playback-play-pause' },
+    { label: 'Reset', marker: 'playback-reset' },
   ];
 
-  for (const def of buttonDefs) {
-    // Rest state: solid accent under text-white
-    pairs.push({
-      label: `${def.label} rest (text-white / bg-${def.restBg})`,
-      fg: 'white',
-      bg: def.restBg,
-    });
+  for (const def of solidButtons) {
+    if (!source.includes(def.marker)) continue;
 
-    const hoverBgRe = new RegExp(`hover:bg-${def.hoverAccent}\\b`);
-    const hasHoverBg = hoverBgRe.test(source);
-    // Hover recolor only if the class is present; hover:opacity-90 keeps rest bg.
-    if (hasHoverBg) {
+    if (/\btext-cyan-400\b/.test(source) && /\bbg-black(?:\/\d+)?\b/.test(source)) {
       pairs.push({
-        label: `${def.label} hover (text-white / hover:bg-${def.hoverAccent})`,
-        fg: 'white',
-        bg: def.hoverAccent,
+        label: `${def.label} rest (text-cyan-400 / bg-black)`,
+        fg: 'cyan-400',
+        bg: 'black',
       });
-    } else {
-      // opacity hover — same pair as rest (contrast unchanged under a uniform alpha)
+    }
+
+    // Hover recolor only if present; opacity hover keeps the black token.
+    if (/\bhover:bg-black(?:\/\d+)?\b/.test(source)) {
       pairs.push({
-        label: `${def.label} hover (text-white / bg-${def.restBg} via hover:opacity-90)`,
-        fg: 'white',
-        bg: def.restBg,
+        label: `${def.label} hover (text-cyan-400 / hover:bg-black)`,
+        fg: 'cyan-400',
+        bg: 'black',
+      });
+    } else if (/\bhover:opacity-\d+\b/.test(source)) {
+      pairs.push({
+        label: `${def.label} hover (text-cyan-400 / bg-black via hover:opacity)`,
+        fg: 'cyan-400',
+        bg: 'black',
       });
     }
   }
 
-  // Disabled pairing used on all three buttons.
-  // WCAG 1.4.3 exempts disabled controls from the 3.0 pair floor; the suite
-  // asserts no-regression vs stock instead (see PAIR RULE below).
+  // Speed + param selects: text-gray-300 on bg-gray-800.
+  const selects: { label: string; marker: string }[] = [
+    { label: 'Speed select', marker: 'playback-speed' },
+    { label: 'Param select', marker: 'playback-param-select' },
+  ];
+
+  for (const def of selects) {
+    if (!source.includes(def.marker)) continue;
+
+    if (/\btext-gray-300\b/.test(source) && /\bbg-gray-800(?:\/\d+)?\b/.test(source)) {
+      pairs.push({
+        label: `${def.label} rest (text-gray-300 / bg-gray-800)`,
+        fg: 'gray-300',
+        bg: 'gray-800',
+      });
+    }
+  }
+
+  // Panel chrome: container is bg-gray-800; heading/labels use text-cyan-400,
+  // fps readout uses text-gray-500. These are live, always-rendered pairs.
+  if (
+    /\bbg-gray-800(?:\/\d+)?\b/.test(source) &&
+    /\btext-cyan-400\b/.test(source)
+  ) {
+    pairs.push({
+      label: 'panel heading (text-cyan-400 / bg-gray-800)',
+      fg: 'cyan-400',
+      bg: 'gray-800',
+    });
+  }
+
+  if (
+    /\bbg-gray-800(?:\/\d+)?\b/.test(source) &&
+    /\btext-gray-500\b/.test(source)
+  ) {
+    pairs.push({
+      label: 'panel fps readout (text-gray-500 / bg-gray-800)',
+      fg: 'gray-500',
+      bg: 'gray-800',
+    });
+  }
+
+  // Recolored disabled (disabled:bg + disabled:text) — not present on
+  // PlaybackControls today; keep the branch so a future recolor is gated.
   if (
     /disabled:bg-gray-700/.test(source) &&
     /disabled:text-gray-500/.test(source)
@@ -369,8 +419,8 @@ describe('palette contrast (role floors + pairs)', () => {
   const css = fs.readFileSync(GLOBALS_CSS, 'utf8');
   const overrideList = parseThemeInlineOverrides(css);
   const overrides = new Map(overrideList.map((o) => [o.token, o.varRef]));
-  const exportSource = fs.readFileSync(EXPORT_CONTROLS, 'utf8');
-  const pairs = discoverExportPairs(exportSource);
+  const playbackSource = fs.readFileSync(PLAYBACK_CONTROLS, 'utf8');
+  const pairs = discoverPlaybackPairs(playbackSource);
 
   // Derive roles once from source usage (app/ + components/).
   const scannedFiles = collectSourceFiles(process.cwd());
@@ -443,8 +493,11 @@ describe('palette contrast (role floors + pairs)', () => {
   });
 
   describe('PAIR RULE: real fg/bg pairs', () => {
-    it('discovers ExportControls rest/hover/disabled pairs', () => {
-      // 3 buttons × (rest + hover) + disabled = 7
+    it('discovers PlaybackControls rest/hover pairs (non-empty)', () => {
+      // Silent zero is the failure mode this gate exists to stop.
+      expect(pairs.length).toBeGreaterThan(0);
+      // Baseline before retirement: prior fixture discovery returned 7.
+      // 2 buttons × (rest + hover) + 2 selects + panel heading + fps ≥ 7.
       expect(pairs.length).toBeGreaterThanOrEqual(7);
     });
 
