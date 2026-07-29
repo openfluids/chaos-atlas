@@ -500,13 +500,30 @@ test.describe('Chart teardown budget (all playback maps)', () => {
         return `x[${read('x-axis')}] y[${read('y-axis')}]`;
       });
 
-    // Second option in the playback param select is parameter b (a is first).
+    // Select parameter b by its label identity (not option position — a reorder
+    // must not silently retarget the sweep while this test still passes).
+    // Labels carry a live value ("Parameter b: 0.300"); match the prefix only.
     const paramSelect = page.getByTestId('playback-param-select');
     await expect(paramSelect).toBeEnabled({ timeout: 15_000 });
-    await paramSelect.selectOption({ index: 1 });
+    const bOptionValue = await paramSelect.evaluate((sel: HTMLSelectElement) => {
+      const opt = Array.from(sel.options).find((o) =>
+        (o.textContent ?? '').trim().startsWith('Parameter b:'),
+      );
+      if (!opt) {
+        throw new Error(
+          `no option label starts with "Parameter b:" — options: ${Array.from(
+            sel.options,
+          )
+            .map((o) => o.textContent ?? '')
+            .join(' | ')}`,
+        );
+      }
+      return opt.value;
+    });
+    await paramSelect.selectOption(bOptionValue);
     await expect(page.getByTestId('playback-controls')).toHaveAttribute(
-      'data-selected-index',
-      '1'
+      'data-selected-name',
+      'henon-b',
     );
     // Let the held domain recompute for b before we sample ticks.
     await page.waitForTimeout(600);

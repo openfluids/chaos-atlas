@@ -198,6 +198,30 @@ describe('PlaybackControls', () => {
     expect(screen.getByTestId('playback-scrubber')).toBeDisabled();
     expect(screen.getByTestId('playback-param-select')).toBeDisabled();
     expect(screen.getByText(/No animatable parameters/i)).toBeInTheDocument();
+    // Empty registry: no selected name (attribute absent or empty).
+    const emptyName = screen
+      .getByTestId('playback-controls')
+      .getAttribute('data-selected-name');
+    expect(emptyName === null || emptyName === '').toBe(true);
+  });
+
+  it('exposes the selected param registry name on data-selected-name', async () => {
+    const user = userEvent.setup();
+    const params = [
+      makeParam('henon-a', { label: 'Parameter a: 1.400' }),
+      makeParam('henon-b', { label: 'Parameter b: 0.300' }),
+    ];
+    render(<Host params={params} />);
+
+    const root = screen.getByTestId('playback-controls');
+    // Default selection is the first registered param.
+    expect(root).toHaveAttribute('data-selected-name', 'henon-a');
+
+    const select = screen.getByTestId('playback-param-select') as HTMLSelectElement;
+    await runUserAction(async () => {
+      await user.selectOptions(select, '1');
+    });
+    expect(root).toHaveAttribute('data-selected-name', 'henon-b');
   });
 
   it('scrubber sets the param value and pauses playback', async () => {

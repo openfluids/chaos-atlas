@@ -82,7 +82,10 @@ function henonOrbit(
   return points;
 }
 
-function matchHenonSweptKey(name: string | undefined): HenonSweptKey | null {
+/** Map a playback registry name to the swept Henon key, or null if unknown. */
+export function matchHenonSweptKey(
+  name: string | undefined,
+): HenonSweptKey | null {
   if (!name) return null;
   for (const key of Object.keys(HENON_PARAM) as HenonSweptKey[]) {
     if (HENON_PARAM[key] === name) return key;

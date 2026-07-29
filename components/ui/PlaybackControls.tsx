@@ -258,6 +258,7 @@ export function PlaybackControls(): React.ReactElement {
       className="p-3 bg-gray-800/50 rounded-lg border border-cyan-500/20"
       data-testid="playback-controls"
       data-selected-index={empty ? -1 : clampedIndex}
+      data-selected-name={empty ? undefined : selected?.name}
       aria-disabled={empty || undefined}
     >
       <div className="flex flex-wrap items-center gap-3">
