@@ -11,7 +11,9 @@ import { useReducedMotion } from '@/hooks/useReducedMotion';
 /** Full-range wall-clock sweep at 1× (seconds). Same duration for every scale. */
 export const PLAYBACK_SWEEP_SECONDS = 10;
 
-const SPEEDS = [0.5, 1, 2] as const;
+// 2x was faster than the structure could be read; 0.2x gives a 50 s full
+// sweep, slow enough to follow a bifurcation as it happens.
+const SPEEDS = [0.2, 0.5, 1] as const;
 export type PlaybackSpeed = (typeof SPEEDS)[number];
 
 /** Clamp a selection index into `[0, count)`. Empty registry → 0. */
@@ -121,7 +123,9 @@ export function PlaybackControls(): React.ReactElement {
   useReducedMotion();
 
   const [playing, setPlaying] = useState(false);
-  const [speed, setSpeed] = useState<PlaybackSpeed>(1);
+  // Default to the slowest speed: a full sweep at 1x moves too fast to read
+  // the structure the plots exist to show.
+  const [speed, setSpeed] = useState<PlaybackSpeed>(0.5);
   // Selection is an INDEX, not a useId() name — names are tree-position
   // opaque and would not survive a view-mode remount of sibling sliders.
   // Stored raw; always read through clampSelectedIndex so a shrink cannot
@@ -238,9 +242,11 @@ export function PlaybackControls(): React.ReactElement {
   };
 
   const handleSpeed = (raw: string) => {
+    // Validate against SPEEDS itself rather than repeating its values — a
+    // hand-copied list here silently rejected any speed added to SPEEDS.
     const next = parseFloat(raw);
-    if (next === 0.5 || next === 1 || next === 2) {
-      setSpeed(next);
+    if ((SPEEDS as readonly number[]).includes(next)) {
+      setSpeed(next as PlaybackSpeed);
     }
   };
 
