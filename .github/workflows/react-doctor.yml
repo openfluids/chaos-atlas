@@ -26,7 +26,7 @@ jobs:
 
       - name: Scan changed React files
         if: github.event_name == 'pull_request'
-        uses: millionco/react-doctor@99f6a6ad1cc41828172b26f17a84bcf2d66ff17c
+        uses: millionco/react-doctor@5dc936e111fda0d77bc7a8a36ece3b1ec6b9bf27
         with:
           diff: main
           github-token: ${{ github.event.pull_request.head.repo.full_name == github.repository && secrets.GITHUB_TOKEN || '' }}
@@ -36,7 +36,7 @@ jobs:
 
       - name: Scan React project
         if: github.event_name != 'pull_request'
-        uses: millionco/react-doctor@99f6a6ad1cc41828172b26f17a84bcf2d66ff17c
+        uses: millionco/react-doctor@5dc936e111fda0d77bc7a8a36ece3b1ec6b9bf27
         with:
           fail-on: none
           offline: true
