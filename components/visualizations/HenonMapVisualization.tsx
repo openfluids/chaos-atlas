@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { usePlaybackSelectedParam } from '@/components/ui/PlaybackContext';
 import {
   initChartBase,
@@ -111,6 +112,7 @@ const HenonMapVisualization: React.FC = () => {
   // hydration error #418 if the result reaches the first server-rendered
   // paint. See hooks/useHydrated.
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
   // Which param playback is sweeping — drives the held union domain.
   // Outside a provider this throws; map pages always wrap with PlaybackProvider.
   const selectedParam = usePlaybackSelectedParam();
@@ -220,6 +222,7 @@ const HenonMapVisualization: React.FC = () => {
       (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
     );
     const escaped = isOrbitEscaped(finitePoints);
+    publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
     setOrbitEscaped(escaped);
 
     // Prefer the held union domain so axes/canvas stay fixed while a sweeps —
@@ -293,7 +296,7 @@ const HenonMapVisualization: React.FC = () => {
     // Add title
     renderChartTitleAccent(g, innerWidth, `Hénon Map (a = ${a.toFixed(2)}, b = ${b.toFixed(2)})`);
 
-  }, [a, b, x0, y0, iterations, hydrated, heldDomain]);
+  }, [a, b, x0, y0, iterations, hydrated, heldDomain, publishSeries]);
 
   return (
     <div className="henon-map-visualization p-6">

@@ -14,6 +14,7 @@ import {
   calculateArnoldIteration
 } from '@/lib/maps/arnold';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import { useSteppedAnimation } from '@/hooks/useSteppedAnimation';
 import {
@@ -38,6 +39,7 @@ const ArnoldMapVisualization: React.FC = () => {
   const [visualizationType, setVisualizationType] = useState('trajectory');
   const [isAnimating, setIsAnimating] = useState(false);
   const svgRef = useRef<SVGSVGElement>(null);
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -64,6 +66,7 @@ const ArnoldMapVisualization: React.FC = () => {
       yScale: d3.ScaleLinear<number, number>
     ) => {
       const data = calculateArnoldMap({ x: initialX, y: initialY }, iterations);
+      publishSeries(data.map((p) => p.x));
 
       const line = d3.line<Pt>()
         .x((d) => xScale(d.x))
@@ -484,7 +487,7 @@ const ArnoldMapVisualization: React.FC = () => {
 
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep, isAnimating]);
+  }, [initialX, initialY, iterations, visualizationType, gridSize, gridIterations, animationStep, isAnimating, publishSeries]);
 
   return (
     <div className="arnold-map-visualization p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

@@ -14,6 +14,7 @@ import {
   getInterestingDuffingParameters
 } from '@/lib/maps/duffing';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
@@ -154,6 +155,7 @@ const DuffingMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -503,6 +505,9 @@ const DuffingMapVisualization: React.FC = () => {
       const escaped =
         finiteOrbits.length === 0 ||
         attractorPresentation.quality.kind === 'escaped';
+      publishSeries(
+        escaped || finiteOrbits.length === 0 ? [] : finiteOrbits[0].map((p) => p.x),
+      );
       const plotRect = {
         x: CHART_MARGIN.left + layout.offsetX,
         y: CHART_MARGIN.top + layout.offsetY,
@@ -662,7 +667,7 @@ const DuffingMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation, publishSeries]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

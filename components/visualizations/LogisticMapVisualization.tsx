@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import {
   initChartBase,
   ensureChartDataGroup,
@@ -20,6 +21,7 @@ const LogisticMapVisualization: React.FC = () => {
   const [visualizationType, setVisualizationType] = useState('cobweb');
 
   const svgRef = useRef<SVGSVGElement>(null);
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 800;
   const height = 600;
@@ -140,6 +142,7 @@ const LogisticMapVisualization: React.FC = () => {
         cobwebPoints.push({ x, y });
         x = y;
       }
+      publishSeries(cobwebPoints.map((p) => p.x));
 
       // Each cobweb step = vertical then horizontal segment.
       type Seg = { x1: number; y1: number; x2: number; y2: number };
@@ -191,6 +194,7 @@ const LogisticMapVisualization: React.FC = () => {
         timeSeriesPoints.push({ i, x });
         x = logistic(x);
       }
+      publishSeries(timeSeriesPoints.map((p) => p.x));
 
       const line = d3.line<{ i: number; x: number }>()
         .x((d) => xs(d.i))
@@ -256,6 +260,17 @@ const LogisticMapVisualization: React.FC = () => {
         }
       );
 
+      let bestR = r;
+      let bestDist = Infinity;
+      for (const point of bifurcationPoints) {
+        const dist = Math.abs(point.r - r);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestR = point.r;
+        }
+      }
+      publishSeries(bifurcationPoints.filter((point) => point.r === bestR).map((point) => point.x));
+
       upsertMark<SVGLineElement>(parent, 'line', 'current-r')
         .attr('x1', xs(r))
         .attr('y1', 0)
@@ -266,7 +281,7 @@ const LogisticMapVisualization: React.FC = () => {
         .attr('stroke-dasharray', '5,5');
     }
 
-  }, [r, x0, iterations, visualizationType]);
+  }, [r, x0, iterations, visualizationType, publishSeries]);
 
   return (
     <div className="logistic-map-visualization p-6">

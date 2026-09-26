@@ -12,6 +12,7 @@ import {
   calculateTentInvariantDensity
 } from '@/lib/maps/tent';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
@@ -40,6 +41,7 @@ const TentMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -143,6 +145,7 @@ const TentMapVisualization: React.FC = () => {
         .attr('stroke-dasharray', '5,5');
 
       const cobwebData = calculateTentCobweb(alpha, x0, iterations);
+      publishSeries(cobwebData.filter((_, i) => i % 3 === 0).map((p) => p.x));
       upsertMark<SVGPathElement>(parent, 'path', 'cobweb')
         .datum(cobwebData)
         .attr('fill', 'none')
@@ -157,6 +160,7 @@ const TentMapVisualization: React.FC = () => {
       ys: d3.ScaleLinear<number, number>
     ) {
       const data = calculateTentMap(alpha, x0, iterations);
+      publishSeries(data);
 
       const line = d3.line<number>()
         .x((_d, i) => xs(i))
@@ -294,7 +298,7 @@ const TentMapVisualization: React.FC = () => {
       );
     }
 
-  }, [alpha, x0, iterations, visualizationType]);
+  }, [alpha, x0, iterations, visualizationType, publishSeries]);
 
   return (
     <div className="tent-map-visualization p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

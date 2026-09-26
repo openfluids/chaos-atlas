@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
 import { useHydrated } from '@/hooks/useHydrated';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import {
   initChartBase,
   equalAspectScales,
@@ -45,6 +46,7 @@ const StandardMapVisualization: React.FC = () => {
   const svgRef = useRef<SVGSVGElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -90,6 +92,7 @@ const StandardMapVisualization: React.FC = () => {
         }
       }
     }
+    publishSeries(points.slice(0, iterations).map((p) => p.x));
 
     // θ and p both live on [0, 2π): the Chirikov standard map's KAM islands
     // are only recognizably round if that square domain is drawn at 1:1
@@ -134,7 +137,7 @@ const StandardMapVisualization: React.FC = () => {
     // Add title
     renderChartTitleAccent(g, innerWidth, `Standard Map (K = ${K.toFixed(2)})`);
 
-  }, [K, iterations, hydrated]);
+  }, [K, iterations, hydrated, publishSeries]);
 
   return (
     <div className="standard-map-visualization p-6">

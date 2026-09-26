@@ -14,6 +14,7 @@ import {
   calculateTinkerbellReturnMap
 } from '@/lib/maps/tinkerbell';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import {
   initChartBase,
@@ -52,6 +53,7 @@ const TinkerbellMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -401,6 +403,7 @@ const TinkerbellMapVisualization: React.FC = () => {
       const escaped =
         attractorPresentation.quality.kind === 'escaped' ||
         isOrbitEscaped(finitePoints);
+      publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
       renderDensityCanvas(
         canvasRef.current,
         escaped ? [] : finitePoints,
@@ -485,7 +488,7 @@ const TinkerbellMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation]);
+  }, [currentParams, iterations, attractorIterations, visualizationType, bifurcationParam, fixedPoints, attractorPresentation, publishSeries]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

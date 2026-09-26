@@ -5,6 +5,8 @@ import React, { ReactNode } from 'react';
 import { ThemeSwitcher } from '@/components/themes';
 import { PlaybackProvider } from '@/components/ui/PlaybackContext';
 import { PlaybackControls } from '@/components/ui/PlaybackControls';
+import { DiagnosticsSeriesProvider } from '@/components/ui/DiagnosticsSeriesContext';
+import { DiagnosticsPanel } from '@/components/ui/DiagnosticsPanel';
 
 interface MapPageLayoutProps {
   title: string;
@@ -44,10 +46,13 @@ export default function MapPageLayout({
       </header>
       <main className="container mx-auto p-6">
         <PlaybackProvider>
-          <div className="mb-4">
-            <PlaybackControls />
-          </div>
-          {children}
+          <DiagnosticsSeriesProvider>
+            <div className="mb-4">
+              <PlaybackControls />
+            </div>
+            {children}
+            <DiagnosticsPanel />
+          </DiagnosticsSeriesProvider>
         </PlaybackProvider>
       </main>
     </div>

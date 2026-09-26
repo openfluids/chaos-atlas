@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ComplexNumber,
   calculateComplexQuadraticMap,
+  calculateComplexQuadraticIteration,
+  DEFAULT_ESCAPE_RADIUS,
   calculateJuliaSet,
   getInterestingJuliaParameters,
   calculateFractalColor,
@@ -13,6 +15,7 @@ import {
   type FractalEscapeResult
 } from '@/lib/maps/complexQuadratic';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 
 /** Slider domain for Julia c. Every preset from getInterestingJuliaParameters()
  *  fits in [-2, 2]. Values with |c| > 2 escape the critical orbit immediately
@@ -46,6 +49,7 @@ const ComplexMapVisualization: React.FC = () => {
   const [hoveredPoint, setHoveredPoint] = useState<{ x: number; y: number; value: number } | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const publishSeries = usePublishDrawnSeries();
   const width = 600;
   const height = 400;
 
@@ -222,6 +226,20 @@ const ComplexMapVisualization: React.FC = () => {
         );
       }
 
+      const orbitC = visualizationType === 'julia'
+        ? currentJuliaC
+        : new ComplexNumber(
+            mandelbrotLocations[selectedMandelbrotLocation].x,
+            mandelbrotLocations[selectedMandelbrotLocation].y,
+          );
+      let z = new ComplexNumber(0, 0);
+      const orbitX: number[] = [];
+      for (let step = 0; step < maxIterations && z.magnitude() <= DEFAULT_ESCAPE_RADIUS; step++) {
+        orbitX.push(z.real);
+        z = calculateComplexQuadraticIteration(z, orbitC);
+      }
+      publishSeries(orbitX);
+
       // Convert fractal data to pixel colors, coloring on the smooth
       // (normalised) iteration count rather than the raw integer count to
       // avoid banded contour rings.
@@ -247,7 +265,7 @@ const ComplexMapVisualization: React.FC = () => {
     // depend on its primitive fields instead of the object reference so
     // this effect doesn't re-fire every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visualizationType, currentJuliaC.real, currentJuliaC.imag, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel, isRendering, mandelbrotLocations]);
+  }, [visualizationType, currentJuliaC.real, currentJuliaC.imag, selectedMandelbrotLocation, maxIterations, colorScheme, zoomLevel, isRendering, mandelbrotLocations, publishSeries]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

@@ -13,6 +13,7 @@ import {
   calculateIkedaReturnMap
 } from '@/lib/maps/ikeda';
 import { ParamSlider } from '@/components/ui/ParamSlider';
+import { usePublishDrawnSeries } from '@/components/ui/DiagnosticsSeriesContext';
 import { ViewModeSelect } from '@/components/ui/ViewModeSelect';
 import { useSteppedAnimation } from '@/hooks/useSteppedAnimation';
 import {
@@ -53,6 +54,7 @@ const IkedaMapVisualization: React.FC = () => {
   // in the last ULP between the build-time and browser JS engines, so they are
   // rendered only after hydration. See hooks/useHydrated.
   const hydrated = useHydrated();
+  const publishSeries = usePublishDrawnSeries();
 
   const width = 600;
   const height = 400;
@@ -349,6 +351,7 @@ const IkedaMapVisualization: React.FC = () => {
       const escaped =
         attractorPresentation.quality.kind === 'escaped' ||
         isOrbitEscaped(finitePoints);
+      publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
       renderDensityCanvas(
         canvasRef.current,
         escaped ? [] : finitePoints,
@@ -417,7 +420,7 @@ const IkedaMapVisualization: React.FC = () => {
     // Add title
     renderChartTitle(g, innerWidth, getVisualizationTitle());
 
-  }, [selectedParams, iterations, attractorIterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating, attractorPresentation]);
+  }, [selectedParams, iterations, attractorIterations, visualizationType, bifurcationParam, animationStep, currentParams.params, isAnimating, attractorPresentation, publishSeries]);
 
   return (
     <div className="p-6 rounded-lg border-2 border-cyan-500/20 bg-black/30 backdrop-blur-xs">

@@ -1,0 +1,13 @@
+{
+  "name": "@openfluids/dynachaos-wasm",
+  "version": "0.1.0",
+  "description": "The dynachaos compute kernels compiled to WebAssembly: the same Rust code the published figures ran on.",
+  "type": "module",
+  "main": "dynachaos_wasm.js",
+  "types": "dynachaos_wasm.d.ts",
+  "license": "Apache-2.0",
+  "dynachaos": {
+    "commit": "7100fc476959dafc5c963967d1e02f7b9054f0ab",
+    "wasm_bindgen": "0.2.128"
+  }
+}

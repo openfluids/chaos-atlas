@@ -53,6 +53,10 @@ Side-by-side comparison of any maps with synchronized parameters, time series an
 - **Space-time heatmaps** — CML spatiotemporal evolution
 - **Fractal rendering** — pixel-level canvas computation for Julia/Mandelbrot sets
 
+## Live diagnostics
+
+Each map page shows D₂ (Grassberger–Procaccia), normalised permutation entropy, and the 0–1 test K of the series that page is drawing. The counts run in a web worker on the vendored dynachaos-wasm kernels; the panel is labelled with that package version. Regenerate the parity fixtures with `uv run --project /path/to/dynachaos python scripts/gen_diagnostics_fixtures.py` (no arguments).
+
 ## Python package
 
 The map kernels are also published as a standalone Python package, so the same
