@@ -145,7 +145,7 @@ const TentMapVisualization: React.FC = () => {
         .attr('stroke-dasharray', '5,5');
 
       const cobwebData = calculateTentCobweb(alpha, x0, iterations);
-      publishSeries(cobwebData.filter((_, i) => i % 3 === 0).map((p) => p.x));
+      publishSeries(cobwebData.filter((_, i) => i % 3 === 0).map((p) => p.x), 'Cobweb Plot');
       upsertMark<SVGPathElement>(parent, 'path', 'cobweb')
         .datum(cobwebData)
         .attr('fill', 'none')
@@ -160,7 +160,7 @@ const TentMapVisualization: React.FC = () => {
       ys: d3.ScaleLinear<number, number>
     ) {
       const data = calculateTentMap(alpha, x0, iterations);
-      publishSeries(data);
+      publishSeries(data, 'Time Series');
 
       const line = d3.line<number>()
         .x((_d, i) => xs(i))
@@ -195,6 +195,7 @@ const TentMapVisualization: React.FC = () => {
       xs: d3.ScaleLinear<number, number>,
       ys: d3.ScaleLinear<number, number>
     ) {
+      publishSeries(null, 'Bifurcation Diagram');
       const data = calculateTentBifurcation(
         { min: 0.5, max: 2.0 },
         0.01,
@@ -226,6 +227,7 @@ const TentMapVisualization: React.FC = () => {
       xs: d3.ScaleLinear<number, number>,
       ys: d3.ScaleLinear<number, number>
     ) {
+      publishSeries(null, 'Invariant Density');
       const data = calculateTentInvariantDensity(alpha, 100, 10000);
 
       const line = d3.line<{ x: number; density: number }>()
@@ -258,6 +260,7 @@ const TentMapVisualization: React.FC = () => {
       h: number,
       xs: d3.ScaleLinear<number, number>
     ) {
+      publishSeries(null, 'Symbolic Dynamics');
       const symbols = calculateTentSymbolicDynamics(alpha, x0, iterations);
       const symbolWidth = innerWidth / iterations;
 

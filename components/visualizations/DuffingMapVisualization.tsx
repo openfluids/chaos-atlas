@@ -506,7 +506,8 @@ const DuffingMapVisualization: React.FC = () => {
         finiteOrbits.length === 0 ||
         attractorPresentation.quality.kind === 'escaped';
       publishSeries(
-        escaped || finiteOrbits.length === 0 ? [] : finiteOrbits[0].map((p) => p.x),
+        escaped || finiteOrbits.length !== 1 ? null : finiteOrbits[0].map((p) => p.x),
+        visualizationType === 'phase' ? 'Phase Space Density' : 'Phase Space Attractor',
       );
       const plotRect = {
         x: CHART_MARGIN.left + layout.offsetX,
@@ -628,8 +629,10 @@ const DuffingMapVisualization: React.FC = () => {
         offsetY: layout.offsetY,
       };
     } else if (visualizationType === 'potential') {
+      publishSeries(null, 'Double-Well Potential');
       axisSpec = renderPotential(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'basins' && layout) {
+      publishSeries(null, 'Basins of Attraction');
       renderBasins(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
       axisSpec = {
         xScale: layout.xScale,
@@ -640,8 +643,10 @@ const DuffingMapVisualization: React.FC = () => {
         offsetY: layout.offsetY,
       };
     } else if (visualizationType === 'bifurcation') {
+      publishSeries(null, 'Bifurcation Diagram');
       axisSpec = renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'energy') {
+      publishSeries(null, 'Energy Trajectories');
       axisSpec = renderEnergyTrajectories(dataGroup, innerWidth, innerHeight);
     }
 

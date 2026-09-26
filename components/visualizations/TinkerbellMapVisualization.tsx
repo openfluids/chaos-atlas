@@ -284,6 +284,7 @@ const TinkerbellMapVisualization: React.FC = () => {
     ) => {
       const trajectory = calculateTinkerbellAttractor(currentParams.params, 1000);
       const returnData = calculateTinkerbellReturnMap(trajectory, 'x', 1);
+      publishSeries(returnData.map((d) => d.current), 'Return Map');
 
       joinByIndex<typeof returnData[number], SVGCircleElement>(
         g, 'circle.return-point', 'circle', returnData, 'return-point',
@@ -309,6 +310,10 @@ const TinkerbellMapVisualization: React.FC = () => {
       yScale: d3.ScaleLinear<number, number>
     ) => {
       const attractorData = calculateTinkerbellAttractor(currentParams.params, 1000);
+      const fixedX = attractorData
+        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+        .map((p) => p.x);
+      publishSeries(fixedX.length === 0 ? null : fixedX, 'Fixed Points');
 
       upsertMark<SVGPathElement>(g, 'path', 'fp-attractor')
         .datum(attractorData)
@@ -403,7 +408,7 @@ const TinkerbellMapVisualization: React.FC = () => {
       const escaped =
         attractorPresentation.quality.kind === 'escaped' ||
         isOrbitEscaped(finitePoints);
-      publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
+      publishSeries(escaped ? null : finitePoints.map((p) => p.x), 'Multi-loop Attractor');
       renderDensityCanvas(
         canvasRef.current,
         escaped ? [] : finitePoints,
@@ -448,10 +453,13 @@ const TinkerbellMapVisualization: React.FC = () => {
     if (visualizationType === 'attractor' && layout) {
       renderFixedPointMarkers(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'basin' && layout) {
+      publishSeries(null, 'Basin of Attraction');
       renderBasinOfAttraction(dataGroup, layout.plotWidth, layout.plotHeight, layout.offsetX, layout.offsetY);
     } else if (visualizationType === 'bifurcation') {
+      publishSeries(null, 'Bifurcation Diagram');
       renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'crisis') {
+      publishSeries(null, 'Crisis Behavior');
       crisisAxes = renderCrisisBehavior(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'return' && layout) {
       renderReturnMap(dataGroup, layout.xScale, layout.yScale);

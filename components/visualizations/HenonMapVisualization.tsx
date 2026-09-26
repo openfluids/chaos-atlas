@@ -222,7 +222,7 @@ const HenonMapVisualization: React.FC = () => {
       (p) => Number.isFinite(p.x) && Number.isFinite(p.y)
     );
     const escaped = isOrbitEscaped(finitePoints);
-    publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
+    publishSeries(escaped ? null : finitePoints.map((p) => p.x), 'Attractor');
     setOrbitEscaped(escaped);
 
     // Prefer the held union domain so axes/canvas stay fixed while a sweeps —

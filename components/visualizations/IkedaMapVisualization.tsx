@@ -118,6 +118,10 @@ const IkedaMapVisualization: React.FC = () => {
         isOrbitEscaped(finiteData);
       const safeData = escaped ? [] : finiteData;
       const displayData = isAnimating ? safeData.slice(0, animationStep) : safeData;
+      publishSeries(
+        displayData.length === 0 ? null : displayData.map((d) => d.x),
+        'Time Evolution',
+      );
 
       const xScale = d3.scaleLinear()
         .domain([0, iterations])
@@ -215,6 +219,10 @@ const IkedaMapVisualization: React.FC = () => {
         attractorPresentation.quality.kind === 'escaped' ||
         isOrbitEscaped(finiteData);
       const safeData = escaped ? [] : finiteData;
+      publishSeries(
+        safeData.length === 0 ? null : safeData.map((d) => d.x),
+        'Phase Portrait',
+      );
 
       // Create phase portrait with trajectory
       const line = d3.line<{time: number; x: number; y: number}>()
@@ -351,7 +359,7 @@ const IkedaMapVisualization: React.FC = () => {
       const escaped =
         attractorPresentation.quality.kind === 'escaped' ||
         isOrbitEscaped(finitePoints);
-      publishSeries(escaped ? [] : finitePoints.map((p) => p.x));
+      publishSeries(escaped ? null : finitePoints.map((p) => p.x), 'Attractor');
       renderDensityCanvas(
         canvasRef.current,
         escaped ? [] : finitePoints,
@@ -390,12 +398,15 @@ const IkedaMapVisualization: React.FC = () => {
     if (visualizationType === 'time') {
       renderTimeEvolution(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'bifurcation') {
+      publishSeries(null, 'Bifurcation Diagram');
       renderBifurcation(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'phase' && layout) {
       renderPhasePortrait(dataGroup, layout.xScale, layout.yScale);
     } else if (visualizationType === 'spectrum') {
+      publishSeries(null, 'Power Spectrum');
       renderPowerSpectrum(dataGroup, innerWidth, innerHeight);
     } else if (visualizationType === 'return' && layout) {
+      publishSeries(null, 'Return Map');
       renderReturnMap(dataGroup, layout.xScale, layout.yScale, layout.offsetY, layout.plotHeight);
     }
 

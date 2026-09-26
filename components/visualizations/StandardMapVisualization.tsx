@@ -92,7 +92,7 @@ const StandardMapVisualization: React.FC = () => {
         }
       }
     }
-    publishSeries(points.slice(0, iterations).map((p) => p.x));
+    publishSeries(null, 'Phase portrait');
 
     // θ and p both live on [0, 2π): the Chirikov standard map's KAM islands
     // are only recognizably round if that square domain is drawn at 1:1

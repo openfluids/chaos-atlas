@@ -4,8 +4,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   ComplexNumber,
   calculateComplexQuadraticMap,
-  calculateComplexQuadraticIteration,
-  DEFAULT_ESCAPE_RADIUS,
   calculateJuliaSet,
   getInterestingJuliaParameters,
   calculateFractalColor,
@@ -226,19 +224,10 @@ const ComplexMapVisualization: React.FC = () => {
         );
       }
 
-      const orbitC = visualizationType === 'julia'
-        ? currentJuliaC
-        : new ComplexNumber(
-            mandelbrotLocations[selectedMandelbrotLocation].x,
-            mandelbrotLocations[selectedMandelbrotLocation].y,
-          );
-      let z = new ComplexNumber(0, 0);
-      const orbitX: number[] = [];
-      for (let step = 0; step < maxIterations && z.magnitude() <= DEFAULT_ESCAPE_RADIUS; step++) {
-        orbitX.push(z.real);
-        z = calculateComplexQuadraticIteration(z, orbitC);
-      }
-      publishSeries(orbitX);
+      publishSeries(
+        null,
+        visualizationType === 'julia' ? 'Julia Set' : 'Mandelbrot Set',
+      );
 
       // Convert fractal data to pixel colors, coloring on the smooth
       // (normalised) iteration count rather than the raw integer count to

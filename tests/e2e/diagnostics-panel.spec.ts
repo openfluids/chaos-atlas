@@ -52,6 +52,39 @@ test('diagnostics panel is present on all 10 map pages', async ({ page }) => {
   }
 });
 
+test('logistic cobweb is too short for K', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/maps/logistic/');
+  await page.waitForLoadState('networkidle');
+  await expect(page.getByTestId('diagnostics-panel')).toBeVisible();
+  await expect(page.getByTestId('diagnostics-series')).toContainText('Cobweb Plot');
+  await expect(page.getByTestId('diagnostics-k')).toContainText(/series too short \(N = \d+\)/);
+});
+
+test('Ikeda power spectrum has no time series', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/maps/ikeda/');
+  await page.waitForLoadState('networkidle');
+  await page.locator('select:has(option[value="spectrum"])').selectOption('spectrum');
+  await expect(page.getByTestId('diagnostics-series')).toHaveText('no time series in this view', {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId('diagnostics-k')).toHaveText('—');
+  await expect(page.getByTestId('diagnostics-d2')).toHaveText('—');
+  await expect(page.getByTestId('diagnostics-pe')).toHaveText('—');
+});
+
+test('Duffing potential has no time series', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/maps/duffing/');
+  await page.waitForLoadState('networkidle');
+  await page.locator('select:has(option[value="potential"])').selectOption('potential');
+  await expect(page.getByTestId('diagnostics-series')).toHaveText('no time series in this view', {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId('diagnostics-k')).toHaveText('—');
+});
+
 test('logistic r=4 has K near 1 and r=3.2 has K near 0', async ({ page }) => {
   test.setTimeout(90_000);
   await page.goto('/maps/logistic/');

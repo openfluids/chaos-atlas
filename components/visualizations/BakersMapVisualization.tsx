@@ -63,7 +63,7 @@ const BakersMapVisualization: React.FC = () => {
       yScale: d3.ScaleLinear<number, number>
     ) => {
       const data = calculateBakersMap({ x: initialX, y: initialY }, iterations);
-      publishSeries(data.map((p) => p.x));
+      publishSeries(data.map((p) => p.x), 'Single Trajectory');
 
       const line = d3.line<Pt>()
         .x((d) => xScale(d.x))
@@ -100,6 +100,7 @@ const BakersMapVisualization: React.FC = () => {
       xScale: d3.ScaleLinear<number, number>,
       yScale: d3.ScaleLinear<number, number>
     ) => {
+      publishSeries(null, 'Mixing Behavior');
       const trajectories = calculateBakersMixing(mixingPoints, iterations);
       const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
       const line = d3.line<Pt>()
@@ -150,6 +151,7 @@ const BakersMapVisualization: React.FC = () => {
       plotWidth: number,
       plotHeight: number
     ) => {
+      publishSeries(null, 'Image Scrambling');
       const frames = calculateBakersImageScrambling(16, 16, 10);
       const currentFrame = frames[animationStep];
       const cells: {
@@ -197,6 +199,7 @@ const BakersMapVisualization: React.FC = () => {
       offsetX: number,
       offsetY: number
     ) => {
+      publishSeries(null, 'Invariant Measure');
       const data = calculateBakersInvariantMeasure(5000, 20);
       const binWidth = plotWidth / 20;
       const binHeight = plotHeight / 20;
@@ -235,6 +238,7 @@ const BakersMapVisualization: React.FC = () => {
       offsetX: number,
       offsetY: number
     ) => {
+      publishSeries(null, 'Phase Space Partition');
       const { grid } = calculateBakersPhaseSpacePartition(16);
       const binWidth = plotWidth / 16;
       const binHeight = plotHeight / 16;
@@ -283,6 +287,7 @@ const BakersMapVisualization: React.FC = () => {
     ) => {
       const symbols = calculateBakersSymbolicDynamics({ x: initialX, y: initialY }, 50);
       const data = calculateBakersMap({ x: initialX, y: initialY }, 50);
+      publishSeries(data.map((p) => p.x), 'Symbolic Dynamics');
 
       const line = d3.line<Pt>()
         .x((d) => xScale(d.x))

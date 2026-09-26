@@ -142,7 +142,7 @@ const LogisticMapVisualization: React.FC = () => {
         cobwebPoints.push({ x, y });
         x = y;
       }
-      publishSeries(cobwebPoints.map((p) => p.x));
+      publishSeries(cobwebPoints.map((p) => p.x), 'Cobweb Plot');
 
       // Each cobweb step = vertical then horizontal segment.
       type Seg = { x1: number; y1: number; x2: number; y2: number };
@@ -194,7 +194,7 @@ const LogisticMapVisualization: React.FC = () => {
         timeSeriesPoints.push({ i, x });
         x = logistic(x);
       }
-      publishSeries(timeSeriesPoints.map((p) => p.x));
+      publishSeries(timeSeriesPoints.map((p) => p.x), 'Time Series');
 
       const line = d3.line<{ i: number; x: number }>()
         .x((d) => xs(d.i))
@@ -260,16 +260,7 @@ const LogisticMapVisualization: React.FC = () => {
         }
       );
 
-      let bestR = r;
-      let bestDist = Infinity;
-      for (const point of bifurcationPoints) {
-        const dist = Math.abs(point.r - r);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestR = point.r;
-        }
-      }
-      publishSeries(bifurcationPoints.filter((point) => point.r === bestR).map((point) => point.x));
+      publishSeries(null, 'Bifurcation Diagram');
 
       upsertMark<SVGLineElement>(parent, 'line', 'current-r')
         .attr('x1', xs(r))

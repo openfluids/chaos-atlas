@@ -66,7 +66,7 @@ const ArnoldMapVisualization: React.FC = () => {
       yScale: d3.ScaleLinear<number, number>
     ) => {
       const data = calculateArnoldMap({ x: initialX, y: initialY }, iterations);
-      publishSeries(data.map((p) => p.x));
+      publishSeries(data.map((p) => p.x), 'Trajectory');
 
       const line = d3.line<Pt>()
         .x((d) => xScale(d.x))
@@ -105,6 +105,7 @@ const ArnoldMapVisualization: React.FC = () => {
       offsetX: number,
       offsetY: number
     ) => {
+      publishSeries(null, 'Grid Transformation');
       const data = calculateArnoldGridTransform(
         gridSize,
         isAnimating ? animationStep + 1 : gridIterations
@@ -148,6 +149,7 @@ const ArnoldMapVisualization: React.FC = () => {
       plotWidth: number,
       plotHeight: number
     ) => {
+      publishSeries(null, 'Image Scrambling');
       const frames = calculateArnoldImageScrambling(24, 24, 12);
       const currentFrame = frames[animationStep];
       const cells: {
@@ -193,6 +195,7 @@ const ArnoldMapVisualization: React.FC = () => {
       xScale: d3.ScaleLinear<number, number>,
       yScale: d3.ScaleLinear<number, number>
     ) => {
+      publishSeries(null, 'Periodic Orbits');
       const orbits = calculateArnoldPeriodicOrbits(5);
       const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
@@ -274,6 +277,7 @@ const ArnoldMapVisualization: React.FC = () => {
       innerWidth: number,
       innerHeight: number
     ) => {
+      publishSeries(null, 'Fibonacci Relation');
       const data = calculateArnoldFibonacciRelation(15);
       const { lambda1 } = calculateArnoldEigenvalues();
 
@@ -342,6 +346,7 @@ const ArnoldMapVisualization: React.FC = () => {
       innerWidth: number,
       innerHeight: number
     ) => {
+      publishSeries(null, 'Matrix Properties');
       const { trace, determinant } = calculateArnoldMatrixProperties();
       const { lambda1, lambda2 } = calculateArnoldEigenvalues();
 

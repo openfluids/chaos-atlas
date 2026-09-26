@@ -11,5 +11,6 @@ export {
   medianKFromZeroOne,
   permutationEntropyFromOrdinal,
 } from './measures';
+export { MIN_N_D2, MIN_N_K, MIN_N_PE } from './minN';
 export { diagnosticsWorkerUrl } from './workerUrl';
 export type { CorrelationLayout } from './measures';
