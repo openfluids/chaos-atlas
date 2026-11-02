@@ -20,6 +20,11 @@ self.onmessage = async (event) => {
   const measure = msg.measure;
   try {
     await ready;
+    // Let the event loop deliver the completed wasm fetch before the kernel
+    // blocks this thread. Otherwise the response stays pending until the
+    // kernel returns (~6 s for the drawn series), and a page-level
+    // waitForLoadState('networkidle') waits for the computation.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const series = new Float64Array(msg.series ?? []);
     let values;
     if (measure === 'd2') {
