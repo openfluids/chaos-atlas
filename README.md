@@ -158,7 +158,7 @@ for how we work together.
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Copyright 2026 Ricardo A S Frantz.
+Copyright 2026 Ricardo Frantz.
 
 Releases up to and including v0.1.0 were documented in this README as MIT-licensed;
 that grant is not withdrawn for code obtained under it. Apache-2.0 applies from v0.1.0 onward.

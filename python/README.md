@@ -79,7 +79,7 @@ uv run pytest
 
 ## License
 
-Apache-2.0. Copyright 2026 Ricardo A S Frantz.
+Apache-2.0. Copyright 2026 Ricardo Frantz.
 
 ## Disclaimer
 
